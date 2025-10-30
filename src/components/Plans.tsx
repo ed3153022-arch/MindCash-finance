@@ -108,7 +108,7 @@ export function Plans({ user, setCurrentView, showPlanConfirmationModal, startFr
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900">
       {/* Header */}
-      <header className="bg-slate-800/50 border-b border-slate-700 p-4">
+      <header className="bg-slate-800/50 border-b border-slate-700 py-6 px-4 sm:px-6 lg:px-8">
         <div className="max-w-7xl mx-auto flex items-center justify-between">
           <div className="flex items-center space-x-4">
             <div className="bg-gradient-to-r from-yellow-400 to-yellow-600 p-2 rounded-xl">
@@ -151,7 +151,7 @@ export function Plans({ user, setCurrentView, showPlanConfirmationModal, startFr
         </div>
       </header>
 
-      <div className="max-w-7xl mx-auto p-4 space-y-6">
+      <div className="max-w-7xl mx-auto py-8 px-4 sm:px-6 lg:px-8 space-y-8">
         <div className="text-center space-y-4">
           <div className="flex items-center justify-center gap-3 mb-6">
             <Sparkles className="h-8 w-8 text-yellow-400" />
@@ -168,7 +168,7 @@ export function Plans({ user, setCurrentView, showPlanConfirmationModal, startFr
         {/* Trial Alert - Contador de dias restantes */}
         {user.plan === 'trial' && trialInfo && trialInfo.remainingDays > 0 && (
           <Card className="bg-gradient-to-r from-yellow-500/10 to-orange-500/10 border-yellow-500/20 mb-8">
-            <CardContent className="p-6">
+            <CardContent className="p-8">
               <div className="flex items-center justify-between">
                 <div className="flex items-center space-x-4">
                   <div className="bg-yellow-500/20 p-3 rounded-full">
@@ -205,7 +205,7 @@ export function Plans({ user, setCurrentView, showPlanConfirmationModal, startFr
               </Badge>
             </div>
             
-            <CardHeader className="text-center pt-8">
+            <CardHeader className="text-center pt-8 px-8">
               <div className="mx-auto p-4 rounded-full bg-gradient-to-r from-yellow-400 to-yellow-600 w-fit mb-4">
                 <Crown className="h-8 w-8 text-slate-900" />
               </div>
@@ -221,7 +221,7 @@ export function Plans({ user, setCurrentView, showPlanConfirmationModal, startFr
               </p>
             </CardHeader>
             
-            <CardContent className="space-y-8">
+            <CardContent className="space-y-8 px-8 pb-8">
               {/* Features Grid */}
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                 {mindCashPlusFeatures.map((feature, index) => (
@@ -256,7 +256,7 @@ export function Plans({ user, setCurrentView, showPlanConfirmationModal, startFr
         {/* Benefits Section */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-8 mt-16">
           <Card className="bg-slate-800/50 border-slate-700 text-center">
-            <CardContent className="p-6">
+            <CardContent className="p-8">
               <div className="p-4 bg-yellow-400/20 rounded-full w-16 h-16 mx-auto mb-4 flex items-center justify-center">
                 <Zap className="h-8 w-8 text-yellow-400" />
               </div>
@@ -268,7 +268,7 @@ export function Plans({ user, setCurrentView, showPlanConfirmationModal, startFr
           </Card>
           
           <Card className="bg-slate-800/50 border-slate-700 text-center">
-            <CardContent className="p-6">
+            <CardContent className="p-8">
               <div className="p-4 bg-yellow-400/20 rounded-full w-16 h-16 mx-auto mb-4 flex items-center justify-center">
                 <Brain className="h-8 w-8 text-yellow-400" />
               </div>
@@ -280,7 +280,7 @@ export function Plans({ user, setCurrentView, showPlanConfirmationModal, startFr
           </Card>
           
           <Card className="bg-slate-800/50 border-slate-700 text-center">
-            <CardContent className="p-6">
+            <CardContent className="p-8">
               <div className="p-4 bg-yellow-400/20 rounded-full w-16 h-16 mx-auto mb-4 flex items-center justify-center">
                 <Shield className="h-8 w-8 text-yellow-400" />
               </div>

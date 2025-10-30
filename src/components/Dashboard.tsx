@@ -1140,7 +1140,7 @@ export function Dashboard({
   const renderCurrentView = () => {
     if (currentReportView === 'reports') {
       return (
-        <div className="space-y-6">
+        <div className="space-y-8">
           {/* Header dos Relatórios - igual ao Dashboard */}
           <div className="flex items-center justify-between">
             <h2 className="text-2xl font-bold text-white">Relatórios Financeiros</h2>
@@ -1160,7 +1160,7 @@ export function Dashboard({
           </div>
 
           {/* Conteúdo dos Relatórios */}
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
             <Card className="bg-slate-800/50 border-slate-700">
               <CardHeader>
                 <CardTitle className="text-white">Resumo Financeiro</CardTitle>
@@ -1229,7 +1229,7 @@ export function Dashboard({
 
     // Dashboard padrão
     return (
-      <div className="space-y-6">
+      <div className="space-y-8">
         {/* Active Feature Demo */}
         {activeFeature && (
           <div className="space-y-4">
@@ -1252,7 +1252,7 @@ export function Dashboard({
         {/* Trial Alert - Contador de dias restantes */}
         {user.plan === 'trial' && trialDaysRemaining > 0 && (
           <Card className="bg-gradient-to-r from-yellow-500/10 to-orange-500/10 border-yellow-500/20">
-            <CardContent className="p-4">
+            <CardContent className="p-6">
               <div className="flex items-center space-x-3">
                 <Clock className="h-5 w-5 text-yellow-400" />
                 <div className="flex-1">
@@ -1278,7 +1278,7 @@ export function Dashboard({
         {/* Spending Alert */}
         {showAlert && (
           <Card className="bg-red-500/10 border-red-500/20">
-            <CardContent className="p-4">
+            <CardContent className="p-6">
               <div className="flex items-center space-x-3">
                 <AlertTriangle className="h-5 w-5 text-red-400" />
                 <div>
@@ -1311,9 +1311,9 @@ export function Dashboard({
         </div>
 
         {/* Summary Cards */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-8">
           <Card className="bg-slate-800/50 border-slate-700">
-            <CardContent className="p-6">
+            <CardContent className="p-8">
               <div className="flex items-center justify-between">
                 <div>
                   <p className="text-slate-400 text-sm">Receitas</p>
@@ -1327,7 +1327,7 @@ export function Dashboard({
           </Card>
 
           <Card className="bg-slate-800/50 border-slate-700">
-            <CardContent className="p-6">
+            <CardContent className="p-8">
               <div className="flex items-center justify-between">
                 <div>
                   <p className="text-slate-400 text-sm">Despesas</p>
@@ -1341,7 +1341,7 @@ export function Dashboard({
           </Card>
 
           <Card className="bg-slate-800/50 border-slate-700">
-            <CardContent className="p-6">
+            <CardContent className="p-8">
               <div className="flex items-center justify-between">
                 <div>
                   <p className="text-slate-400 text-sm">Saldo</p>
@@ -1355,7 +1355,7 @@ export function Dashboard({
           </Card>
 
           <Card className="bg-slate-800/50 border-slate-700">
-            <CardContent className="p-6">
+            <CardContent className="p-8">
               <div className="flex items-center justify-between">
                 <div>
                   <p className="text-slate-400 text-sm">Meta Mensal</p>
@@ -1373,7 +1373,7 @@ export function Dashboard({
         {/* Metas Personalizadas */}
         {goals.length > 0 && (
           <Card className="bg-slate-800/50 border-slate-700">
-            <CardHeader>
+            <CardHeader className="px-8 pt-8 pb-6">
               <CardTitle className="text-white flex items-center">
                 <Target className="h-5 w-5 mr-2 text-yellow-400" />
                 Metas Personalizadas
@@ -1382,12 +1382,12 @@ export function Dashboard({
                 </Badge>
               </CardTitle>
             </CardHeader>
-            <CardContent>
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+            <CardContent className="px-8 pb-8">
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                 {goals.map(goal => {
                   const progress = (goal.currentAmount / goal.targetAmount) * 100;
                   return (
-                    <div key={goal.id} className="bg-slate-700/30 p-4 rounded-lg">
+                    <div key={goal.id} className="bg-slate-700/30 p-6 rounded-lg">
                       <div className="flex justify-between items-start mb-2">
                         <h4 className="text-white font-medium">{goal.name}</h4>
                         <Badge variant="outline" className="text-xs">
@@ -1418,11 +1418,11 @@ export function Dashboard({
         )}
 
         {/* Main Content */}
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
           {/* Transactions */}
           <div className="lg:col-span-2">
             <Card className="bg-slate-800/50 border-slate-700">
-              <CardHeader className="flex flex-row items-center justify-between">
+              <CardHeader className="flex flex-row items-center justify-between px-8 pt-8 pb-6">
                 <div>
                   <CardTitle className="text-white">Transações Recentes</CardTitle>
                   <CardDescription className="text-slate-400">
@@ -1444,11 +1444,11 @@ export function Dashboard({
                   Adicionar
                 </Button>
               </CardHeader>
-              <CardContent>
+              <CardContent className="px-8 pb-8">
                 {showAddTransaction && (
-                  <Card className="mb-6 bg-slate-700/50 border-slate-600">
-                    <CardContent className="p-4">
-                      <form onSubmit={handleAddTransaction} className="space-y-4">
+                  <Card className="mb-8 bg-slate-700/50 border-slate-600">
+                    <CardContent className="p-6">
+                      <form onSubmit={handleAddTransaction} className="space-y-6">
                         <Tabs value={transactionType} onValueChange={(value: 'income' | 'expense') => setTransactionType(value)}>
                           <TabsList className="grid w-full grid-cols-2 bg-slate-600">
                             <TabsTrigger value="expense" className="data-[state=active]:bg-red-500">Despesa</TabsTrigger>
@@ -1456,7 +1456,7 @@ export function Dashboard({
                           </TabsList>
                         </Tabs>
 
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                           <div>
                             <Label className="text-white">Valor</Label>
                             <Input
@@ -1534,14 +1534,14 @@ export function Dashboard({
                   </Card>
                 )}
 
-                <div className="space-y-3 max-h-96 overflow-y-auto">
+                <div className="space-y-4 max-h-96 overflow-y-auto">
                   {filteredTransactions.length === 0 ? (
                     <p className="text-slate-400 text-center py-8">
                       Nenhuma transação encontrada para este período
                     </p>
                   ) : (
                     filteredTransactions.map((transaction) => (
-                      <div key={transaction.id} className="flex items-center justify-between p-3 bg-slate-700/30 rounded-lg">
+                      <div key={transaction.id} className="flex items-center justify-between p-4 bg-slate-700/30 rounded-lg">
                         <div className="flex items-center space-x-3">
                           <div className={`p-2 rounded-full ${transaction.type === 'income' ? 'bg-green-500/20' : 'bg-red-500/20'}`}>
                             {transaction.type === 'income' ? (
@@ -1581,13 +1581,13 @@ export function Dashboard({
           {/* Categories */}
           <div>
             <Card className="bg-slate-800/50 border-slate-700">
-              <CardHeader>
+              <CardHeader className="px-8 pt-8 pb-6">
                 <CardTitle className="text-white flex items-center">
                   <PieChart className="h-5 w-5 mr-2" />
                   Gastos por Categoria
                 </CardTitle>
               </CardHeader>
-              <CardContent>
+              <CardContent className="px-8 pb-8">
                 <div className="space-y-4">
                   {categoryData.length === 0 ? (
                     <p className="text-slate-400 text-center py-4">
@@ -1631,7 +1631,7 @@ export function Dashboard({
   // Tela de bloqueio quando o teste expira
   if (isTrialExpiredCheck) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 flex items-center justify-center p-4">
+      <div className="min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 flex items-center justify-center p-6">
         <Card className="bg-slate-800/50 border-slate-700 max-w-md w-full">
           <CardContent className="p-8 text-center space-y-6">
             <div className="bg-yellow-500/20 p-4 rounded-full w-16 h-16 mx-auto flex items-center justify-center">
@@ -1678,7 +1678,7 @@ export function Dashboard({
       <div className={`fixed top-0 left-0 h-full w-80 bg-slate-800/95 backdrop-blur-sm border-r border-slate-700 z-50 transform transition-transform duration-300 ease-in-out ${
         sideMenuOpen ? 'translate-x-0' : '-translate-x-full'
       }`}>
-        <div className="p-4 border-b border-slate-700">
+        <div className="p-6 border-b border-slate-700">
           <div className="flex items-center justify-between">
             <div className="flex items-center space-x-3">
               <div className="bg-gradient-to-r from-yellow-400 to-yellow-600 p-2 rounded-xl">
@@ -1700,11 +1700,11 @@ export function Dashboard({
           </div>
         </div>
 
-        <div className="p-4 space-y-6 overflow-y-auto h-full pb-20">
+        <div className="p-6 space-y-8 overflow-y-auto h-full pb-20">
           {/* Funcionalidades principais */}
           <div>
-            <h3 className="text-slate-400 text-sm font-medium mb-3 px-2">Principais</h3>
-            <div className="space-y-1">
+            <h3 className="text-slate-400 text-sm font-medium mb-4 px-2">Principais</h3>
+            <div className="space-y-2">
               <Button 
                 variant="ghost" 
                 size="sm" 
@@ -1730,8 +1730,8 @@ export function Dashboard({
 
           {/* Funcionalidades de automação */}
           <div>
-            <h3 className="text-slate-400 text-sm font-medium mb-3 px-2">Automação</h3>
-            <div className="space-y-1">
+            <h3 className="text-slate-400 text-sm font-medium mb-4 px-2">Automação</h3>
+            <div className="space-y-2">
               <Button 
                 variant="ghost" 
                 size="sm" 
@@ -1757,8 +1757,8 @@ export function Dashboard({
 
           {/* Funcionalidades de análise */}
           <div>
-            <h3 className="text-slate-400 text-sm font-medium mb-3 px-2">Análise</h3>
-            <div className="space-y-1">
+            <h3 className="text-slate-400 text-sm font-medium mb-4 px-2">Análise</h3>
+            <div className="space-y-2">
               <Button 
                 variant="ghost" 
                 size="sm" 
@@ -1784,8 +1784,8 @@ export function Dashboard({
 
           {/* Outras funcionalidades */}
           <div>
-            <h3 className="text-slate-400 text-sm font-medium mb-3 px-2">Ferramentas</h3>
-            <div className="space-y-1">
+            <h3 className="text-slate-400 text-sm font-medium mb-4 px-2">Ferramentas</h3>
+            <div className="space-y-2">
               <Button 
                 variant="ghost" 
                 size="sm" 
@@ -1810,9 +1810,9 @@ export function Dashboard({
           </div>
 
           {/* Menu de navegação */}
-          <div className="border-t border-slate-700 pt-4">
-            <h3 className="text-slate-400 text-sm font-medium mb-3 px-2">Navegação</h3>
-            <div className="space-y-1">
+          <div className="border-t border-slate-700 pt-6">
+            <h3 className="text-slate-400 text-sm font-medium mb-4 px-2">Navegação</h3>
+            <div className="space-y-2">
               <Button 
                 variant="ghost" 
                 size="sm" 
@@ -1846,7 +1846,7 @@ export function Dashboard({
       </div>
 
       {/* Header */}
-      <header className="bg-slate-800/50 border-b border-slate-700 p-4">
+      <header className="bg-slate-800/50 border-b border-slate-700 py-6 px-4 sm:px-6 lg:px-8">
         <div className="max-w-7xl mx-auto flex items-center justify-between">
           <div className="flex items-center space-x-4">
             {/* Botão de Menu - SEMPRE VISÍVEL */}
@@ -1898,7 +1898,7 @@ export function Dashboard({
         </div>
       </header>
 
-      <div className="max-w-7xl mx-auto p-4">
+      <div className="max-w-7xl mx-auto py-8 px-4 sm:px-6 lg:px-8">
         {renderCurrentView()}
 
         {/* Dialogs para as funcionalidades */}

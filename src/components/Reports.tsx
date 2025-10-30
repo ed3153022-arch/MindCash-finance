@@ -14,7 +14,7 @@ import {
   TrendingDown,
   PieChart,
   Calendar,
-  Download
+  Menu
 } from 'lucide-react';
 import { Transaction, User, Period } from '@/lib/types';
 import { formatCurrency, formatDate, filterTransactionsByPeriod, calculateFinancialSummary, getCategoryData } from '@/lib/utils';
@@ -63,7 +63,7 @@ export function Reports({
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900">
       {/* Header */}
-      <header className="bg-slate-800/50 border-b border-slate-700 p-4">
+      <header className="bg-slate-800/50 border-b border-slate-700 py-6 px-4 sm:px-6 lg:px-8">
         <div className="max-w-7xl mx-auto flex items-center justify-between">
           <div className="flex items-center space-x-4">
             <div className="bg-gradient-to-r from-yellow-400 to-yellow-600 p-2 rounded-xl">
@@ -106,21 +106,18 @@ export function Reports({
         </div>
       </header>
 
-      <div className="max-w-7xl mx-auto p-4 space-y-6">
+      <div className="max-w-7xl mx-auto py-8 px-4 sm:px-6 lg:px-8 space-y-8">
         <div className="flex items-center justify-between">
           <h2 className="text-2xl font-bold text-white">Relatórios Financeiros</h2>
           <div className="flex items-center space-x-2">
-            <Button variant="outline" className="border-slate-600 text-slate-300 hover:bg-slate-700">
-              <Download className="h-4 w-4 mr-2" />
-              Exportar
-            </Button>
+            <Calendar className="h-4 w-4 text-slate-400" />
           </div>
         </div>
 
         {/* Summary Cards */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-8">
           <Card className="bg-slate-800/50 border-slate-700">
-            <CardContent className="p-6">
+            <CardContent className="p-8">
               <div className="flex items-center justify-between">
                 <div>
                   <p className="text-slate-400 text-sm">Total de Receitas</p>
@@ -134,7 +131,7 @@ export function Reports({
           </Card>
 
           <Card className="bg-slate-800/50 border-slate-700">
-            <CardContent className="p-6">
+            <CardContent className="p-8">
               <div className="flex items-center justify-between">
                 <div>
                   <p className="text-slate-400 text-sm">Total de Despesas</p>
@@ -148,7 +145,7 @@ export function Reports({
           </Card>
 
           <Card className="bg-slate-800/50 border-slate-700">
-            <CardContent className="p-6">
+            <CardContent className="p-8">
               <div className="flex items-center justify-between">
                 <div>
                   <p className="text-slate-400 text-sm">Saldo Final</p>
@@ -162,7 +159,7 @@ export function Reports({
           </Card>
 
           <Card className="bg-slate-800/50 border-slate-700">
-            <CardContent className="p-6">
+            <CardContent className="p-8">
               <div className="flex items-center justify-between">
                 <div>
                   <p className="text-slate-400 text-sm">Transações</p>
@@ -177,10 +174,10 @@ export function Reports({
         </div>
 
         {/* Charts and Analysis */}
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
           {/* Category Breakdown */}
           <Card className="bg-slate-800/50 border-slate-700">
-            <CardHeader>
+            <CardHeader className="px-8 pt-8 pb-6">
               <CardTitle className="text-white flex items-center">
                 <PieChart className="h-5 w-5 mr-2" />
                 Análise por Categoria
@@ -189,7 +186,7 @@ export function Reports({
                 Distribuição dos seus gastos
               </CardDescription>
             </CardHeader>
-            <CardContent>
+            <CardContent className="px-8 pb-8">
               <div className="space-y-4">
                 {categoryData.length === 0 ? (
                   <p className="text-slate-400 text-center py-8">
@@ -227,21 +224,21 @@ export function Reports({
 
           {/* Transaction History */}
           <Card className="bg-slate-800/50 border-slate-700">
-            <CardHeader>
+            <CardHeader className="px-8 pt-8 pb-6">
               <CardTitle className="text-white">Histórico Detalhado</CardTitle>
               <CardDescription className="text-slate-400">
                 Últimas transações do período
               </CardDescription>
             </CardHeader>
-            <CardContent>
-              <div className="space-y-3 max-h-96 overflow-y-auto">
+            <CardContent className="px-8 pb-8">
+              <div className="space-y-4 max-h-96 overflow-y-auto">
                 {filteredTransactions.length === 0 ? (
                   <p className="text-slate-400 text-center py-8">
                     Nenhuma transação encontrada
                   </p>
                 ) : (
                   filteredTransactions.slice(0, 10).map((transaction) => (
-                    <div key={transaction.id} className="flex items-center justify-between p-3 bg-slate-700/30 rounded-lg">
+                    <div key={transaction.id} className="flex items-center justify-between p-4 bg-slate-700/30 rounded-lg">
                       <div className="flex items-center space-x-3">
                         <div className={`p-2 rounded-full ${transaction.type === 'income' ? 'bg-green-500/20' : 'bg-red-500/20'}`}>
                           {transaction.type === 'income' ? (
@@ -270,15 +267,15 @@ export function Reports({
 
         {/* Insights */}
         <Card className="bg-slate-800/50 border-slate-700">
-          <CardHeader>
+          <CardHeader className="px-8 pt-8 pb-6">
             <CardTitle className="text-white">Insights Financeiros</CardTitle>
             <CardDescription className="text-slate-400">
               Análise automática dos seus dados
             </CardDescription>
           </CardHeader>
-          <CardContent>
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-              <div className="p-4 bg-blue-500/10 border border-blue-500/20 rounded-lg">
+          <CardContent className="px-8 pb-8">
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+              <div className="p-6 bg-blue-500/10 border border-blue-500/20 rounded-lg">
                 <h4 className="text-blue-300 font-semibold mb-2">Categoria Dominante</h4>
                 <p className="text-white">
                   {categoryData.length > 0 ? categoryData[0].name : 'N/A'}
@@ -288,7 +285,7 @@ export function Reports({
                 </p>
               </div>
 
-              <div className="p-4 bg-green-500/10 border border-green-500/20 rounded-lg">
+              <div className="p-6 bg-green-500/10 border border-green-500/20 rounded-lg">
                 <h4 className="text-green-300 font-semibold mb-2">Economia Mensal</h4>
                 <p className="text-white">
                   {formatCurrency(Math.max(0, summary.balance))}
@@ -298,7 +295,7 @@ export function Reports({
                 </p>
               </div>
 
-              <div className="p-4 bg-yellow-500/10 border border-yellow-500/20 rounded-lg">
+              <div className="p-6 bg-yellow-500/10 border border-yellow-500/20 rounded-lg">
                 <h4 className="text-yellow-300 font-semibold mb-2">Meta de Economia</h4>
                 <p className="text-white">
                   {summary.monthlyGoalProgress.toFixed(0)}%

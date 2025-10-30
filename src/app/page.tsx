@@ -45,7 +45,7 @@ export default function HomePage() {
 
   return (
     <PageTransition>
-      <div className="min-h-screen">
+      <div className="min-h-screen px-4 sm:px-6 lg:px-8">
         {renderCurrentView()}
         
         {showPlanConfirmation.show && (
