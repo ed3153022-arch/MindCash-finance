@@ -150,15 +150,6 @@ export function LoginForm({ login, setCurrentView }: LoginFormProps) {
               </p>
             </div>
 
-            {/* Credenciais de demonstração */}
-            <div className="mt-6 p-4 bg-blue-500/10 border border-blue-500/20 rounded-lg">
-              <p className="text-blue-400 text-sm font-medium mb-2">Credenciais para teste:</p>
-              <div className="text-xs text-slate-400 space-y-1">
-                <p>• admin@mindcash.com / 123456</p>
-                <p>• usuario@teste.com / senha123</p>
-                <p>• demo@mindcash.com / demo123</p>
-              </div>
-            </div>
           </CardContent>
         </Card>
       </div>
