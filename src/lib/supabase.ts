@@ -4,46 +4,68 @@ import { createClient } from '@supabase/supabase-js';
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || '';
 const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || '';
 
-// Validate environment variables
-if (!supabaseUrl || !supabaseAnonKey) {
-  console.error('❌ Missing Supabase environment variables');
-  console.error('URL:', supabaseUrl ? '✅ Present' : '❌ Missing NEXT_PUBLIC_SUPABASE_URL');
-  console.error('Key:', supabaseAnonKey ? '✅ Present' : '❌ Missing NEXT_PUBLIC_SUPABASE_ANON_KEY');
-  
-  // Throw error to prevent app from running with invalid config
-  if (typeof window !== 'undefined') {
-    throw new Error('Supabase configuration is missing. Please check your environment variables.');
-  }
-}
+// Check if we're in a valid environment for Supabase
+const isSupabaseConfigured = supabaseUrl && supabaseAnonKey && 
+  supabaseUrl.startsWith('https://') && 
+  supabaseAnonKey.length > 20;
 
-// Create Supabase client with proper configuration
-export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
+// Mock client for when Supabase is not configured
+const createMockClient = () => ({
   auth: {
-    autoRefreshToken: true,
-    persistSession: true,
-    detectSessionInUrl: true,
-    flowType: 'pkce',
-    storage: typeof window !== 'undefined' ? window.localStorage : undefined,
-    storageKey: 'supabase.auth.token',
-    debug: process.env.NODE_ENV === 'development'
+    signUp: async () => ({ data: null, error: { message: 'Supabase not configured' } }),
+    signInWithPassword: async () => ({ data: null, error: { message: 'Supabase not configured' } }),
+    signOut: async () => ({ error: null }),
+    getUser: async () => ({ data: { user: null }, error: null }),
+    getSession: async () => ({ data: { session: null }, error: null }),
+    onAuthStateChange: (callback: any) => {
+      // Call callback immediately with null user
+      setTimeout(() => callback('SIGNED_OUT', null), 0);
+      return { 
+        data: { 
+          subscription: { 
+            unsubscribe: () => {} 
+          } 
+        } 
+      };
+    },
+    resetPasswordForEmail: async () => ({ error: { message: 'Supabase not configured' } }),
+    updateUser: async () => ({ error: { message: 'Supabase not configured' } })
   },
-  global: {
-    headers: {
-      'X-Client-Info': 'supabase-js-web'
-    }
-  },
-  db: {
-    schema: 'public'
-  },
-  realtime: {
-    params: {
-      eventsPerSecond: 10
-    }
-  }
+  from: () => ({
+    select: () => ({
+      limit: () => Promise.resolve({ data: null, error: { message: 'Supabase not configured' } })
+    })
+  })
 });
+
+// Create Supabase client with correct auth configuration
+export const supabase = isSupabaseConfigured 
+  ? createClient(supabaseUrl, supabaseAnonKey, {
+      auth: {
+        // Configurações corretas para persistência de sessão
+        autoRefreshToken: true,
+        persistSession: true,
+        detectSessionInUrl: true,
+        flowType: 'pkce', // Correto para aplicações web
+        storage: typeof window !== 'undefined' ? window.localStorage : undefined,
+        storageKey: 'mindcash_user_session', // Chave específica para o app
+        debug: false
+      },
+      global: {
+        headers: {
+          'X-Client-Info': 'mindcash-web-app'
+        }
+      }
+    })
+  : createMockClient();
 
 // Test connection function
 export const testSupabaseConnection = async () => {
+  if (!isSupabaseConfigured) {
+    console.warn('⚠️ Supabase not configured - using mock client');
+    return false;
+  }
+
   try {
     const { data, error } = await supabase.from('profiles').select('count').limit(1);
     if (error) {
@@ -57,6 +79,9 @@ export const testSupabaseConnection = async () => {
     return false;
   }
 };
+
+// Check if Supabase is properly configured
+export const isSupabaseReady = () => isSupabaseConfigured;
 
 // Database types
 export type Database = {

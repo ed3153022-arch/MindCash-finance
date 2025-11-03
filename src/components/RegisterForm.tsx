@@ -8,7 +8,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Eye, EyeOff, DollarSign, Gift, AlertCircle } from 'lucide-react';
 
 interface RegisterFormProps {
-  register: (name: string, email: string, password: string) => void;
+  register: (name: string, email: string, password: string) => Promise<{ success: boolean; error?: string }>;
   setCurrentView: (view: 'login' | 'register') => void;
 }
 
@@ -38,16 +38,17 @@ export function RegisterForm({ register, setCurrentView }: RegisterFormProps) {
     
     setIsLoading(true);
     
-    // Simulate API call
-    await new Promise(resolve => setTimeout(resolve, 1000));
-    
     try {
-      register(name, email, password);
-    } catch (error) {
-      setErrorMessage('Erro ao criar conta. Tente novamente.');
+      const result = await register(name, email, password);
+      
+      if (!result.success && result.error) {
+        setErrorMessage(result.error);
+      }
+    } catch (error: any) {
+      setErrorMessage(error.message || 'Erro ao criar conta. Tente novamente.');
+    } finally {
+      setIsLoading(false);
     }
-    
-    setIsLoading(false);
   };
 
   return (

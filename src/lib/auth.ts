@@ -1,4 +1,5 @@
-import { supabase, testSupabaseConnection } from './supabase';
+import { supabase, testSupabaseConnection, isSupabaseReady } from './supabase';
+import { LocalAuthService } from './local-auth';
 import { User, ApiResponse } from '@/types';
 
 export interface SignUpData {
@@ -21,18 +22,9 @@ export interface UpdatePasswordData {
 }
 
 export class AuthService {
-  // Test connection before operations
-  private static async ensureConnection(): Promise<boolean> {
-    try {
-      const isConnected = await testSupabaseConnection();
-      if (!isConnected) {
-        throw new Error('Unable to connect to authentication service');
-      }
-      return true;
-    } catch (error) {
-      console.error('Connection test failed:', error);
-      return false;
-    }
+  // Verificar se deve usar Supabase ou sistema local
+  private static shouldUseSupabase(): boolean {
+    return isSupabaseReady();
   }
 
   // Sign up with email and password
@@ -40,17 +32,14 @@ export class AuthService {
     try {
       console.log('🔄 Attempting to sign up user:', email);
       
-      // Test connection first
-      const connected = await this.ensureConnection();
-      if (!connected) {
-        return {
-          success: false,
-          error: 'Unable to connect to authentication service. Please check your internet connection.',
-        };
+      // Usar sistema local se Supabase não estiver configurado
+      if (!this.shouldUseSupabase()) {
+        console.log('📱 Using local authentication system');
+        return await LocalAuthService.signUp(email, password, fullName);
       }
       
       const { data, error } = await supabase.auth.signUp({
-        email,
+        email: email.trim().toLowerCase(),
         password,
         options: {
           data: {
@@ -65,11 +54,11 @@ export class AuthService {
         // Handle specific error cases
         let errorMessage = error.message;
         if (error.message.includes('User already registered')) {
-          errorMessage = 'An account with this email already exists. Please sign in instead.';
+          errorMessage = 'Já existe uma conta com este e-mail. Faça login.';
         } else if (error.message.includes('Password should be at least')) {
-          errorMessage = 'Password must be at least 6 characters long.';
+          errorMessage = 'A senha deve ter pelo menos 6 caracteres.';
         } else if (error.message.includes('Invalid email')) {
-          errorMessage = 'Please enter a valid email address.';
+          errorMessage = 'Por favor, digite um e-mail válido.';
         }
         
         return {
@@ -81,7 +70,7 @@ export class AuthService {
       if (!data.user) {
         return {
           success: false,
-          error: 'Account creation failed. Please try again.',
+          error: 'Falha ao criar conta. Tente novamente.',
         };
       }
 
@@ -90,13 +79,13 @@ export class AuthService {
       return {
         success: true,
         data: data.user as User,
-        message: 'Account created successfully! Please check your email to verify your account.',
+        message: 'Conta criada com sucesso!',
       };
     } catch (error: any) {
       console.error('❌ Unexpected sign up error:', error);
       return {
         success: false,
-        error: error.message || 'An unexpected error occurred during sign up. Please try again.',
+        error: 'Erro inesperado ao criar conta. Tente novamente.',
       };
     }
   }
@@ -106,14 +95,14 @@ export class AuthService {
     try {
       console.log('🔄 Attempting to sign in user:', email);
       
-      // Test connection first
-      const connected = await this.ensureConnection();
-      if (!connected) {
-        return {
-          success: false,
-          error: 'Unable to connect to authentication service. Please check your internet connection.',
-        };
+      // Usar sistema local se Supabase não estiver configurado
+      if (!this.shouldUseSupabase()) {
+        console.log('📱 Using local authentication system');
+        return await LocalAuthService.signIn(email, password);
       }
+      
+      // Limpar qualquer sessão anterior antes de fazer login
+      await supabase.auth.signOut();
       
       const { data, error } = await supabase.auth.signInWithPassword({
         email: email.trim().toLowerCase(),
@@ -126,13 +115,13 @@ export class AuthService {
         // Provide more specific error messages
         let errorMessage = error.message;
         if (error.message.includes('Invalid login credentials') || error.message.includes('Invalid credentials')) {
-          errorMessage = 'Invalid email or password. Please check your credentials and try again.';
+          errorMessage = 'E-mail ou senha incorretos. Verifique seus dados e tente novamente.';
         } else if (error.message.includes('Email not confirmed')) {
-          errorMessage = 'Please check your email and click the confirmation link before signing in.';
+          errorMessage = 'Verifique seu e-mail e clique no link de confirmação antes de fazer login.';
         } else if (error.message.includes('Too many requests')) {
-          errorMessage = 'Too many login attempts. Please wait a moment and try again.';
+          errorMessage = 'Muitas tentativas de login. Aguarde um momento e tente novamente.';
         } else if (error.message.includes('User not found')) {
-          errorMessage = 'No account found with this email. Please sign up first.';
+          errorMessage = 'Nenhuma conta encontrada com este e-mail. Cadastre-se primeiro.';
         }
         
         return {
@@ -141,25 +130,26 @@ export class AuthService {
         };
       }
 
-      if (!data.user) {
+      if (!data.user || !data.session) {
         return {
           success: false,
-          error: 'Sign in failed. Please try again.',
+          error: 'Falha no login. Tente novamente.',
         };
       }
 
       console.log('✅ Sign in successful:', data.user.email);
+      console.log('✅ Session created and persisted');
 
       return {
         success: true,
         data: data.user as User,
-        message: 'Signed in successfully!',
+        message: 'Login realizado com sucesso!',
       };
     } catch (error: any) {
       console.error('❌ Unexpected sign in error:', error);
       return {
         success: false,
-        error: error.message || 'An unexpected error occurred during sign in. Please try again.',
+        error: 'Erro inesperado ao fazer login. Tente novamente.',
       };
     }
   }
@@ -168,6 +158,12 @@ export class AuthService {
   static async signOut(): Promise<ApiResponse> {
     try {
       console.log('🔄 Signing out user...');
+      
+      // Usar sistema local se Supabase não estiver configurado
+      if (!this.shouldUseSupabase()) {
+        console.log('📱 Using local authentication system');
+        return await LocalAuthService.signOut();
+      }
       
       const { error } = await supabase.auth.signOut();
 
@@ -182,13 +178,13 @@ export class AuthService {
       console.log('✅ Sign out successful');
       return {
         success: true,
-        message: 'Signed out successfully!',
+        message: 'Logout realizado com sucesso!',
       };
     } catch (error: any) {
       console.error('❌ Unexpected sign out error:', error);
       return {
         success: false,
-        error: error.message || 'An unexpected error occurred during sign out',
+        error: 'Erro inesperado ao fazer logout',
       };
     }
   }
@@ -197,6 +193,13 @@ export class AuthService {
   static async resetPassword({ email }: ResetPasswordData): Promise<ApiResponse> {
     try {
       console.log('🔄 Sending password reset email to:', email);
+      
+      if (!this.shouldUseSupabase()) {
+        return {
+          success: false,
+          error: 'Recuperação de senha não disponível no modo local.',
+        };
+      }
       
       const { error } = await supabase.auth.resetPasswordForEmail(email, {
         redirectTo: `${window.location.origin}/auth/reset-password`,
@@ -213,13 +216,13 @@ export class AuthService {
       console.log('✅ Password reset email sent');
       return {
         success: true,
-        message: 'Password reset email sent! Please check your inbox.',
+        message: 'E-mail de recuperação enviado! Verifique sua caixa de entrada.',
       };
     } catch (error: any) {
       console.error('❌ Unexpected password reset error:', error);
       return {
         success: false,
-        error: error.message || 'An unexpected error occurred while sending reset email',
+        error: 'Erro inesperado ao enviar e-mail de recuperação',
       };
     }
   }
@@ -228,6 +231,13 @@ export class AuthService {
   static async updatePassword({ password }: UpdatePasswordData): Promise<ApiResponse> {
     try {
       console.log('🔄 Updating password...');
+      
+      if (!this.shouldUseSupabase()) {
+        return {
+          success: false,
+          error: 'Atualização de senha não disponível no modo local.',
+        };
+      }
       
       const { error } = await supabase.auth.updateUser({
         password,
@@ -244,13 +254,13 @@ export class AuthService {
       console.log('✅ Password updated successfully');
       return {
         success: true,
-        message: 'Password updated successfully!',
+        message: 'Senha atualizada com sucesso!',
       };
     } catch (error: any) {
       console.error('❌ Unexpected password update error:', error);
       return {
         success: false,
-        error: error.message || 'An unexpected error occurred while updating password',
+        error: 'Erro inesperado ao atualizar senha',
       };
     }
   }
@@ -258,6 +268,11 @@ export class AuthService {
   // Get current user
   static async getCurrentUser(): Promise<User | null> {
     try {
+      // Usar sistema local se Supabase não estiver configurado
+      if (!this.shouldUseSupabase()) {
+        return LocalAuthService.getCurrentUser();
+      }
+
       const { data: { user }, error } = await supabase.auth.getUser();
       
       if (error) {
@@ -275,6 +290,10 @@ export class AuthService {
   // Get current session
   static async getCurrentSession() {
     try {
+      if (!this.shouldUseSupabase()) {
+        return null;
+      }
+
       const { data: { session }, error } = await supabase.auth.getSession();
       
       if (error) {
@@ -291,8 +310,21 @@ export class AuthService {
 
   // Listen to auth state changes
   static onAuthStateChange(callback: (user: User | null) => void) {
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+    // Usar sistema local se Supabase não estiver configurado
+    if (!this.shouldUseSupabase()) {
+      return LocalAuthService.onAuthStateChange(callback);
+    }
+
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
       console.log('🔄 Auth state changed:', event, session?.user?.email || 'No user');
+      
+      // Garantir que a sessão seja persistida corretamente
+      if (event === 'SIGNED_IN' && session) {
+        console.log('✅ User signed in, session persisted');
+      } else if (event === 'SIGNED_OUT') {
+        console.log('✅ User signed out, session cleared');
+      }
+      
       callback(session?.user as User | null);
     });
     
@@ -302,8 +334,15 @@ export class AuthService {
   // Check if user is authenticated
   static async isAuthenticated(): Promise<boolean> {
     try {
+      // Usar sistema local se Supabase não estiver configurado
+      if (!this.shouldUseSupabase()) {
+        return LocalAuthService.isAuthenticated();
+      }
+
       const session = await this.getCurrentSession();
-      return !!session?.user;
+      const isAuth = !!session?.user;
+      console.log('🔍 Authentication check:', isAuth ? 'Authenticated' : 'Not authenticated');
+      return isAuth;
     } catch (error) {
       console.error('❌ Error checking authentication:', error);
       return false;

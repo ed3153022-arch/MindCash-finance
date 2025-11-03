@@ -33,12 +33,15 @@ export function useAuth(): AuthState & {
       setState({
         user: null,
         loading: false,
-        error: error.message || 'Failed to get user session',
+        error: error.message || 'Falha ao obter sessão do usuário',
       });
     }
   }, []);
 
   useEffect(() => {
+    let mounted = true;
+    let subscription: any = null;
+
     // Get initial session
     const getInitialSession = async () => {
       try {
@@ -46,40 +49,51 @@ export function useAuth(): AuthState & {
         
         const user = await AuthService.getCurrentUser();
         
-        setState({
-          user,
-          loading: false,
-          error: null,
-        });
+        if (mounted) {
+          setState({
+            user,
+            loading: false,
+            error: null,
+          });
+        }
         
-        console.log(user ? '✅ User authenticated' : '❌ No authenticated user');
+        console.log(user ? '✅ User authenticated on load' : '❌ No authenticated user on load');
       } catch (error: any) {
         console.error('❌ Error getting initial session:', error);
-        setState({
-          user: null,
-          loading: false,
-          error: error.message || 'Failed to get user session',
-        });
+        if (mounted) {
+          setState({
+            user: null,
+            loading: false,
+            error: error.message || 'Falha ao obter sessão do usuário',
+          });
+        }
       }
     };
 
     getInitialSession();
 
-    // Listen for auth changes
+    // Set up auth listener
     console.log('🔄 Setting up auth state listener...');
-    const { data: { subscription } } = AuthService.onAuthStateChange((user) => {
+    const { data: { subscription: authSubscription } } = AuthService.onAuthStateChange((user) => {
       console.log('🔄 Auth state change detected:', user?.email || 'No user');
-      setState(prev => ({
-        ...prev,
-        user,
-        loading: false,
-        error: null,
-      }));
+      if (mounted) {
+        setState(prev => ({
+          ...prev,
+          user,
+          loading: false,
+          error: null,
+        }));
+      }
     });
+    
+    subscription = authSubscription;
 
     return () => {
-      console.log('🔄 Cleaning up auth state listener...');
-      subscription?.unsubscribe();
+      mounted = false;
+      if (subscription && subscription.unsubscribe) {
+        console.log('🔄 Cleaning up auth state listener...');
+        subscription.unsubscribe();
+      }
     };
   }, []);
 
@@ -89,19 +103,19 @@ export function useAuth(): AuthState & {
       
       // Validate inputs
       if (!email || !password) {
-        const error = 'Email and password are required';
+        const error = 'E-mail e senha são obrigatórios';
         setState(prev => ({ ...prev, loading: false, error }));
         return { success: false, error };
       }
 
       if (!email.includes('@')) {
-        const error = 'Please enter a valid email address';
+        const error = 'Por favor, digite um e-mail válido';
         setState(prev => ({ ...prev, loading: false, error }));
         return { success: false, error };
       }
 
       if (password.length < 6) {
-        const error = 'Password must be at least 6 characters long';
+        const error = 'A senha deve ter pelo menos 6 caracteres';
         setState(prev => ({ ...prev, loading: false, error }));
         return { success: false, error };
       }
@@ -115,17 +129,18 @@ export function useAuth(): AuthState & {
           loading: false,
           error: null
         }));
+        console.log('✅ Login successful in useAuth hook');
         return { success: true };
       } else {
         setState(prev => ({ 
           ...prev, 
           loading: false, 
-          error: result.error || 'Sign in failed' 
+          error: result.error || 'Falha no login' 
         }));
-        return { success: false, error: result.error || 'Sign in failed' };
+        return { success: false, error: result.error || 'Falha no login' };
       }
     } catch (error: any) {
-      const errorMessage = error.message || 'An unexpected error occurred';
+      const errorMessage = error.message || 'Erro inesperado';
       setState(prev => ({ 
         ...prev, 
         loading: false, 
@@ -141,19 +156,19 @@ export function useAuth(): AuthState & {
       
       // Validate inputs
       if (!email || !password) {
-        const error = 'Email and password are required';
+        const error = 'E-mail e senha são obrigatórios';
         setState(prev => ({ ...prev, loading: false, error }));
         return { success: false, error };
       }
 
       if (!email.includes('@')) {
-        const error = 'Please enter a valid email address';
+        const error = 'Por favor, digite um e-mail válido';
         setState(prev => ({ ...prev, loading: false, error }));
         return { success: false, error };
       }
 
       if (password.length < 6) {
-        const error = 'Password must be at least 6 characters long';
+        const error = 'A senha deve ter pelo menos 6 caracteres';
         setState(prev => ({ ...prev, loading: false, error }));
         return { success: false, error };
       }
@@ -167,17 +182,18 @@ export function useAuth(): AuthState & {
           loading: false,
           error: null
         }));
+        console.log('✅ Sign up successful in useAuth hook');
         return { success: true };
       } else {
         setState(prev => ({ 
           ...prev, 
           loading: false, 
-          error: result.error || 'Sign up failed' 
+          error: result.error || 'Falha no cadastro' 
         }));
-        return { success: false, error: result.error || 'Sign up failed' };
+        return { success: false, error: result.error || 'Falha no cadastro' };
       }
     } catch (error: any) {
-      const errorMessage = error.message || 'An unexpected error occurred';
+      const errorMessage = error.message || 'Erro inesperado';
       setState(prev => ({ 
         ...prev, 
         loading: false, 
@@ -198,12 +214,14 @@ export function useAuth(): AuthState & {
         loading: false,
         error: null,
       });
+      
+      console.log('✅ Sign out successful in useAuth hook');
     } catch (error: any) {
       console.error('❌ Sign out error:', error);
       setState({
         user: null,
         loading: false,
-        error: error.message || 'Sign out failed',
+        error: error.message || 'Falha no logout',
       });
     }
   };
@@ -213,7 +231,7 @@ export function useAuth(): AuthState & {
       if (!email || !email.includes('@')) {
         setState(prev => ({ 
           ...prev, 
-          error: 'Please enter a valid email address' 
+          error: 'Por favor, digite um e-mail válido' 
         }));
         return false;
       }
@@ -223,7 +241,7 @@ export function useAuth(): AuthState & {
       if (!result.success) {
         setState(prev => ({ 
           ...prev, 
-          error: result.error || 'Password reset failed' 
+          error: result.error || 'Falha na recuperação de senha' 
         }));
         return false;
       }
@@ -233,7 +251,7 @@ export function useAuth(): AuthState & {
     } catch (error: any) {
       setState(prev => ({ 
         ...prev, 
-        error: error.message || 'Password reset failed' 
+        error: error.message || 'Falha na recuperação de senha' 
       }));
       return false;
     }

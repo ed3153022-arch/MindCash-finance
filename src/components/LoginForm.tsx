@@ -8,16 +8,9 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Eye, EyeOff, DollarSign, AlertCircle } from 'lucide-react';
 
 interface LoginFormProps {
-  login: (email: string, password: string) => void;
+  login: (email: string, password: string) => Promise<{ success: boolean; error?: string }>;
   setCurrentView: (view: 'login' | 'register') => void;
 }
-
-// Base de usuários válidos para demonstração
-const validUsers = [
-  { email: 'admin@mindcash.com', password: '123456' },
-  { email: 'usuario@teste.com', password: 'senha123' },
-  { email: 'demo@mindcash.com', password: 'demo123' }
-];
 
 export function LoginForm({ login, setCurrentView }: LoginFormProps) {
   const [email, setEmail] = useState('');
@@ -31,27 +24,17 @@ export function LoginForm({ login, setCurrentView }: LoginFormProps) {
     setIsLoading(true);
     setErrorMessage('');
     
-    // Simulate API call
-    await new Promise(resolve => setTimeout(resolve, 1000));
-    
-    // Validar credenciais
-    const user = validUsers.find(u => u.email === email);
-    
-    if (!user) {
-      setErrorMessage('Conta não encontrada. Verifique o e-mail digitado.');
+    try {
+      const result = await login(email, password);
+      
+      if (!result.success && result.error) {
+        setErrorMessage(result.error);
+      }
+    } catch (error: any) {
+      setErrorMessage(error.message || 'Erro inesperado. Tente novamente.');
+    } finally {
       setIsLoading(false);
-      return;
     }
-    
-    if (user.password !== password) {
-      setErrorMessage('Senha incorreta. Tente novamente.');
-      setIsLoading(false);
-      return;
-    }
-    
-    // Login bem-sucedido
-    login(email, password);
-    setIsLoading(false);
   };
 
   return (

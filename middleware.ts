@@ -1,15 +1,30 @@
-import { createMiddlewareClient } from '@supabase/auth-helpers-nextjs';
 import { NextResponse } from 'next/server';
 import type { NextRequest } from 'next/server';
+import { createClient } from '@supabase/supabase-js';
 
 export async function middleware(req: NextRequest) {
   const res = NextResponse.next();
   
   try {
-    // Create a Supabase client configured to use cookies
-    const supabase = createMiddlewareClient({ req, res });
+    // Get environment variables
+    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+    const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
 
-    // Refresh session if expired - required for Server Components
+    // Skip middleware if Supabase is not configured
+    if (!supabaseUrl || !supabaseAnonKey) {
+      return res;
+    }
+
+    // Create Supabase client
+    const supabase = createClient(supabaseUrl, supabaseAnonKey, {
+      auth: {
+        autoRefreshToken: true,
+        persistSession: true,
+        detectSessionInUrl: true
+      }
+    });
+
+    // Get session from cookies/localStorage
     const { data: { session } } = await supabase.auth.getSession();
 
     // Protected routes that require authentication

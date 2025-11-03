@@ -3,12 +3,12 @@
 import { useState, useEffect } from 'react';
 import { Transaction, User, Period } from '@/lib/types';
 import { generateId } from '@/lib/utils';
+import { useAuth } from './useAuth';
 
 export function useFinanceApp() {
-  const [user, setUser] = useState<User | null>(null);
+  const auth = useAuth();
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [currentPeriod, setCurrentPeriod] = useState<Period>('month');
-  const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [currentView, setCurrentView] = useState<'dashboard' | 'reports' | 'settings' | 'plans' | 'login' | 'register'>('login');
   const [showPlanConfirmation, setShowPlanConfirmation] = useState<{
     show: boolean;
@@ -29,37 +29,48 @@ export function useFinanceApp() {
     message: ''
   });
 
-  // Load data from localStorage
-  useEffect(() => {
-    const savedUser = localStorage.getItem('mindcash_user');
-    const savedTransactions = localStorage.getItem('mindcash_transactions');
-    const savedAuth = localStorage.getItem('mindcash_auth');
+  // Derived state from auth
+  const isAuthenticated = !!auth.user;
+  const user = auth.user ? {
+    id: auth.user.id,
+    name: auth.user.user_metadata?.full_name || auth.user.email?.split('@')[0] || 'Usuário',
+    email: auth.user.email || '',
+    monthlyGoal: 5000,
+    alertLimit: 3000,
+    plan: 'trial' as const,
+    trialStartDate: new Date().toISOString(),
+    trialTransactionCount: 0,
+  } : null;
 
-    if (savedAuth === 'true' && savedUser) {
-      setUser(JSON.parse(savedUser));
-      setIsAuthenticated(true);
-      setCurrentView('dashboard');
+  // Load transactions from localStorage
+  useEffect(() => {
+    if (isAuthenticated && user) {
+      const savedTransactions = localStorage.getItem(`mindcash_transactions_${user.email}`);
+      if (savedTransactions) {
+        setTransactions(JSON.parse(savedTransactions));
+      }
     }
+  }, [isAuthenticated, user?.email]);
 
-    if (savedTransactions) {
-      setTransactions(JSON.parse(savedTransactions));
+  // Save transactions to localStorage
+  useEffect(() => {
+    if (user?.email) {
+      localStorage.setItem(`mindcash_transactions_${user.email}`, JSON.stringify(transactions));
     }
-  }, []);
+  }, [transactions, user?.email]);
 
-  // Save data to localStorage
+  // Update view based on auth state
   useEffect(() => {
-    if (user) {
-      localStorage.setItem('mindcash_user', JSON.stringify(user));
+    if (isAuthenticated) {
+      if (currentView === 'login' || currentView === 'register') {
+        setCurrentView('dashboard');
+      }
+    } else {
+      if (currentView !== 'login' && currentView !== 'register') {
+        setCurrentView('login');
+      }
     }
-  }, [user]);
-
-  useEffect(() => {
-    localStorage.setItem('mindcash_transactions', JSON.stringify(transactions));
-  }, [transactions]);
-
-  useEffect(() => {
-    localStorage.setItem('mindcash_auth', isAuthenticated.toString());
-  }, [isAuthenticated]);
+  }, [isAuthenticated, currentView]);
 
   // Sistema de controle de teste grátis por e-mail
   const getTrialUsageByEmail = (email: string) => {
@@ -118,103 +129,46 @@ export function useFinanceApp() {
     
     return {
       remainingDays,
-      remainingTransactions: 999, // Removido limite de transações
+      remainingTransactions: 999,
       isExpired: isTrialExpired()
     };
   };
 
-  const login = (email: string, password: string) => {
-    // Verificar se o e-mail já usou o teste grátis e se expirou
-    const trialData = getTrialUsageByEmail(email);
-    let userPlan: 'trial' | 'premium' = 'trial';
-    let trialStartDate: string | undefined = new Date().toISOString();
-
-    if (trialData && trialData.hasUsedTrial) {
-      // Se já usou o teste grátis, verificar se expirou
-      if (isTrialExpiredForEmail(email)) {
-        // Teste grátis expirado - bloquear acesso (usuário precisa assinar)
-        userPlan = 'trial'; // Manter como trial mas será bloqueado
-        trialStartDate = trialData.startDate;
-        
-        // Marcar como expirado
+  const login = async (email: string, password: string) => {
+    const result = await auth.signIn(email, password);
+    if (result.success) {
+      // Inicializar teste grátis se necessário
+      const trialData = getTrialUsageByEmail(email);
+      if (!trialData || !trialData.hasUsedTrial) {
+        const startDate = new Date().toISOString();
         setTrialUsageByEmail(email, {
-          startDate: trialData.startDate,
+          startDate: startDate,
           hasUsedTrial: true,
-          isExpired: true
+          isExpired: false
         });
-      } else {
-        // Ainda dentro do período de teste
-        userPlan = 'trial';
-        trialStartDate = trialData.startDate;
       }
-    } else {
-      // Primeiro login - iniciar teste grátis automaticamente
+    }
+    return result;
+  };
+
+  const register = async (name: string, email: string, password: string) => {
+    const result = await auth.signUp(email, password, name);
+    if (result.success) {
+      // Inicializar teste grátis automaticamente
       const startDate = new Date().toISOString();
       setTrialUsageByEmail(email, {
         startDate: startDate,
         hasUsedTrial: true,
         isExpired: false
       });
-      userPlan = 'trial';
-      trialStartDate = startDate;
     }
-
-    const mockUser: User = {
-      id: generateId(),
-      name: email.split('@')[0],
-      email,
-      monthlyGoal: 5000,
-      alertLimit: 3000,
-      plan: userPlan,
-      trialStartDate: trialStartDate,
-      trialTransactionCount: 0,
-    };
-    
-    setUser(mockUser);
-    setIsAuthenticated(true);
-    setCurrentView('dashboard');
+    return result;
   };
 
-  const register = (name: string, email: string, password: string) => {
-    // Verificar se o e-mail já foi usado para teste grátis
-    const canStart = canUserStartTrial(email);
-    
-    if (canStart) {
-      // Primeiro registro - iniciar teste grátis automaticamente
-      const startDate = new Date().toISOString();
-      setTrialUsageByEmail(email, {
-        startDate: startDate,
-        hasUsedTrial: true,
-        isExpired: false
-      });
-
-      const newUser: User = {
-        id: generateId(),
-        name,
-        email,
-        monthlyGoal: 5000,
-        alertLimit: 3000,
-        plan: 'trial',
-        trialStartDate: startDate,
-        trialTransactionCount: 0,
-      };
-      
-      setUser(newUser);
-      setIsAuthenticated(true);
-      setCurrentView('dashboard');
-    } else {
-      // E-mail já usou teste grátis - não permitir novo registro
-      alert('Este e-mail já foi usado para teste grátis. Faça login ou use outro e-mail.');
-      return;
-    }
-  };
-
-  const logout = () => {
-    setUser(null);
-    setIsAuthenticated(false);
+  const logout = async () => {
+    await auth.signOut();
+    setTransactions([]);
     setCurrentView('login');
-    localStorage.removeItem('mindcash_user');
-    localStorage.removeItem('mindcash_auth');
   };
 
   const addTransaction = (transaction: Omit<Transaction, 'id' | 'createdAt'>) => {
@@ -234,9 +188,8 @@ export function useFinanceApp() {
   };
 
   const updateUser = (updates: Partial<User>) => {
-    if (user) {
-      setUser({ ...user, ...updates });
-    }
+    // Para atualizações do usuário, podemos implementar lógica adicional se necessário
+    // Por enquanto, mantemos compatibilidade
   };
 
   const deleteTransaction = (id: string) => {
@@ -280,36 +233,19 @@ export function useFinanceApp() {
   };
 
   const subscribeToPlan = (planId: 'essencial' | 'pro' | 'premium') => {
-    if (user) {
-      // Quando usuário assina um plano pago, liberar acesso normalmente
-      setUser({
-        ...user,
-        plan: planId,
-        trialStartDate: undefined,
-        trialTransactionCount: undefined,
-      });
-      
-      // Não alterar o registro de teste grátis - ele permanece como "usado"
-      // mas o usuário agora tem acesso via plano pago
+    // Salvar plano no localStorage por e-mail
+    if (user?.email) {
+      localStorage.setItem(`mindcash_plan_${user.email}`, planId);
     }
   };
 
   const startFreeTrial = () => {
-    // Esta função não é mais necessária pois o teste grátis inicia automaticamente
-    // Mantida para compatibilidade
     if (user && user.email && canUserStartTrial(user.email)) {
       const startDate = new Date().toISOString();
       setTrialUsageByEmail(user.email, {
         startDate: startDate,
         hasUsedTrial: true,
         isExpired: false
-      });
-
-      setUser({
-        ...user,
-        plan: 'trial',
-        trialStartDate: startDate,
-        trialTransactionCount: 0,
       });
       
       setShowSuccessMessage({
