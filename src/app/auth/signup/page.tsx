@@ -61,15 +61,15 @@ export default function SignUpPage() {
       return;
     }
 
-    const success = await signUp(formData.email, formData.password, formData.fullName);
+    const result = await signUp(formData.email, formData.password, formData.fullName);
     
-    if (success) {
+    if (result.success) {
       setSuccess('Account created successfully! Please check your email to verify your account.');
       setTimeout(() => {
         router.push('/auth/signin');
       }, 3000);
     } else {
-      setError('Failed to create account. Please try again.');
+      setError(result.error || 'Failed to create account. Please try again.');
     }
     
     setIsLoading(false);

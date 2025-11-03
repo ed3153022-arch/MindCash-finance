@@ -1,15 +1,15 @@
 'use client';
 
-import { useState, useEffect } from 'react';
-import { User, Profile, AuthState } from '@/types';
+import { useState, useEffect, useCallback } from 'react';
+import { User, AuthState } from '@/types';
 import { AuthService } from '@/lib/auth';
-import { ApiService } from '@/lib/api';
 
 export function useAuth(): AuthState & {
-  signIn: (email: string, password: string) => Promise<boolean>;
-  signUp: (email: string, password: string, fullName?: string) => Promise<boolean>;
+  signIn: (email: string, password: string) => Promise<{ success: boolean; error?: string }>;
+  signUp: (email: string, password: string, fullName?: string) => Promise<{ success: boolean; error?: string }>;
   signOut: () => Promise<void>;
   resetPassword: (email: string) => Promise<boolean>;
+  refreshAuth: () => Promise<void>;
 } {
   const [state, setState] = useState<AuthState>({
     user: null,
@@ -17,21 +17,48 @@ export function useAuth(): AuthState & {
     error: null,
   });
 
+  // Refresh auth state
+  const refreshAuth = useCallback(async () => {
+    try {
+      setState(prev => ({ ...prev, loading: true, error: null }));
+      
+      const user = await AuthService.getCurrentUser();
+      setState({
+        user,
+        loading: false,
+        error: null,
+      });
+    } catch (error: any) {
+      console.error('❌ Error refreshing auth state:', error);
+      setState({
+        user: null,
+        loading: false,
+        error: error.message || 'Failed to get user session',
+      });
+    }
+  }, []);
+
   useEffect(() => {
     // Get initial session
     const getInitialSession = async () => {
       try {
+        console.log('🔄 Getting initial auth session...');
+        
         const user = await AuthService.getCurrentUser();
+        
         setState({
           user,
           loading: false,
           error: null,
         });
-      } catch (error) {
+        
+        console.log(user ? '✅ User authenticated' : '❌ No authenticated user');
+      } catch (error: any) {
+        console.error('❌ Error getting initial session:', error);
         setState({
           user: null,
           loading: false,
-          error: 'Failed to get user session',
+          error: error.message || 'Failed to get user session',
         });
       }
     };
@@ -39,7 +66,9 @@ export function useAuth(): AuthState & {
     getInitialSession();
 
     // Listen for auth changes
+    console.log('🔄 Setting up auth state listener...');
     const { data: { subscription } } = AuthService.onAuthStateChange((user) => {
+      console.log('🔄 Auth state change detected:', user?.email || 'No user');
       setState(prev => ({
         ...prev,
         user,
@@ -49,68 +78,165 @@ export function useAuth(): AuthState & {
     });
 
     return () => {
+      console.log('🔄 Cleaning up auth state listener...');
       subscription?.unsubscribe();
     };
   }, []);
 
-  const signIn = async (email: string, password: string): Promise<boolean> => {
-    setState(prev => ({ ...prev, loading: true, error: null }));
-    
-    const result = await AuthService.signIn({ email, password });
-    
-    if (result.success) {
-      setState(prev => ({ ...prev, loading: false }));
-      return true;
-    } else {
+  const signIn = async (email: string, password: string): Promise<{ success: boolean; error?: string }> => {
+    try {
+      setState(prev => ({ ...prev, loading: true, error: null }));
+      
+      // Validate inputs
+      if (!email || !password) {
+        const error = 'Email and password are required';
+        setState(prev => ({ ...prev, loading: false, error }));
+        return { success: false, error };
+      }
+
+      if (!email.includes('@')) {
+        const error = 'Please enter a valid email address';
+        setState(prev => ({ ...prev, loading: false, error }));
+        return { success: false, error };
+      }
+
+      if (password.length < 6) {
+        const error = 'Password must be at least 6 characters long';
+        setState(prev => ({ ...prev, loading: false, error }));
+        return { success: false, error };
+      }
+      
+      const result = await AuthService.signIn({ email, password });
+      
+      if (result.success) {
+        setState(prev => ({ 
+          ...prev, 
+          user: result.data || null,
+          loading: false,
+          error: null
+        }));
+        return { success: true };
+      } else {
+        setState(prev => ({ 
+          ...prev, 
+          loading: false, 
+          error: result.error || 'Sign in failed' 
+        }));
+        return { success: false, error: result.error || 'Sign in failed' };
+      }
+    } catch (error: any) {
+      const errorMessage = error.message || 'An unexpected error occurred';
       setState(prev => ({ 
         ...prev, 
         loading: false, 
-        error: result.error || 'Sign in failed' 
+        error: errorMessage
       }));
-      return false;
+      return { success: false, error: errorMessage };
     }
   };
 
-  const signUp = async (email: string, password: string, fullName?: string): Promise<boolean> => {
-    setState(prev => ({ ...prev, loading: true, error: null }));
-    
-    const result = await AuthService.signUp({ email, password, fullName });
-    
-    if (result.success) {
-      setState(prev => ({ ...prev, loading: false }));
-      return true;
-    } else {
+  const signUp = async (email: string, password: string, fullName?: string): Promise<{ success: boolean; error?: string }> => {
+    try {
+      setState(prev => ({ ...prev, loading: true, error: null }));
+      
+      // Validate inputs
+      if (!email || !password) {
+        const error = 'Email and password are required';
+        setState(prev => ({ ...prev, loading: false, error }));
+        return { success: false, error };
+      }
+
+      if (!email.includes('@')) {
+        const error = 'Please enter a valid email address';
+        setState(prev => ({ ...prev, loading: false, error }));
+        return { success: false, error };
+      }
+
+      if (password.length < 6) {
+        const error = 'Password must be at least 6 characters long';
+        setState(prev => ({ ...prev, loading: false, error }));
+        return { success: false, error };
+      }
+      
+      const result = await AuthService.signUp({ email, password, fullName });
+      
+      if (result.success) {
+        setState(prev => ({ 
+          ...prev, 
+          user: result.data || null,
+          loading: false,
+          error: null
+        }));
+        return { success: true };
+      } else {
+        setState(prev => ({ 
+          ...prev, 
+          loading: false, 
+          error: result.error || 'Sign up failed' 
+        }));
+        return { success: false, error: result.error || 'Sign up failed' };
+      }
+    } catch (error: any) {
+      const errorMessage = error.message || 'An unexpected error occurred';
       setState(prev => ({ 
         ...prev, 
         loading: false, 
-        error: result.error || 'Sign up failed' 
+        error: errorMessage
       }));
-      return false;
+      return { success: false, error: errorMessage };
     }
   };
 
   const signOut = async (): Promise<void> => {
-    setState(prev => ({ ...prev, loading: true }));
-    await AuthService.signOut();
-    setState({
-      user: null,
-      loading: false,
-      error: null,
-    });
+    try {
+      setState(prev => ({ ...prev, loading: true }));
+      
+      await AuthService.signOut();
+      
+      setState({
+        user: null,
+        loading: false,
+        error: null,
+      });
+    } catch (error: any) {
+      console.error('❌ Sign out error:', error);
+      setState({
+        user: null,
+        loading: false,
+        error: error.message || 'Sign out failed',
+      });
+    }
   };
 
   const resetPassword = async (email: string): Promise<boolean> => {
-    const result = await AuthService.resetPassword({ email });
-    
-    if (!result.success) {
+    try {
+      if (!email || !email.includes('@')) {
+        setState(prev => ({ 
+          ...prev, 
+          error: 'Please enter a valid email address' 
+        }));
+        return false;
+      }
+
+      const result = await AuthService.resetPassword({ email });
+      
+      if (!result.success) {
+        setState(prev => ({ 
+          ...prev, 
+          error: result.error || 'Password reset failed' 
+        }));
+        return false;
+      }
+      
+      setState(prev => ({ ...prev, error: null }));
+      return true;
+    } catch (error: any) {
       setState(prev => ({ 
         ...prev, 
-        error: result.error || 'Password reset failed' 
+        error: error.message || 'Password reset failed' 
       }));
       return false;
     }
-    
-    return true;
   };
 
   return {
@@ -119,62 +245,6 @@ export function useAuth(): AuthState & {
     signUp,
     signOut,
     resetPassword,
-  };
-}
-
-export function useProfile() {
-  const { user } = useAuth();
-  const [profile, setProfile] = useState<Profile | null>(null);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-
-  useEffect(() => {
-    if (user?.id) {
-      fetchProfile();
-    }
-  }, [user?.id]);
-
-  const fetchProfile = async () => {
-    if (!user?.id) return;
-
-    setLoading(true);
-    setError(null);
-
-    const result = await ApiService.getProfile(user.id);
-    
-    if (result.success) {
-      setProfile(result.data || null);
-    } else {
-      setError(result.error || 'Failed to fetch profile');
-    }
-    
-    setLoading(false);
-  };
-
-  const updateProfile = async (updates: Partial<Profile>): Promise<boolean> => {
-    if (!user?.id) return false;
-
-    setLoading(true);
-    setError(null);
-
-    const result = await ApiService.updateProfile(user.id, updates);
-    
-    if (result.success) {
-      setProfile(result.data || null);
-      setLoading(false);
-      return true;
-    } else {
-      setError(result.error || 'Failed to update profile');
-      setLoading(false);
-      return false;
-    }
-  };
-
-  return {
-    profile,
-    loading,
-    error,
-    updateProfile,
-    refetch: fetchProfile,
+    refreshAuth,
   };
 }

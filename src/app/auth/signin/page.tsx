@@ -24,12 +24,12 @@ export default function SignInPage() {
     setIsLoading(true);
     setError('');
 
-    const success = await signIn(email, password);
+    const result = await signIn(email, password);
     
-    if (success) {
+    if (result.success) {
       router.push('/dashboard');
     } else {
-      setError('Invalid email or password');
+      setError(result.error || 'Invalid email or password');
     }
     
     setIsLoading(false);

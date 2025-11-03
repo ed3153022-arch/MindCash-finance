@@ -1237,8 +1237,8 @@ export function Dashboard({
           </div>
         )}
 
-        {/* Trial Alert - Contador de dias restantes */}
-        {user.plan === 'trial' && trialInfo && trialInfo.remainingDays > 0 && (
+        {/* Trial Alert - Contador de dias restantes - APENAS SE USUÁRIO ESTIVER NO TESTE GRÁTIS */}
+        {user.plan === 'trial' && trialInfo && trialInfo.remainingDays > 0 && !isTrialExpiredCheck && (
           <Card className="bg-gradient-to-r from-yellow-500/10 to-orange-500/10 border-yellow-500/20">
             <CardContent className="p-6">
               <div className="flex items-center space-x-3">
@@ -1719,33 +1719,6 @@ export function Dashboard({
             </div>
           </div>
 
-          {/* Funcionalidades de automação */}
-          <div>
-            <h3 className="text-slate-400 text-sm font-medium mb-4 px-2">Automação</h3>
-            <div className="space-y-2">
-              <Button 
-                variant="ghost" 
-                size="sm" 
-                className="w-full justify-start text-slate-300 hover:text-white hover:bg-slate-700/50"
-                onClick={() => handleSideMenuItemClick(() => handleFeatureAction('expense-automation'))}
-              >
-                <Repeat className="h-4 w-4 mr-3" />
-                Automação de Despesas
-                <CheckCircle className="h-3 w-3 ml-auto text-green-400" />
-              </Button>
-              <Button 
-                variant="ghost" 
-                size="sm" 
-                className="w-full justify-start text-slate-300 hover:text-white hover:bg-slate-700/50"
-                onClick={() => handleSideMenuItemClick(() => handleFeatureAction('smart-alerts'))}
-              >
-                <Bell className="h-4 w-4 mr-3" />
-                Alertas Inteligentes
-                <CheckCircle className="h-3 w-3 ml-auto text-green-400" />
-              </Button>
-            </div>
-          </div>
-
           {/* Funcionalidades de análise */}
           <div>
             <h3 className="text-slate-400 text-sm font-medium mb-4 px-2">Análise</h3>
@@ -1767,7 +1740,7 @@ export function Dashboard({
                 onClick={() => handleSideMenuItemClick(() => handleFeatureAction('ai-insights'))}
               >
                 <Brain className="h-4 w-4 mr-3" />
-                IA para Insights
+                IA para Insights Financeiros
                 <CheckCircle className="h-3 w-3 ml-auto text-green-400" />
               </Button>
             </div>
@@ -1785,6 +1758,26 @@ export function Dashboard({
               >
                 <Target className="h-4 w-4 mr-3" />
                 Metas Personalizadas
+                <CheckCircle className="h-3 w-3 ml-auto text-green-400" />
+              </Button>
+              <Button 
+                variant="ghost" 
+                size="sm" 
+                className="w-full justify-start text-slate-300 hover:text-white hover:bg-slate-700/50"
+                onClick={() => handleSideMenuItemClick(() => handleFeatureAction('expense-automation'))}
+              >
+                <Repeat className="h-4 w-4 mr-3" />
+                Automação de Despesas
+                <CheckCircle className="h-3 w-3 ml-auto text-green-400" />
+              </Button>
+              <Button 
+                variant="ghost" 
+                size="sm" 
+                className="w-full justify-start text-slate-300 hover:text-white hover:bg-slate-700/50"
+                onClick={() => handleSideMenuItemClick(() => handleFeatureAction('smart-alerts'))}
+              >
+                <Bell className="h-4 w-4 mr-3" />
+                Alertas Inteligentes
                 <CheckCircle className="h-3 w-3 ml-auto text-green-400" />
               </Button>
               <Button 
@@ -1892,6 +1885,489 @@ export function Dashboard({
       <div className="max-w-7xl mx-auto py-8 px-4 sm:px-6 lg:px-8">
         {renderCurrentView()}
       </div>
+
+      {/* Dialogs para as funcionalidades */}
+      
+      {/* Dialog de Análise de Tendências */}
+      <Dialog open={showTrendsDialog} onOpenChange={setShowTrendsDialog}>
+        <DialogContent className="bg-slate-800 border-slate-700 max-w-4xl">
+          <DialogHeader>
+            <DialogTitle className="text-white flex items-center">
+              <TrendingUpIcon className="h-5 w-5 mr-2 text-blue-400" />
+              Análise de Tendências
+            </DialogTitle>
+            <DialogDescription className="text-slate-400">
+              Visualize padrões e tendências dos seus gastos ao longo do tempo
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-6">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              <Card className="bg-slate-700/50 border-slate-600">
+                <CardHeader>
+                  <CardTitle className="text-white text-sm">Tendência de Gastos (6 meses)</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="space-y-3">
+                    {trendData.map((data, index) => (
+                      <div key={index} className="flex justify-between items-center">
+                        <span className="text-slate-400 text-sm">{data.month}</span>
+                        <div className="flex space-x-4">
+                          <span className="text-green-400 text-sm">+{formatCurrency(data.income)}</span>
+                          <span className="text-red-400 text-sm">-{formatCurrency(data.expenses)}</span>
+                          <span className={`text-sm font-medium ${data.balance >= 0 ? 'text-green-400' : 'text-red-400'}`}>
+                            {formatCurrency(data.balance)}
+                          </span>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </CardContent>
+              </Card>
+              
+              <Card className="bg-slate-700/50 border-slate-600">
+                <CardHeader>
+                  <CardTitle className="text-white text-sm">Insights da IA</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="space-y-4">
+                    {(() => {
+                      const analysis = generateTrendAnalysis();
+                      return analysis ? (
+                        <div className="space-y-3">
+                          <div className="flex items-center space-x-2">
+                            <TrendingUp className="h-4 w-4 text-blue-400" />
+                            <span className="text-white text-sm">Receitas: {analysis.incomeChange}%</span>
+                          </div>
+                          <div className="flex items-center space-x-2">
+                            <TrendingDown className="h-4 w-4 text-red-400" />
+                            <span className="text-white text-sm">Gastos: {analysis.expenseChange}%</span>
+                          </div>
+                          <div className="bg-slate-600/50 p-3 rounded-lg">
+                            <p className="text-slate-300 text-sm">
+                              <strong>Previsão:</strong> Baseado na tendência atual, você gastará aproximadamente {formatCurrency(analysis.prediction)} no próximo mês.
+                            </p>
+                          </div>
+                        </div>
+                      ) : (
+                        <p className="text-slate-400 text-sm">Dados insuficientes para análise</p>
+                      );
+                    })()}
+                  </div>
+                </CardContent>
+              </Card>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Dialog de Metas Personalizadas */}
+      <Dialog open={showGoalDialog} onOpenChange={setShowGoalDialog}>
+        <DialogContent className="bg-slate-800 border-slate-700 max-w-4xl">
+          <DialogHeader>
+            <DialogTitle className="text-white flex items-center">
+              <Target className="h-5 w-5 mr-2 text-yellow-400" />
+              Metas Personalizadas
+            </DialogTitle>
+            <DialogDescription className="text-slate-400">
+              Gerencie suas metas financeiras e acompanhe o progresso
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-6">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              <Card className="bg-slate-700/50 border-slate-600">
+                <CardHeader>
+                  <CardTitle className="text-white text-sm">Criar Nova Meta</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <form onSubmit={editingGoal ? handleSaveEditGoal : handleCreateGoal} className="space-y-4">
+                    <div>
+                      <Label className="text-white text-sm">Nome da Meta</Label>
+                      <Input
+                        value={newGoalForm.name}
+                        onChange={(e) => setNewGoalForm({...newGoalForm, name: e.target.value})}
+                        className="bg-slate-600 border-slate-500 text-white"
+                        placeholder="Ex: Reserva de Emergência"
+                      />
+                    </div>
+                    <div>
+                      <Label className="text-white text-sm">Valor Alvo</Label>
+                      <Input
+                        type="number"
+                        value={newGoalForm.targetAmount}
+                        onChange={(e) => setNewGoalForm({...newGoalForm, targetAmount: e.target.value})}
+                        className="bg-slate-600 border-slate-500 text-white"
+                        placeholder="10000"
+                      />
+                    </div>
+                    <div>
+                      <Label className="text-white text-sm">Prazo</Label>
+                      <Input
+                        type="date"
+                        value={newGoalForm.deadline}
+                        onChange={(e) => setNewGoalForm({...newGoalForm, deadline: e.target.value})}
+                        className="bg-slate-600 border-slate-500 text-white"
+                      />
+                    </div>
+                    <div>
+                      <Label className="text-white text-sm">Categoria</Label>
+                      <Select value={newGoalForm.category} onValueChange={(value) => setNewGoalForm({...newGoalForm, category: value})}>
+                        <SelectTrigger className="bg-slate-600 border-slate-500 text-white">
+                          <SelectValue placeholder="Selecione..." />
+                        </SelectTrigger>
+                        <SelectContent className="bg-slate-700 border-slate-600">
+                          <SelectItem value="Poupança" className="text-white">Poupança</SelectItem>
+                          <SelectItem value="Investimento" className="text-white">Investimento</SelectItem>
+                          <SelectItem value="Lazer" className="text-white">Lazer</SelectItem>
+                          <SelectItem value="Transporte" className="text-white">Transporte</SelectItem>
+                          <SelectItem value="Educação" className="text-white">Educação</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <Button type="submit" className="w-full bg-green-600 hover:bg-green-700">
+                      {editingGoal ? 'Salvar Alterações' : 'Criar Meta'}
+                    </Button>
+                    {editingGoal && (
+                      <Button 
+                        type="button" 
+                        variant="outline" 
+                        onClick={() => {
+                          setEditingGoal(null);
+                          setNewGoalForm({ name: '', targetAmount: '', deadline: '', category: '' });
+                        }}
+                        className="w-full border-slate-600 text-slate-300"
+                      >
+                        Cancelar
+                      </Button>
+                    )}
+                  </form>
+                </CardContent>
+              </Card>
+              
+              <Card className="bg-slate-700/50 border-slate-600">
+                <CardHeader>
+                  <CardTitle className="text-white text-sm">Metas Ativas ({goals.length})</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="space-y-4 max-h-96 overflow-y-auto">
+                    {goals.map(goal => {
+                      const progress = (goal.currentAmount / goal.targetAmount) * 100;
+                      return (
+                        <div key={goal.id} className="bg-slate-600/50 p-4 rounded-lg">
+                          <div className="flex justify-between items-start mb-2">
+                            <h4 className="text-white font-medium text-sm">{goal.name}</h4>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => handleEditGoal(goal)}
+                              className="text-blue-400 hover:text-blue-300 p-1"
+                            >
+                              <Edit className="h-3 w-3" />
+                            </Button>
+                          </div>
+                          <div className="space-y-2">
+                            <div className="flex justify-between text-xs">
+                              <span className="text-slate-400">Progresso</span>
+                              <span className="text-white">
+                                {formatCurrency(goal.currentAmount)} / {formatCurrency(goal.targetAmount)}
+                              </span>
+                            </div>
+                            <Progress value={progress} className="h-1" />
+                            <div className="flex justify-between text-xs">
+                              <span className="text-green-400">{progress.toFixed(1)}%</span>
+                              <span className="text-slate-400">{formatDate(goal.deadline)}</span>
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </CardContent>
+              </Card>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Dialog de Automação de Despesas */}
+      <Dialog open={showRecurringDialog} onOpenChange={setShowRecurringDialog}>
+        <DialogContent className="bg-slate-800 border-slate-700 max-w-4xl">
+          <DialogHeader>
+            <DialogTitle className="text-white flex items-center">
+              <Repeat className="h-5 w-5 mr-2 text-purple-400" />
+              Automação de Despesas
+            </DialogTitle>
+            <DialogDescription className="text-slate-400">
+              Configure despesas recorrentes para automatizar seu controle financeiro
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-6">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              <Card className="bg-slate-700/50 border-slate-600">
+                <CardHeader>
+                  <CardTitle className="text-white text-sm">Nova Despesa Recorrente</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <form onSubmit={handleCreateRecurringExpense} className="space-y-4">
+                    <div>
+                      <Label className="text-white text-sm">Descrição</Label>
+                      <Input
+                        value={newRecurringForm.description}
+                        onChange={(e) => setNewRecurringForm({...newRecurringForm, description: e.target.value})}
+                        className="bg-slate-600 border-slate-500 text-white"
+                        placeholder="Ex: Aluguel"
+                      />
+                    </div>
+                    <div>
+                      <Label className="text-white text-sm">Valor</Label>
+                      <Input
+                        type="number"
+                        step="0.01"
+                        value={newRecurringForm.amount}
+                        onChange={(e) => setNewRecurringForm({...newRecurringForm, amount: e.target.value})}
+                        className="bg-slate-600 border-slate-500 text-white"
+                        placeholder="1200.00"
+                      />
+                    </div>
+                    <div>
+                      <Label className="text-white text-sm">Categoria</Label>
+                      <Select value={newRecurringForm.category} onValueChange={(value) => setNewRecurringForm({...newRecurringForm, category: value})}>
+                        <SelectTrigger className="bg-slate-600 border-slate-500 text-white">
+                          <SelectValue placeholder="Selecione..." />
+                        </SelectTrigger>
+                        <SelectContent className="bg-slate-700 border-slate-600">
+                          {EXPENSE_CATEGORIES.map((cat) => (
+                            <SelectItem key={cat} value={cat} className="text-white">{cat}</SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div>
+                      <Label className="text-white text-sm">Frequência</Label>
+                      <Select value={newRecurringForm.frequency} onValueChange={(value: 'weekly' | 'monthly' | 'yearly') => setNewRecurringForm({...newRecurringForm, frequency: value})}>
+                        <SelectTrigger className="bg-slate-600 border-slate-500 text-white">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent className="bg-slate-700 border-slate-600">
+                          <SelectItem value="weekly" className="text-white">Semanal</SelectItem>
+                          <SelectItem value="monthly" className="text-white">Mensal</SelectItem>
+                          <SelectItem value="yearly" className="text-white">Anual</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <Button type="submit" className="w-full bg-purple-600 hover:bg-purple-700">
+                      Criar Despesa Recorrente
+                    </Button>
+                  </form>
+                </CardContent>
+              </Card>
+              
+              <Card className="bg-slate-700/50 border-slate-600">
+                <CardHeader>
+                  <CardTitle className="text-white text-sm">Despesas Configuradas ({recurringExpenses.length})</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="space-y-3 max-h-96 overflow-y-auto">
+                    {recurringExpenses.map(expense => (
+                      <div key={expense.id} className="bg-slate-600/50 p-3 rounded-lg">
+                        <div className="flex justify-between items-start mb-2">
+                          <div>
+                            <h4 className="text-white font-medium text-sm">{expense.description}</h4>
+                            <p className="text-slate-400 text-xs">{expense.category}</p>
+                          </div>
+                          <Badge variant={expense.isActive ? "default" : "secondary"} className="text-xs">
+                            {expense.isActive ? 'Ativa' : 'Pausada'}
+                          </Badge>
+                        </div>
+                        <div className="flex justify-between items-center">
+                          <span className="text-red-400 font-medium text-sm">{formatCurrency(expense.amount)}</span>
+                          <span className="text-slate-400 text-xs">
+                            {expense.frequency === 'monthly' ? 'Mensal' : expense.frequency === 'weekly' ? 'Semanal' : 'Anual'}
+                          </span>
+                        </div>
+                        <div className="text-xs text-slate-400 mt-1">
+                          Próximo: {formatDate(expense.nextDate)}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </CardContent>
+              </Card>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Dialog de Alertas Inteligentes */}
+      <Dialog open={showAlertsDialog} onOpenChange={setShowAlertsDialog}>
+        <DialogContent className="bg-slate-800 border-slate-700 max-w-4xl">
+          <DialogHeader>
+            <DialogTitle className="text-white flex items-center">
+              <Bell className="h-5 w-5 mr-2 text-red-400" />
+              Alertas Inteligentes
+            </DialogTitle>
+            <DialogDescription className="text-slate-400">
+              Notificações personalizadas sobre seus gastos e metas
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 max-h-96 overflow-y-auto">
+            {alerts.map(alert => (
+              <Card key={alert.id} className={`bg-slate-700/50 border-slate-600 ${!alert.isRead ? 'border-l-4 border-l-red-400' : ''}`}>
+                <CardContent className="p-4">
+                  <div className="flex items-start space-x-3">
+                    <div className={`p-2 rounded-full ${
+                      alert.priority === 'high' ? 'bg-red-500/20' : 
+                      alert.priority === 'medium' ? 'bg-yellow-500/20' : 'bg-blue-500/20'
+                    }`}>
+                      {alert.type === 'spending_limit' && <AlertTriangle className="h-4 w-4 text-red-400" />}
+                      {alert.type === 'goal_achieved' && <Target className="h-4 w-4 text-green-400" />}
+                      {alert.type === 'unusual_expense' && <TrendingUp className="h-4 w-4 text-yellow-400" />}
+                      {alert.type === 'recurring_due' && <Clock className="h-4 w-4 text-blue-400" />}
+                      {alert.type === 'budget_warning' && <AlertTriangle className="h-4 w-4 text-orange-400" />}
+                    </div>
+                    <div className="flex-1">
+                      <p className="text-white text-sm font-medium">{alert.message}</p>
+                      {alert.amount && (
+                        <p className="text-slate-400 text-xs mt-1">Valor: {formatCurrency(alert.amount)}</p>
+                      )}
+                      <p className="text-slate-500 text-xs mt-1">
+                        {new Date(alert.timestamp).toLocaleString()}
+                      </p>
+                    </div>
+                    <Badge variant={alert.priority === 'high' ? 'destructive' : 'secondary'} className="text-xs">
+                      {alert.priority === 'high' ? 'Alta' : alert.priority === 'medium' ? 'Média' : 'Baixa'}
+                    </Badge>
+                  </div>
+                </CardContent>
+              </Card>
+            ))}
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Dialog de IA para Insights */}
+      <Dialog open={showInsightsDialog} onOpenChange={setShowInsightsDialog}>
+        <DialogContent className="bg-slate-800 border-slate-700 max-w-4xl">
+          <DialogHeader>
+            <DialogTitle className="text-white flex items-center">
+              <Brain className="h-5 w-5 mr-2 text-purple-400" />
+              IA para Insights Financeiros
+            </DialogTitle>
+            <DialogDescription className="text-slate-400">
+              Recomendações personalizadas baseadas em seus dados financeiros
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div className="flex justify-between items-center">
+              <p className="text-slate-300 text-sm">Insights disponíveis: {aiInsights.length}</p>
+              <Button 
+                onClick={generateNewInsight}
+                size="sm"
+                className="bg-purple-600 hover:bg-purple-700"
+              >
+                <Brain className="h-4 w-4 mr-2" />
+                Gerar Novo Insight
+              </Button>
+            </div>
+            <div className="space-y-3 max-h-96 overflow-y-auto">
+              {aiInsights.map(insight => (
+                <Card key={insight.id} className="bg-slate-700/50 border-slate-600">
+                  <CardContent className="p-4">
+                    <div className="flex items-start space-x-3">
+                      <div className={`p-2 rounded-full ${
+                        insight.type === 'recommendation' ? 'bg-green-500/20' : 
+                        insight.type === 'warning' ? 'bg-red-500/20' : 
+                        insight.type === 'opportunity' ? 'bg-blue-500/20' : 'bg-yellow-500/20'
+                      }`}>
+                        {insight.type === 'recommendation' && <Lightbulb className="h-4 w-4 text-green-400" />}
+                        {insight.type === 'warning' && <AlertTriangle className="h-4 w-4 text-red-400" />}
+                        {insight.type === 'opportunity' && <TrendingUp className="h-4 w-4 text-blue-400" />}
+                        {insight.type === 'prediction' && <Activity className="h-4 w-4 text-yellow-400" />}
+                      </div>
+                      <div className="flex-1">
+                        <div className="flex justify-between items-start mb-2">
+                          <h4 className="text-white font-medium text-sm">{insight.title}</h4>
+                          <Badge variant={insight.impact === 'high' ? 'destructive' : insight.impact === 'medium' ? 'default' : 'secondary'} className="text-xs">
+                            {insight.impact === 'high' ? 'Alto Impacto' : insight.impact === 'medium' ? 'Médio Impacto' : 'Baixo Impacto'}
+                          </Badge>
+                        </div>
+                        <p className="text-slate-300 text-sm mb-2">{insight.description}</p>
+                        <div className="flex justify-between items-center">
+                          <span className="text-slate-400 text-xs">{insight.category}</span>
+                          {insight.actionable && (
+                            <Button size="sm" variant="outline" className="text-xs border-slate-600 text-slate-300">
+                              Aplicar Sugestão
+                            </Button>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
+              ))}
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Dialog de Backup Automático */}
+      <Dialog open={showBackupDialog} onOpenChange={setShowBackupDialog}>
+        <DialogContent className="bg-slate-800 border-slate-700">
+          <DialogHeader>
+            <DialogTitle className="text-white flex items-center">
+              <Shield className="h-5 w-5 mr-2 text-green-400" />
+              Backup Automático
+            </DialogTitle>
+            <DialogDescription className="text-slate-400">
+              Mantenha seus dados seguros com backup automático na nuvem
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-6">
+            <div className="bg-slate-700/50 p-4 rounded-lg">
+              <div className="flex items-center justify-between mb-4">
+                <div>
+                  <h4 className="text-white font-medium">Status do Backup</h4>
+                  <p className="text-slate-400 text-sm">Último backup: {new Date().toLocaleString()}</p>
+                </div>
+                <Badge className="bg-green-500/20 text-green-400">Ativo</Badge>
+              </div>
+              <div className="space-y-3">
+                <div className="flex justify-between">
+                  <span className="text-slate-400 text-sm">Transações:</span>
+                  <span className="text-white text-sm">{transactions.length} registros</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-slate-400 text-sm">Metas:</span>
+                  <span className="text-white text-sm">{goals.length} metas</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-slate-400 text-sm">Configurações:</span>
+                  <span className="text-white text-sm">Salvas</span>
+                </div>
+              </div>
+            </div>
+            
+            <div className="space-y-3">
+              <Button 
+                onClick={handleManualBackup}
+                className="w-full bg-green-600 hover:bg-green-700"
+              >
+                <Cloud className="h-4 w-4 mr-2" />
+                Fazer Backup Agora
+              </Button>
+              
+              <div className="flex items-center space-x-2">
+                <input 
+                  type="checkbox" 
+                  checked={autoBackup}
+                  onChange={(e) => setAutoBackup(e.target.checked)}
+                  className="rounded"
+                />
+                <label className="text-white text-sm">Backup automático diário</label>
+              </div>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
