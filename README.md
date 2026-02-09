@@ -1,36 +1,82 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# MindCash Finance
 
-## Getting Started
+MindCash Finance é um SaaS de controle financeiro pessoal com foco em **consciência financeira, veredito mensal e tomada de decisão**.
 
-First, run the development server:
+O sistema funciona com um **período de uso gratuito de 7 dias**, sem necessidade de cadastro inicial, e após esse período exige **cadastro + pagamento** para continuar utilizando.
+
+---
+
+## 🔁 Fluxo do Usuário
+
+### 1. Entrada pelo Quiz
+- O usuário entra no sistema através de um **quiz externo** (link diferente do SaaS).
+- Ao final do quiz, ele recebe um **resultado imediato** indicando se controla ou não o próprio dinheiro.
+- Após concluir o quiz uma vez, ele **não verá mais o quiz** nas próximas visitas.
+
+### 2. Uso Gratuito (7 dias)
+- Durante os primeiros 7 dias:
+  - Pode registrar **gastos**
+  - Pode registrar **ganhos**
+  - Pode visualizar dados normalmente
+- Não é necessário cadastro nesse período.
+- Os dados ficam salvos localmente/temporariamente para migração posterior.
+
+### 3. Avisos e Notificações
+- O usuário recebe notificações avisando:
+  - Faltam 2 dias
+  - Falta 1 dia
+  - Último dia de uso gratuito
+
+### 4. Bloqueio após 7 dias
+Após o fim do período gratuito:
+- O usuário **não consegue mais**:
+  - Registrar gastos
+  - Registrar ganhos
+  - Visualizar o veredito mensal completo
+- Para continuar usando, é obrigatório:
+  - ✅ Fazer cadastro
+  - ✅ Efetuar o pagamento
+- Apenas **cadastro ou pagamento isolado não libera o sistema**.
+
+### 5. Migração Automática
+- Após cadastro + pagamento:
+  - Todos os dados dos 7 dias são **migrados automaticamente**
+  - O acesso completo é liberado sem perda de informações
+
+---
+
+## 💰 Plano e Pagamento
+
+- Modelo: **plano único**
+- Pagamento processado via **Kiwify**
+- Liberação do acesso ocorre somente após:
+  - Confirmação de pagamento
+  - Conta criada no sistema
+
+---
+
+## 📊 Veredito Mensal
+
+- O veredito financeiro é:
+  - Gerado com base no **primeiro registro do usuário**
+  - Exibido automaticamente no último dia do mês
+- Não depende de clique manual para aparecer
+
+---
+
+## 🧠 Tecnologias
+
+- Next.js (App Router)
+- Frontend focado em UX simples e direta
+- Arquitetura pensada para SaaS e escalabilidade
+
+---
+
+## 🚀 Rodando o projeto localmente
 
 ```bash
 npm run dev
-# or
+# ou
 yarn dev
-# or
+# ou
 pnpm dev
-# or
-bun dev
-```
-
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
-
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
-
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
-
-## Learn More
-
-To learn more about Next.js, take a look at the following resources:
-
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
-
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
-
-## Deploy on Vercel
-
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
