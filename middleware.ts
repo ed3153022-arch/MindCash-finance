@@ -1,70 +1,49 @@
-import { NextResponse } from 'next/server';
-import type { NextRequest } from 'next/server';
-import { createClient } from '@supabase/supabase-js';
+import { NextResponse } from 'next/server'
+import type { NextRequest } from 'next/server'
 
-export async function middleware(req: NextRequest) {
-  const res = NextResponse.next();
-  
-  try {
-    // Get environment variables
-    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-    const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+const TRIAL_DAYS = 7
 
-    // Skip middleware if Supabase is not configured
-    if (!supabaseUrl || !supabaseAnonKey) {
-      return res;
-    }
+export function middleware(req: NextRequest) {
+  const res = NextResponse.next()
 
-    // Create Supabase client
-    const supabase = createClient(supabaseUrl, supabaseAnonKey, {
-      auth: {
-        autoRefreshToken: true,
-        persistSession: true,
-        detectSessionInUrl: true
-      }
-    });
+  const trialStart = req.cookies.get('mindcash_trial_start')?.value
+  const isPaid = req.cookies.get('mindcash_paid')?.value === 'true'
+  const isRegistered = req.cookies.get('mindcash_registered')?.value === 'true'
 
-    // Get session from cookies/localStorage
-    const { data: { session } } = await supabase.auth.getSession();
-
-    // Protected routes that require authentication
-    const protectedRoutes = ['/dashboard', '/profile', '/settings'];
-    const authRoutes = ['/auth/signin', '/auth/signup'];
-    
-    const isProtectedRoute = protectedRoutes.some(route => 
-      req.nextUrl.pathname.startsWith(route)
-    );
-    
-    const isAuthRoute = authRoutes.some(route => 
-      req.nextUrl.pathname.startsWith(route)
-    );
-
-    // If user is not authenticated and trying to access protected route
-    if (isProtectedRoute && !session) {
-      return NextResponse.redirect(new URL('/auth/signin', req.url));
-    }
-
-    // If user is authenticated and trying to access auth routes
-    if (isAuthRoute && session) {
-      return NextResponse.redirect(new URL('/dashboard', req.url));
-    }
-
-    return res;
-  } catch (error) {
-    console.error('Middleware error:', error);
-    return res;
+  // Se não existe trial, cria no primeiro acesso
+  if (!trialStart) {
+    const now = Date.now().toString()
+    res.cookies.set('mindcash_trial_start', now, {
+      maxAge: 60 * 60 * 24 * 30, // 30 dias
+      path: '/',
+    })
+    return res
   }
+
+  const trialStartDate = Number(trialStart)
+  const now = Date.now()
+  const diffDays = Math.floor((now - trialStartDate) / (1000 * 60 * 60 * 24))
+
+  const trialExpired = diffDays >= TRIAL_DAYS
+
+  // Se o trial expirou e o usuário NÃO está registrado + pago
+  if (trialExpired && (!isPaid || !isRegistered)) {
+    const blockedRoutes = ['/add-expense', '/add-income']
+
+    const isBlockedRoute = blockedRoutes.some(route =>
+      req.nextUrl.pathname.startsWith(route)
+    )
+
+    if (isBlockedRoute) {
+      return NextResponse.redirect(new URL('/upgrade', req.url))
+    }
+  }
+
+  return res
 }
 
 export const config = {
   matcher: [
-    /*
-     * Match all request paths except for the ones starting with:
-     * - _next/static (static files)
-     * - _next/image (image optimization files)
-     * - favicon.ico (favicon file)
-     * - public folder
-     */
     '/((?!_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)',
   ],
-};
+}
