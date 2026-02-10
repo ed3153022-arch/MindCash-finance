@@ -1,66 +1,24 @@
 'use client';
 
+import { useEffect } from 'react';
 import { useFinanceApp } from '@/hooks/useFinanceApp';
-import { LoginForm } from '@/components/LoginForm';
-import { RegisterForm } from '@/components/RegisterForm';
-import { Dashboard } from '@/components/Dashboard';
-import { Reports } from '@/components/Reports';
-import { Settings } from '@/components/Settings';
-import { Plans } from '@/components/Plans';
-import { PlanConfirmationModal } from '@/components/PlanConfirmationModal';
-import { SuccessMessage } from '@/components/SuccessMessage';
-import { PageTransition } from '@/components/PageTransition';
+import { useRouter } from 'next/navigation';
 
 export default function HomePage() {
-  const {
-    currentView,
-    isAuthenticated,
-    showPlanConfirmation,
-    showSuccessMessage,
-    ...appState
-  } = useFinanceApp();
+  const { isAuthenticated } = useFinanceApp();
+  const router = useRouter();
 
-  const renderCurrentView = () => {
-    if (!isAuthenticated) {
-      return currentView === 'register' ? (
-        <RegisterForm {...appState} />
-      ) : (
-        <LoginForm {...appState} />
-      );
+  useEffect(() => {
+    if (isAuthenticated) {
+      router.replace('/dashboard');
+    } else {
+      router.replace('/auth/signin');
     }
-
-    switch (currentView) {
-      case 'dashboard':
-        return <Dashboard {...appState} />;
-      case 'reports':
-        return <Reports {...appState} />;
-      case 'settings':
-        return <Settings {...appState} />;
-      case 'plans':
-        return <Plans {...appState} />;
-      default:
-        return <Dashboard {...appState} />;
-    }
-  };
+  }, [isAuthenticated, router]);
 
   return (
-    <PageTransition>
-      <div className="min-h-screen px-4 sm:px-6 lg:px-8">
-        {renderCurrentView()}
-        
-        {showPlanConfirmation.show && (
-          <PlanConfirmationModal
-            planName={showPlanConfirmation.planName}
-            planPrice={showPlanConfirmation.planPrice}
-            onConfirm={appState.confirmSubscription}
-            onCancel={appState.hidePlanConfirmationModal}
-          />
-        )}
-        
-        {showSuccessMessage.show && (
-          <SuccessMessage message={showSuccessMessage.message} />
-        )}
-      </div>
-    </PageTransition>
+    <div className="min-h-screen flex items-center justify-center text-sm text-slate-400">
+      Carregando MindCash…
+    </div>
   );
 }
