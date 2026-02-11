@@ -22,10 +22,9 @@ import {
 } from 'lucide-react';
 
 /**
- * URL do checkout da Kiwify
- * Substitua quando criar o produto
+ * URL oficial do checkout da Kiwify
  */
-const KIWIFY_CHECKOUT_URL = 'https://pay.kiwify.com.br/SEU_CHECKOUT_AQUI';
+const KIWIFY_CHECKOUT_URL = 'https://pay.kiwify.com.br/roY4TvP';
 
 export default function AssinaturaPage() {
   const router = useRouter();
@@ -53,7 +52,7 @@ export default function AssinaturaPage() {
 
   const handleSubscribeClick = () => {
     if (isPremium) return;
-    showPlanConfirmationModal('premium', 'MindCash Plus', 49.9);
+    showPlanConfirmationModal('premium', 'MindCash Plus', 29.9);
   };
 
   const handleRedirectToCheckout = () => {
@@ -125,7 +124,6 @@ export default function AssinaturaPage() {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 text-white">
-      {/* MODAL DE CONFIRMAÇÃO */}
       {showPlanConfirmation.show && !isPremium && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4">
           <div className="w-full max-w-md rounded-3xl bg-slate-800 border-2 border-yellow-400 p-8 shadow-2xl">
@@ -159,7 +157,6 @@ export default function AssinaturaPage() {
         </div>
       )}
 
-      {/* HEADER */}
       <header className="border-b border-slate-700 bg-slate-800/50 backdrop-blur">
         <div className="mx-auto max-w-7xl px-4">
           <div className="flex h-16 items-center justify-between">
@@ -186,9 +183,7 @@ export default function AssinaturaPage() {
         </div>
       </header>
 
-      {/* CONTEÚDO */}
       <main className="mx-auto max-w-7xl px-4 py-12">
-        {/* HERO */}
         <div className="mb-14 text-center">
           <div className="flex justify-center items-center gap-3 mb-6">
             <Sparkles className="h-8 w-8 text-yellow-400" />
@@ -198,22 +193,10 @@ export default function AssinaturaPage() {
             <Sparkles className="h-8 w-8 text-yellow-400" />
           </div>
           <p className="mx-auto max-w-3xl text-lg text-slate-300">
-            O plano completo para você assumir o controle total da sua vida
-            financeira.
+            O plano completo para você assumir o controle total da sua vida financeira.
           </p>
         </div>
 
-        {/* TRIAL */}
-        {user?.plan === 'trial' && trialInfo && (
-          <div className="mb-12 rounded-2xl border border-blue-700/50 bg-blue-900/20 p-6 text-center">
-            <p className="text-blue-300">
-              Teste gratuito ativo — restam{' '}
-              <strong>{trialInfo.remainingDays} dias</strong>
-            </p>
-          </div>
-        )}
-
-        {/* CARD PRINCIPAL */}
         <div className="mx-auto mb-16 max-w-4xl rounded-3xl border-2 border-yellow-400 bg-slate-800 p-8 shadow-2xl">
           <div className="mb-8 text-center">
             <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-2xl bg-gradient-to-br from-yellow-400 to-yellow-600 text-slate-900">
@@ -223,7 +206,7 @@ export default function AssinaturaPage() {
             <h2 className="text-3xl font-bold mb-2">MindCash Plus</h2>
             <div className="mb-4 flex justify-center items-baseline gap-2">
               <span className="text-5xl font-bold text-yellow-400">
-                R$ 49,90
+                R$ 29,90
               </span>
               <span className="text-slate-400">/mês</span>
             </div>
@@ -244,7 +227,6 @@ export default function AssinaturaPage() {
             </button>
           </div>
 
-          {/* FEATURES */}
           <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
             {mindCashPlusFeatures.map((feature, index) => (
               <div
@@ -262,17 +244,7 @@ export default function AssinaturaPage() {
             ))}
           </div>
         </div>
-
-        {/* GARANTIA */}
-        <div className="rounded-2xl border border-slate-600 bg-slate-800 p-8 text-center">
-          <h3 className="text-xl font-bold mb-3">
-            Garantia de 30 dias
-          </h3>
-          <p className="text-slate-300">
-            Se não ficar satisfeito, devolvemos 100% do seu dinheiro.
-          </p>
-        </div>
       </main>
     </div>
   );
-      }
+}
