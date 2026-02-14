@@ -1,89 +1,53 @@
 import { createClient } from '@supabase/supabase-js';
 
-// Get environment variables with fallbacks
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || '';
-const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || '';
+// 🔒 Validação obrigatória das variáveis de ambiente
+if (!process.env.NEXT_PUBLIC_SUPABASE_URL) {
+  throw new Error('NEXT_PUBLIC_SUPABASE_URL is not defined');
+}
 
-// Check if we're in a valid environment for Supabase
-const isSupabaseConfigured = supabaseUrl && supabaseAnonKey && 
-  supabaseUrl.startsWith('https://') && 
-  supabaseAnonKey.length > 20;
+if (!process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY) {
+  throw new Error('NEXT_PUBLIC_SUPABASE_ANON_KEY is not defined');
+}
 
-// Mock client for when Supabase is not configured
-const createMockClient = () => ({
+const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+
+// 🚀 Cliente oficial Supabase
+export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
   auth: {
-    signUp: async () => ({ data: null, error: { message: 'Supabase not configured' } }),
-    signInWithPassword: async () => ({ data: null, error: { message: 'Supabase not configured' } }),
-    signOut: async () => ({ error: null }),
-    getUser: async () => ({ data: { user: null }, error: null }),
-    getSession: async () => ({ data: { session: null }, error: null }),
-    onAuthStateChange: (callback: any) => {
-      // Call callback immediately with null user
-      setTimeout(() => callback('SIGNED_OUT', null), 0);
-      return { 
-        data: { 
-          subscription: { 
-            unsubscribe: () => {} 
-          } 
-        } 
-      };
-    },
-    resetPasswordForEmail: async () => ({ error: { message: 'Supabase not configured' } }),
-    updateUser: async () => ({ error: { message: 'Supabase not configured' } })
+    autoRefreshToken: true,
+    persistSession: true,
+    detectSessionInUrl: true,
+    flowType: 'pkce',
+    storage: typeof window !== 'undefined' ? window.localStorage : undefined,
+    storageKey: 'mindcash_user_session'
   },
-  from: () => ({
-    select: () => ({
-      limit: () => Promise.resolve({ data: null, error: { message: 'Supabase not configured' } })
-    })
-  })
+  global: {
+    headers: {
+      'X-Client-Info': 'mindcash-web-app'
+    }
+  }
 });
 
-// Create Supabase client with correct auth configuration
-export const supabase = isSupabaseConfigured 
-  ? createClient(supabaseUrl, supabaseAnonKey, {
-      auth: {
-        // Configurações corretas para persistência de sessão
-        autoRefreshToken: true,
-        persistSession: true,
-        detectSessionInUrl: true,
-        flowType: 'pkce', // Correto para aplicações web
-        storage: typeof window !== 'undefined' ? window.localStorage : undefined,
-        storageKey: 'mindcash_user_session', // Chave específica para o app
-        debug: false
-      },
-      global: {
-        headers: {
-          'X-Client-Info': 'mindcash-web-app'
-        }
-      }
-    })
-  : createMockClient();
-
-// Test connection function
+// 🔎 Função opcional para testar conexão
 export const testSupabaseConnection = async () => {
-  if (!isSupabaseConfigured) {
-    console.warn('⚠️ Supabase not configured - using mock client');
-    return false;
-  }
-
   try {
-    const { data, error } = await supabase.from('profiles').select('count').limit(1);
+    const { error } = await supabase.from('profiles').select('id').limit(1);
+
     if (error) {
-      console.error('Supabase connection test failed:', error.message);
+      console.error('❌ Supabase connection failed:', error.message);
       return false;
     }
+
     console.log('✅ Supabase connection successful');
     return true;
   } catch (error) {
-    console.error('Supabase connection test error:', error);
+    console.error('❌ Supabase connection error:', error);
     return false;
   }
 };
 
-// Check if Supabase is properly configured
-export const isSupabaseReady = () => isSupabaseConfigured;
-
-// Database types
+// 📦 Tipagem básica (você pode expandir depois)
 export type Database = {
   public: {
     Tables: {
@@ -122,15 +86,6 @@ export type Database = {
           updated_at?: string;
         };
       };
-    };
-    Views: {
-      [_ in never]: never;
-    };
-    Functions: {
-      [_ in never]: never;
-    };
-    Enums: {
-      [_ in never]: never;
     };
   };
 };
