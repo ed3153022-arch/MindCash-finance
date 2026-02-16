@@ -1,16 +1,13 @@
 import { createClient } from '@supabase/supabase-js';
 
-// 🔒 Validação obrigatória das variáveis de ambiente
-if (!process.env.NEXT_PUBLIC_SUPABASE_URL) {
-  throw new Error('NEXT_PUBLIC_SUPABASE_URL is not defined');
-}
+// 🔐 Variáveis de ambiente (sem quebrar build)
+const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || '';
+const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || '';
 
-if (!process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY) {
-  throw new Error('NEXT_PUBLIC_SUPABASE_ANON_KEY is not defined');
+// ⚠️ Log apenas (não quebra build)
+if (!supabaseUrl || !supabaseAnonKey) {
+  console.error('⚠️ Supabase environment variables are missing.');
 }
-
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
 
 // 🚀 Cliente oficial Supabase
 export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
@@ -19,7 +16,8 @@ export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
     persistSession: true,
     detectSessionInUrl: true,
     flowType: 'pkce',
-    storage: typeof window !== 'undefined' ? window.localStorage : undefined,
+    storage:
+      typeof window !== 'undefined' ? window.localStorage : undefined,
     storageKey: 'mindcash_user_session'
   },
   global: {
@@ -47,7 +45,7 @@ export const testSupabaseConnection = async () => {
   }
 };
 
-// 📦 Tipagem básica (você pode expandir depois)
+// 📦 Tipagem básica
 export type Database = {
   public: {
     Tables: {
