@@ -85,5 +85,5 @@ export type Database = {
         };
       };
     };
-  };
+  }; 
 };
