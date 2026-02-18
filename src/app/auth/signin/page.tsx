@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { useAuth } from '@/hooks/useAuth';
+import { supabase } from '@/lib/supabase';
 import { PageTransition, FadeIn } from '@/components/PageTransition';
 import { Eye, EyeOff, Loader2 } from 'lucide-react';
 
@@ -16,7 +16,6 @@ export default function SignInPage() {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState('');
   
-  const { signIn } = useAuth();
   const router = useRouter();
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -24,14 +23,30 @@ export default function SignInPage() {
     setIsLoading(true);
     setError('');
 
-    const result = await signIn(email, password);
-    
-    if (result.success) {
+    const { error } = await supabase.auth.signInWithPassword({
+      email,
+      password,
+    });
+
+    if (!error) {
       router.push('/dashboard');
     } else {
-      setError(result.error || 'Invalid email or password');
+      setError(error.message || 'Invalid email or password');
     }
     
+    setIsLoading(false);
+  };
+
+  const handleGoogleLogin = async () => {
+    setIsLoading(true);
+
+    await supabase.auth.signInWithOAuth({
+      provider: 'google',
+      options: {
+        redirectTo: window.location.origin + '/dashboard'
+      }
+    });
+
     setIsLoading(false);
   };
 
@@ -121,20 +136,32 @@ export default function SignInPage() {
                 </div>
               )}
 
-              <Button
-                type="submit"
-                className="w-full"
-                disabled={isLoading}
-              >
-                {isLoading ? (
-                  <>
-                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                    Signing in...
-                  </>
-                ) : (
-                  'Sign in'
-                )}
-              </Button>
+              <div className="space-y-3">
+                <Button
+                  type="submit"
+                  className="w-full"
+                  disabled={isLoading}
+                >
+                  {isLoading ? (
+                    <>
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                      Signing in...
+                    </>
+                  ) : (
+                    'Sign in'
+                  )}
+                </Button>
+
+                <Button
+                  type="button"
+                  variant="outline"
+                  className="w-full"
+                  onClick={handleGoogleLogin}
+                  disabled={isLoading}
+                >
+                  Continue with Google
+                </Button>
+              </div>
             </form>
           </FadeIn>
         </div>
