@@ -1,178 +1,169 @@
-'use client';
+"use client";
 
-import { useState } from 'react';
-import { useAuth } from '@/hooks/useAuth';
-import { useRouter } from 'next/navigation';
-import { LogOut } from 'lucide-react';
+import { useEffect, useState } from "react";
+import { supabase } from "@/lib/supabase";
+import UpgradeModal from "@/components/UpgradeModal";
 
 export default function DashboardPage() {
-  const { user, signOut, loading } = useAuth();
-  const router = useRouter();
+  const [user, setUser] = useState<any>(null);
+  const [trialEndsAt, setTrialEndsAt] = useState<Date | null>(null);
+  const [subscriptionStatus, setSubscriptionStatus] = useState<string>("inactive");
+  const [loading, setLoading] = useState(true);
+  const [showUpgradeModal, setShowUpgradeModal] = useState(false);
 
-  const [type, setType] = useState('income');
-  const [amount, setAmount] = useState('');
-  const [category, setCategory] = useState('');
-  const [date, setDate] = useState('');
+  // 🔥 Dados simulados (depois conectamos no banco real)
+  const entradas = 10000;
+  const saidas = 2637;
+  const saldo = entradas - saidas;
+  const orcamentoMensal = 5000;
+  const gastoAtual = 2637;
 
-  const handleSignOut = async () => {
-    await signOut();
-    router.push('/');
-  };
+  useEffect(() => {
+    const loadUser = async () => {
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
 
-  if (loading) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-black">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-yellow-500"></div>
-      </div>
-    );
+      if (!user) return;
+
+      setUser(user);
+
+      const { data } = await supabase
+        .from("users")
+        .select("trial_ends_at, subscription_status")
+        .eq("id", user.id)
+        .single();
+
+      if (data) {
+        setTrialEndsAt(data.trial_ends_at ? new Date(data.trial_ends_at) : null);
+        setSubscriptionStatus(data.subscription_status);
+      }
+
+      setLoading(false);
+    };
+
+    loadUser();
+  }, []);
+
+  let isBlocked = false;
+  let daysLeft = 0;
+
+  if (trialEndsAt && subscriptionStatus !== "active") {
+    const now = new Date();
+    const diff = trialEndsAt.getTime() - now.getTime();
+    daysLeft = Math.ceil(diff / (1000 * 60 * 60 * 24));
+    isBlocked = daysLeft <= 0;
   }
 
-  if (!user) {
-    router.push('/auth/signin');
-    return null;
-  }
+  if (loading) return null;
 
   return (
-    <div className="min-h-screen bg-black text-white">
+    <div className="min-h-screen bg-black text-white px-4 py-6">
 
-      {/* 🔝 TOPBAR */}
-      <header className="w-full bg-black border-b border-yellow-500 fixed top-0 left-0 z-50">
-        <div className="container mx-auto px-6 py-4 flex items-center justify-between">
-          <h1 className="text-xl font-bold text-yellow-500">
-            MindCash
-          </h1>
-
-          <nav className="hidden md:flex gap-8 text-gray-300">
-            <a href="#" className="hover:text-yellow-500 transition">
-              Dashboard
-            </a>
-            <a href="#" className="hover:text-yellow-500 transition">
-              Relatórios
-            </a>
-            <a href="#" className="hover:text-yellow-500 transition">
-              Histórico
-            </a>
-          </nav>
-
-          <div className="flex items-center gap-4">
-            <span className="text-sm text-gray-400">
-              {user.email}
-            </span>
-
-            <button
-              onClick={handleSignOut}
-              className="flex items-center gap-2 bg-yellow-500 text-black px-4 py-2 rounded-lg font-semibold hover:bg-yellow-400 transition"
-            >
-              <LogOut className="h-4 w-4" />
-              Sair
-            </button>
-          </div>
+      {/* AVISO DE TRIAL */}
+      {!isBlocked && daysLeft > 0 && daysLeft <= 3 && (
+        <div className="bg-yellow-600 text-black text-center py-2 rounded mb-6 font-semibold">
+          Seu teste termina em {daysLeft} dia(s)
         </div>
-      </header>
+      )}
 
-      {/* Espaço para compensar topbar fixa */}
-      <div className="h-24"></div>
+      {isBlocked && (
+        <div className="bg-red-600 text-white text-center py-3 rounded mb-6 font-semibold">
+          Seu período de teste acabou. Ative seu plano.
+        </div>
+      )}
 
-      <main className="container mx-auto px-6 py-10 space-y-10">
+      {/* BOTÃO NOVA TRANSAÇÃO */}
+      <div className="mb-8">
+        <button
+          onClick={() => {
+            if (isBlocked) {
+              setShowUpgradeModal(true);
+              return;
+            }
+            alert("Abrir modal de nova transação");
+          }}
+          className="w-full bg-gradient-to-r from-yellow-500 to-yellow-400 text-black py-3 rounded-xl font-bold text-lg"
+        >
+          + Nova Transação
+        </button>
+      </div>
 
-        {/* 💰 RESUMO FINANCEIRO */}
-        <section className="grid grid-cols-1 md:grid-cols-4 gap-6">
-          <div className="bg-gray-900 p-6 rounded-2xl border border-gray-800">
-            <p className="text-gray-400">Receita do mês</p>
-            <h2 className="text-2xl font-bold text-yellow-500 mt-2">
-              R$ 0,00
-            </h2>
-          </div>
+      {/* ORÇAMENTO MENSAL */}
+      <div className="bg-neutral-900 p-5 rounded-2xl mb-8 shadow-lg">
+        <div className="flex justify-between mb-2">
+          <span className="text-gray-400">Orçamento Mensal</span>
+          <span className="text-yellow-500 font-semibold">
+            R$ {orcamentoMensal.toLocaleString()}
+          </span>
+        </div>
 
-          <div className="bg-gray-900 p-6 rounded-2xl border border-gray-800">
-            <p className="text-gray-400">Gastos do mês</p>
-            <h2 className="text-2xl font-bold text-red-500 mt-2">
-              R$ 0,00
-            </h2>
-          </div>
+        <div className="w-full bg-neutral-700 h-3 rounded-full overflow-hidden">
+          <div
+            className="bg-yellow-500 h-3 transition-all duration-500"
+            style={{
+              width: `${(gastoAtual / orcamentoMensal) * 100}%`,
+            }}
+          />
+        </div>
 
-          <div className="bg-gray-900 p-6 rounded-2xl border border-gray-800">
-            <p className="text-gray-400">Saldo atual</p>
-            <h2 className="text-2xl font-bold text-green-500 mt-2">
-              R$ 0,00
-            </h2>
-          </div>
+        <p className="text-sm text-gray-400 mt-2">
+          R$ {gastoAtual.toLocaleString()} gastos
+        </p>
+      </div>
 
-          <div className="bg-gray-900 p-6 rounded-2xl border border-gray-800">
-            <p className="text-gray-400">Economia</p>
-            <h2 className="text-2xl font-bold text-yellow-500 mt-2">
-              0%
-            </h2>
-          </div>
-        </section>
+      {/* RESUMO FINANCEIRO VERTICAL */}
+      <div className="space-y-4 mb-10">
 
-        {/* ➕ REGISTRAR TRANSAÇÃO */}
-        <section className="bg-gray-900 p-8 rounded-2xl border border-gray-800">
-          <h2 className="text-xl font-semibold text-yellow-500 mb-6">
-            Registrar Transação
+        <div className="bg-neutral-900 p-5 rounded-xl">
+          <p className="text-gray-400">Entradas</p>
+          <h2 className="text-green-500 text-2xl font-bold">
+            R$ {entradas.toLocaleString()}
           </h2>
+        </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
-
-            <select
-              value={type}
-              onChange={(e) => setType(e.target.value)}
-              className="bg-black border border-gray-700 p-3 rounded-lg focus:outline-none focus:border-yellow-500"
-            >
-              <option value="income">Receita</option>
-              <option value="expense">Gasto</option>
-            </select>
-
-            <input
-              type="number"
-              placeholder="Valor"
-              value={amount}
-              onChange={(e) => setAmount(e.target.value)}
-              className="bg-black border border-gray-700 p-3 rounded-lg focus:outline-none focus:border-yellow-500"
-            />
-
-            <input
-              type="text"
-              placeholder="Categoria"
-              value={category}
-              onChange={(e) => setCategory(e.target.value)}
-              className="bg-black border border-gray-700 p-3 rounded-lg focus:outline-none focus:border-yellow-500"
-            />
-
-            <input
-              type="date"
-              value={date}
-              onChange={(e) => setDate(e.target.value)}
-              className="bg-black border border-gray-700 p-3 rounded-lg focus:outline-none focus:border-yellow-500"
-            />
-          </div>
-
-          <button className="mt-6 bg-yellow-500 text-black px-6 py-3 rounded-lg font-semibold hover:bg-yellow-400 transition">
-            Salvar Transação
-          </button>
-        </section>
-
-        {/* 🔒 BLOCO PREMIUM */}
-        <section className="bg-gray-900 p-8 rounded-2xl border border-dashed border-yellow-500">
-          <h2 className="text-lg font-semibold flex items-center gap-2">
-            Veredito Financeiro
-            <span>🔒</span>
+        <div className="bg-neutral-900 p-5 rounded-xl">
+          <p className="text-gray-400">Saídas</p>
+          <h2 className="text-red-500 text-2xl font-bold">
+            R$ {saidas.toLocaleString()}
           </h2>
+        </div>
 
-          <p className="text-gray-400 mt-3">
-            Para visualizar seu veredito mensal, tendências e relatórios
-            completos, é necessário ativar um plano.
-          </p>
+        <div className="bg-neutral-900 p-5 rounded-xl">
+          <p className="text-gray-400">Saldo Atual</p>
+          <h2 className="text-yellow-500 text-2xl font-bold">
+            R$ {saldo.toLocaleString()}
+          </h2>
+        </div>
 
+      </div>
+
+      {/* ORÇAMENTO POR CATEGORIA */}
+      <div className="bg-neutral-900 p-5 rounded-2xl shadow-lg">
+        <h3 className="text-lg font-semibold mb-4 text-yellow-500">
+          Orçamento por Categoria
+        </h3>
+
+        <div className="space-y-3 text-sm text-gray-400">
+          <div>Moradia — R$ 1.500 / 2.500</div>
+          <div>Alimentação — R$ 746 / 1.500</div>
+          <div>Transporte — R$ 124 / 250</div>
+          <div>Saúde — R$ 67 / 200</div>
+        </div>
+
+        {isBlocked && (
           <button
-            onClick={() => router.push('/plans')}
-            className="mt-4 bg-yellow-500 text-black px-6 py-3 rounded-lg font-semibold hover:bg-yellow-400 transition"
+            onClick={() => setShowUpgradeModal(true)}
+            className="mt-4 w-full bg-yellow-500 text-black py-2 rounded-lg font-semibold"
           >
-            Desbloquear veredito
+            Desbloquear Relatórios
           </button>
-        </section>
+        )}
+      </div>
 
-      </main>
+      {showUpgradeModal && (
+        <UpgradeModal onClose={() => setShowUpgradeModal(false)} />
+      )}
     </div>
   );
 }
