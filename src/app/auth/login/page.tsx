@@ -2,10 +2,11 @@
 
 import { useState } from 'react';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent } from '@/components/ui/card';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { PageTransition } from '@/components/PageTransition';
 import { useAuth } from '@/hooks/useAuth';
+import { Loader2 } from 'lucide-react';
 
 export default function LoginPage() {
   const { signInWithGoogle, loading } = useAuth();
@@ -21,46 +22,57 @@ export default function LoginPage() {
 
   return (
     <PageTransition>
-      <div className="min-h-screen flex items-center justify-center bg-gray-50 dark:bg-gray-900 px-4">
-        <div className="max-w-md w-full space-y-6">
-          
-          <div className="text-center">
-            <div className="mx-auto w-14 h-14 bg-black rounded-xl flex items-center justify-center mb-4">
-              <span className="text-yellow-400 font-bold text-2xl">S</span>
-            </div>
+      <div className="min-h-screen flex items-center justify-center bg-black px-4">
+        <div className="w-full max-w-md">
 
-            <h2 className="text-3xl font-bold text-gray-900 dark:text-white">
-              Entrar na plataforma
-            </h2>
-          </div>
+          <Card className="bg-neutral-900 border-neutral-800 shadow-xl">
+            <CardContent className="py-10 px-8 space-y-8 text-center">
 
-          <Card>
-            <CardHeader>
-              <CardTitle>Login</CardTitle>
-            </CardHeader>
+              {/* Logo */}
+              <div className="flex flex-col items-center space-y-4">
+                <div className="h-14 w-14 rounded-xl bg-gradient-to-br from-yellow-500 to-yellow-400 flex items-center justify-center shadow-lg">
+                  <span className="text-black font-bold text-xl">M</span>
+                </div>
 
-            <CardContent className="space-y-4">
+                <h2 className="text-2xl font-bold text-white">
+                  Entrar na plataforma
+                </h2>
 
+                <p className="text-sm text-gray-400">
+                  Continue com sua conta Google para acessar o MindCash.
+                </p>
+              </div>
+
+              {/* Error */}
               {error && (
-                <Alert variant="destructive">
+                <Alert className="bg-red-500/10 border-red-500/30 text-red-400">
                   <AlertDescription>{error}</AlertDescription>
                 </Alert>
               )}
 
+              {/* Google Button */}
               <Button
                 type="button"
                 onClick={handleGoogleLogin}
                 disabled={loading}
-                className="w-full flex items-center justify-center gap-3 bg-white text-black border border-gray-300 hover:bg-gray-100"
+                className="w-full h-11 flex items-center justify-center gap-3 bg-yellow-500 hover:bg-yellow-400 text-black font-semibold transition-all"
               >
-                <svg width="18" height="18" viewBox="0 0 24 24">
-                  <path
-                    fill="#EA4335"
-                    d="M12 10.2v3.6h5.1c-.2 1.3-1.6 3.7-5.1 3.7-3.1 0-5.6-2.6-5.6-5.8s2.5-5.8 5.6-5.8c1.8 0 3 .8 3.7 1.4l2.5-2.4C16.7 3.9 14.6 3 12 3 7 3 3 7 3 12s4 9 9 9c5.2 0 8.7-3.6 8.7-8.7 0-.6-.1-1-.2-1.1H12z"
-                  />
-                </svg>
-
-                {loading ? 'Redirecionando...' : 'Continuar com Google'}
+                {loading ? (
+                  <>
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                    Conectando...
+                  </>
+                ) : (
+                  <>
+                    <svg width="18" height="18" viewBox="0 0 24 24">
+                      <path
+                        fill="#000000"
+                        d="M21.35 11.1h-9.18v2.92h5.27c-.23 1.3-1.6 3.81-5.27 3.81-3.17 0-5.75-2.62-5.75-5.85s2.58-5.85 5.75-5.85c1.8 0 3 .77 3.69 1.44l2.52-2.44C16.8 3.98 14.68 3 12 3 7 3 3 7.03 3 12s4 9 9 9c5.2 0 8.64-3.64 8.64-8.76 0-.59-.07-1.04-.29-1.14z"
+                      />
+                    </svg>
+                    Continuar com Google
+                  </>
+                )}
               </Button>
 
             </CardContent>
