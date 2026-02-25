@@ -35,7 +35,7 @@ export default function LoginPage() {
                 </div>
 
                 <h2 className="text-2xl font-bold text-white">
-                  Entrar na plataforma
+                  teste 999
                 </h2>
 
                 <p className="text-sm text-gray-400">
