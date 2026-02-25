@@ -1,159 +1,71 @@
 'use client';
 
 import { useState } from 'react';
-import { useRouter } from 'next/navigation';
-import Link from 'next/link';
 import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
-import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { PageTransition } from '@/components/PageTransition';
 import { useAuth } from '@/hooks/useAuth';
-import { Eye, EyeOff, Loader2 } from 'lucide-react';
 
 export default function LoginPage() {
-  const router = useRouter();
-  const { signIn, loading } = useAuth();
-  const [formData, setFormData] = useState({
-    email: '',
-    password: '',
-  });
-  const [showPassword, setShowPassword] = useState(false);
+  const { signInWithGoogle, loading } = useAuth();
   const [error, setError] = useState('');
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
+  const handleGoogleLogin = async () => {
     setError('');
-
-    if (!formData.email || !formData.password) {
-      setError('Por favor, preencha todos os campos');
-      return;
-    }
-
-    const { error } = await signIn(formData.email, formData.password);
-    
+    const { error } = await signInWithGoogle();
     if (error) {
       setError(error);
-    } else {
-      router.push('/dashboard');
     }
-  };
-
-  const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    setFormData(prev => ({
-      ...prev,
-      [e.target.name]: e.target.value,
-    }));
   };
 
   return (
     <PageTransition>
-      <div className="min-h-screen flex items-center justify-center bg-gray-50 dark:bg-gray-900 py-12 px-4 sm:px-6 lg:px-8">
-        <div className="max-w-md w-full space-y-8">
+      <div className="min-h-screen flex items-center justify-center bg-gray-50 dark:bg-gray-900 px-4">
+        <div className="max-w-md w-full space-y-6">
+          
           <div className="text-center">
-            <div className="mx-auto w-12 h-12 bg-gradient-to-r from-blue-500 to-purple-600 rounded-lg flex items-center justify-center mb-4">
-              <span className="text-white font-bold text-xl">S</span>
+            <div className="mx-auto w-14 h-14 bg-black rounded-xl flex items-center justify-center mb-4">
+              <span className="text-yellow-400 font-bold text-2xl">S</span>
             </div>
+
             <h2 className="text-3xl font-bold text-gray-900 dark:text-white">
-              Faça login na sua conta
+              Entrar na plataforma
             </h2>
-            <p className="mt-2 text-sm text-gray-600 dark:text-gray-400">
-              Ou{' '}
-              <Link
-                href="/auth/register"
-                className="font-medium text-blue-600 hover:text-blue-500 dark:text-blue-400"
-              >
-                crie uma nova conta
-              </Link>
-            </p>
           </div>
 
           <Card>
             <CardHeader>
-              <CardTitle>Entrar</CardTitle>
-              <CardDescription>
-                Digite suas credenciais para acessar sua conta
-              </CardDescription>
+              <CardTitle>Login</CardTitle>
             </CardHeader>
-            <form onSubmit={handleSubmit}>
-              <CardContent className="space-y-4">
-                {error && (
-                  <Alert variant="destructive">
-                    <AlertDescription>{error}</AlertDescription>
-                  </Alert>
-                )}
 
-                <div className="space-y-2">
-                  <Label htmlFor="email">Email</Label>
-                  <Input
-                    id="email"
-                    name="email"
-                    type="email"
-                    autoComplete="email"
-                    required
-                    value={formData.email}
-                    onChange={handleChange}
-                    placeholder="seu@email.com"
+            <CardContent className="space-y-4">
+
+              {error && (
+                <Alert variant="destructive">
+                  <AlertDescription>{error}</AlertDescription>
+                </Alert>
+              )}
+
+              <Button
+                type="button"
+                onClick={handleGoogleLogin}
+                disabled={loading}
+                className="w-full flex items-center justify-center gap-3 bg-white text-black border border-gray-300 hover:bg-gray-100"
+              >
+                <svg width="18" height="18" viewBox="0 0 24 24">
+                  <path
+                    fill="#EA4335"
+                    d="M12 10.2v3.6h5.1c-.2 1.3-1.6 3.7-5.1 3.7-3.1 0-5.6-2.6-5.6-5.8s2.5-5.8 5.6-5.8c1.8 0 3 .8 3.7 1.4l2.5-2.4C16.7 3.9 14.6 3 12 3 7 3 3 7 3 12s4 9 9 9c5.2 0 8.7-3.6 8.7-8.7 0-.6-.1-1-.2-1.1H12z"
                   />
-                </div>
+                </svg>
 
-                <div className="space-y-2">
-                  <Label htmlFor="password">Senha</Label>
-                  <div className="relative">
-                    <Input
-                      id="password"
-                      name="password"
-                      type={showPassword ? 'text' : 'password'}
-                      autoComplete="current-password"
-                      required
-                      value={formData.password}
-                      onChange={handleChange}
-                      placeholder="Sua senha"
-                    />
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      size="sm"
-                      className="absolute right-0 top-0 h-full px-3 py-2 hover:bg-transparent"
-                      onClick={() => setShowPassword(!showPassword)}
-                    >
-                      {showPassword ? (
-                        <EyeOff className="h-4 w-4" />
-                      ) : (
-                        <Eye className="h-4 w-4" />
-                      )}
-                    </Button>
-                  </div>
-                </div>
+                {loading ? 'Redirecionando...' : 'Continuar com Google'}
+              </Button>
 
-                <div className="flex items-center justify-between">
-                  <Link
-                    href="/auth/forgot-password"
-                    className="text-sm text-blue-600 hover:text-blue-500 dark:text-blue-400"
-                  >
-                    Esqueceu sua senha?
-                  </Link>
-                </div>
-              </CardContent>
-              <CardFooter>
-                <Button
-                  type="submit"
-                  className="w-full"
-                  disabled={loading}
-                >
-                  {loading ? (
-                    <>
-                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                      Entrando...
-                    </>
-                  ) : (
-                    'Entrar'
-                  )}
-                </Button>
-              </CardFooter>
-            </form>
+            </CardContent>
           </Card>
+
         </div>
       </div>
     </PageTransition>
