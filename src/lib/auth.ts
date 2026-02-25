@@ -22,7 +22,6 @@ export interface UpdatePasswordData {
 }
 
 export class AuthService {
-  // Detectar automaticamente se Supabase está ativo
   private static isSupabaseAvailable(): boolean {
     return !!supabase?.auth;
   }
@@ -96,6 +95,38 @@ export class AuthService {
       return {
         success: false,
         error: 'Erro inesperado ao fazer login.',
+      };
+    }
+  }
+
+  // =========================
+  // SIGN IN WITH GOOGLE
+  // =========================
+  static async signInWithGoogle(): Promise<ApiResponse> {
+    try {
+      if (!this.isSupabaseAvailable()) {
+        return {
+          success: false,
+          error: 'Login social não disponível.',
+        };
+      }
+
+      const { error } = await supabase.auth.signInWithOAuth({
+        provider: 'google',
+        options: {
+          redirectTo: `${window.location.origin}/dashboard`,
+        },
+      });
+
+      if (error) {
+        return { success: false, error: error.message };
+      }
+
+      return { success: true };
+    } catch {
+      return {
+        success: false,
+        error: 'Erro inesperado ao fazer login com Google.',
       };
     }
   }
