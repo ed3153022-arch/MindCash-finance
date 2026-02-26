@@ -1,5 +1,4 @@
 import "./globals.css";
-import { Navbar } from "@/components/Navbar";
 
 export const metadata = {
   title: "MindCash Finance",
@@ -14,7 +13,6 @@ export default function RootLayout({
   return (
     <html lang="pt-BR">
       <body className="bg-black text-white">
-        <Navbar />
         {children}
       </body>
     </html>
