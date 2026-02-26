@@ -10,6 +10,7 @@ export function useAuth(): AuthState & {
   signOut: () => Promise<void>;
   resetPassword: (email: string) => Promise<boolean>;
   refreshAuth: () => Promise<void>;
+  signInWithGoogle: () => Promise<{ error?: string }>;
 } {
   const [state, setState] = useState<AuthState>({
     user: null,
@@ -42,7 +43,6 @@ export function useAuth(): AuthState & {
     let mounted = true;
     let subscription: any = null;
 
-    // Get initial session
     const getInitialSession = async () => {
       try {
         console.log('🔄 Getting initial auth session...');
@@ -72,19 +72,19 @@ export function useAuth(): AuthState & {
 
     getInitialSession();
 
-    // Set up auth listener
     console.log('🔄 Setting up auth state listener...');
-    const { data: { subscription: authSubscription } } = AuthService.onAuthStateChange((user) => {
-      console.log('🔄 Auth state change detected:', user?.email || 'No user');
-      if (mounted) {
-        setState(prev => ({
-          ...prev,
-          user,
-          loading: false,
-          error: null,
-        }));
-      }
-    });
+    const { data: { subscription: authSubscription } } =
+      AuthService.onAuthStateChange((user) => {
+        console.log('🔄 Auth state change detected:', user?.email || 'No user');
+        if (mounted) {
+          setState(prev => ({
+            ...prev,
+            user,
+            loading: false,
+            error: null,
+          }));
+        }
+      });
     
     subscription = authSubscription;
 
@@ -97,107 +97,103 @@ export function useAuth(): AuthState & {
     };
   }, []);
 
-  const signIn = async (email: string, password: string): Promise<{ success: boolean; error?: string }> => {
+  // EMAIL LOGIN
+  const signIn = async (
+    email: string,
+    password: string
+  ): Promise<{ success: boolean; error?: string }> => {
     try {
       setState(prev => ({ ...prev, loading: true, error: null }));
-      
-      // Validate inputs
-      if (!email || !password) {
-        const error = 'E-mail e senha são obrigatórios';
-        setState(prev => ({ ...prev, loading: false, error }));
-        return { success: false, error };
-      }
 
-      if (!email.includes('@')) {
-        const error = 'Por favor, digite um e-mail válido';
-        setState(prev => ({ ...prev, loading: false, error }));
-        return { success: false, error };
-      }
-
-      if (password.length < 6) {
-        const error = 'A senha deve ter pelo menos 6 caracteres';
-        setState(prev => ({ ...prev, loading: false, error }));
-        return { success: false, error };
-      }
-      
       const result = await AuthService.signIn({ email, password });
-      
+
       if (result.success) {
-        setState(prev => ({ 
-          ...prev, 
+        setState(prev => ({
+          ...prev,
           user: result.data || null,
           loading: false,
-          error: null
+          error: null,
         }));
-        console.log('✅ Login successful in useAuth hook');
         return { success: true };
       } else {
-        setState(prev => ({ 
-          ...prev, 
-          loading: false, 
-          error: result.error || 'Falha no login' 
+        setState(prev => ({
+          ...prev,
+          loading: false,
+          error: result.error || 'Falha no login',
         }));
-        return { success: false, error: result.error || 'Falha no login' };
+        return { success: false, error: result.error };
       }
     } catch (error: any) {
       const errorMessage = error.message || 'Erro inesperado';
-      setState(prev => ({ 
-        ...prev, 
-        loading: false, 
-        error: errorMessage
+      setState(prev => ({
+        ...prev,
+        loading: false,
+        error: errorMessage,
       }));
       return { success: false, error: errorMessage };
     }
   };
 
-  const signUp = async (email: string, password: string, fullName?: string): Promise<{ success: boolean; error?: string }> => {
+  // GOOGLE LOGIN 🔥
+  const signInWithGoogle = async (): Promise<{ error?: string }> => {
     try {
       setState(prev => ({ ...prev, loading: true, error: null }));
-      
-      // Validate inputs
-      if (!email || !password) {
-        const error = 'E-mail e senha são obrigatórios';
-        setState(prev => ({ ...prev, loading: false, error }));
-        return { success: false, error };
+
+      const result = await AuthService.signInWithGoogle();
+
+      if (result?.error) {
+        setState(prev => ({
+          ...prev,
+          loading: false,
+          error: result.error,
+        }));
+        return { error: result.error };
       }
 
-      if (!email.includes('@')) {
-        const error = 'Por favor, digite um e-mail válido';
-        setState(prev => ({ ...prev, loading: false, error }));
-        return { success: false, error };
-      }
+      return {};
+    } catch (error: any) {
+      const errorMessage = error.message || 'Erro ao entrar com Google';
+      setState(prev => ({
+        ...prev,
+        loading: false,
+        error: errorMessage,
+      }));
+      return { error: errorMessage };
+    }
+  };
 
-      if (password.length < 6) {
-        const error = 'A senha deve ter pelo menos 6 caracteres';
-        setState(prev => ({ ...prev, loading: false, error }));
-        return { success: false, error };
-      }
-      
+  const signUp = async (
+    email: string,
+    password: string,
+    fullName?: string
+  ): Promise<{ success: boolean; error?: string }> => {
+    try {
+      setState(prev => ({ ...prev, loading: true, error: null }));
+
       const result = await AuthService.signUp({ email, password, fullName });
-      
+
       if (result.success) {
-        setState(prev => ({ 
-          ...prev, 
+        setState(prev => ({
+          ...prev,
           user: result.data || null,
           loading: false,
-          error: null
+          error: null,
         }));
-        console.log('✅ Sign up successful in useAuth hook');
         return { success: true };
       } else {
-        setState(prev => ({ 
-          ...prev, 
-          loading: false, 
-          error: result.error || 'Falha no cadastro' 
+        setState(prev => ({
+          ...prev,
+          loading: false,
+          error: result.error || 'Falha no cadastro',
         }));
-        return { success: false, error: result.error || 'Falha no cadastro' };
+        return { success: false, error: result.error };
       }
     } catch (error: any) {
       const errorMessage = error.message || 'Erro inesperado';
-      setState(prev => ({ 
-        ...prev, 
-        loading: false, 
-        error: errorMessage
+      setState(prev => ({
+        ...prev,
+        loading: false,
+        error: errorMessage,
       }));
       return { success: false, error: errorMessage };
     }
@@ -206,18 +202,13 @@ export function useAuth(): AuthState & {
   const signOut = async (): Promise<void> => {
     try {
       setState(prev => ({ ...prev, loading: true }));
-      
       await AuthService.signOut();
-      
       setState({
         user: null,
         loading: false,
         error: null,
       });
-      
-      console.log('✅ Sign out successful in useAuth hook');
     } catch (error: any) {
-      console.error('❌ Sign out error:', error);
       setState({
         user: null,
         loading: false,
@@ -228,30 +219,22 @@ export function useAuth(): AuthState & {
 
   const resetPassword = async (email: string): Promise<boolean> => {
     try {
-      if (!email || !email.includes('@')) {
-        setState(prev => ({ 
-          ...prev, 
-          error: 'Por favor, digite um e-mail válido' 
+      const result = await AuthService.resetPassword({ email });
+
+      if (!result.success) {
+        setState(prev => ({
+          ...prev,
+          error: result.error || 'Falha na recuperação de senha',
         }));
         return false;
       }
 
-      const result = await AuthService.resetPassword({ email });
-      
-      if (!result.success) {
-        setState(prev => ({ 
-          ...prev, 
-          error: result.error || 'Falha na recuperação de senha' 
-        }));
-        return false;
-      }
-      
       setState(prev => ({ ...prev, error: null }));
       return true;
     } catch (error: any) {
-      setState(prev => ({ 
-        ...prev, 
-        error: error.message || 'Falha na recuperação de senha' 
+      setState(prev => ({
+        ...prev,
+        error: error.message || 'Falha na recuperação de senha',
       }));
       return false;
     }
@@ -264,5 +247,6 @@ export function useAuth(): AuthState & {
     signOut,
     resetPassword,
     refreshAuth,
+    signInWithGoogle,
   };
 }
