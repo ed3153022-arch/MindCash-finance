@@ -3,9 +3,19 @@
 import { useEffect, useState } from "react";
 import { supabase } from "@/lib/supabase";
 
+type Goal = {
+  id: string;
+  title: string;
+  type: string;
+  category: string | null;
+  amount: number;
+  month: string | null;
+};
+
 export default function MetasPage() {
-  const [goals, setGoals] = useState<any[]>([]);
+  const [goals, setGoals] = useState<Goal[]>([]);
   const [loading, setLoading] = useState(true);
+  const [showModal, setShowModal] = useState(false);
 
   useEffect(() => {
     fetchGoals();
@@ -18,15 +28,13 @@ export default function MetasPage() {
 
     if (!user) return;
 
-    const { data, error } = await supabase
+    const { data } = await supabase
       .from("goals")
       .select("*")
       .eq("user_id", user.id)
       .order("created_at", { ascending: false });
 
-    if (!error && data) {
-      setGoals(data);
-    }
+    if (data) setGoals(data);
 
     setLoading(false);
   }
@@ -35,12 +43,23 @@ export default function MetasPage() {
     <div className="bg-black text-white min-h-screen">
       <div className="max-w-4xl mx-auto px-6 py-10">
 
-        <h1 className="text-3xl font-bold mb-8">Metas</h1>
+        {/* HEADER */}
+        <div className="flex justify-between items-center mb-10">
+          <h1 className="text-3xl font-bold">Metas</h1>
 
+          <button
+            onClick={() => setShowModal(true)}
+            className="bg-yellow-400 hover:bg-yellow-300 text-black px-5 py-3 rounded-xl font-semibold transition"
+          >
+            + Nova Meta
+          </button>
+        </div>
+
+        {/* LISTA */}
         {loading ? (
-          <p className="text-gray-400">Carregando metas...</p>
+          <p className="text-gray-400">Carregando...</p>
         ) : goals.length === 0 ? (
-          <p className="text-gray-500">Você ainda não criou nenhuma meta.</p>
+          <p className="text-gray-500">Você ainda não possui metas.</p>
         ) : (
           <div className="space-y-6">
             {goals.map((goal) => (
@@ -48,15 +67,23 @@ export default function MetasPage() {
                 key={goal.id}
                 className="bg-[#111111] p-6 rounded-2xl border border-white/5"
               >
-                <p className="text-xs uppercase text-gray-400 mb-2">
+                <p className="text-xs text-gray-400 uppercase mb-2">
                   {goal.type}
                 </p>
+
                 <h2 className="text-xl font-bold mb-2">
                   {goal.title}
                 </h2>
+
                 <p className="text-yellow-400 font-semibold">
                   R$ {goal.amount}
                 </p>
+
+                {goal.category && (
+                  <p className="text-gray-500 text-sm mt-2">
+                    Categoria: {goal.category}
+                  </p>
+                )}
               </div>
             ))}
           </div>
