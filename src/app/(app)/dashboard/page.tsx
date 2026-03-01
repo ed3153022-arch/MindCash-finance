@@ -59,58 +59,61 @@ export default function DashboardPage() {
 
   return (
     <div className="bg-black text-white min-h-screen antialiased">
-      {/* CONTAINER PRINCIPAL: Aumentado para max-w-6xl e adicionado padding responsivo */}
-      <div className="max-w-6xl mx-auto px-6 py-8 md:py-12">
+      {/* AJUSTE DE BORDA MOBILE: 
+        px-6: Garante 24px de distância da borda em celulares.
+        md:px-10: Aumenta o respiro em tablets/desktops.
+      */}
+      <div className="max-w-6xl mx-auto px-6 py-8 md:px-10 md:py-12">
         
-        {/* HEADER: Alinhamento melhorado */}
-        <div className="flex flex-col md:flex-row md:items-end justify-between mb-10 gap-4">
-          <div>
-            <h1 className="text-4xl font-extrabold tracking-tight">Dashboard</h1>
-            <p className="text-gray-500 text-sm mt-1">
+        {/* HEADER */}
+        <div className="flex flex-col md:flex-row md:items-end justify-between mb-10 gap-6">
+          <div className="space-y-1">
+            <h1 className="text-3xl md:text-4xl font-extrabold tracking-tight">Dashboard</h1>
+            <p className="text-gray-500 text-sm">
               Controle absoluto sobre suas finanças.
             </p>
           </div>
           
-          {/* BOTÕES DE AÇÃO: Agora no topo direito em telas grandes */}
-          <div className="flex gap-3">
-            <button className="px-6 py-3 border border-white/10 rounded-xl text-sm font-medium hover:bg-white/5 transition">
+          {/* BOTÕES: No mobile eles agora ocupam a largura total para facilitar o clique */}
+          <div className="flex flex-col sm:flex-row gap-3">
+            <button className="w-full sm:w-auto px-6 py-3 border border-white/10 rounded-xl text-sm font-medium hover:bg-white/5 transition">
               Metas 📈
             </button>
             <button
               onClick={() => setShowUpgradeModal(true)}
-              className="px-6 py-3 bg-yellow-400 hover:bg-yellow-300 text-black rounded-xl text-sm font-bold transition shadow-lg shadow-yellow-400/10"
+              className="w-full sm:w-auto px-6 py-3 bg-yellow-400 hover:bg-yellow-300 text-black rounded-xl text-sm font-bold transition shadow-lg shadow-yellow-400/10"
             >
               + Nova transação
             </button>
           </div>
         </div>
 
-        {/* GRID DE RESUMO: 3 colunas em desktop, 1 em mobile */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+        {/* GRID DE RESUMO: Ajustei o gap para não ficar colado verticalmente no mobile */}
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 md:gap-6 mb-8">
           {/* SALDO */}
-          <div className="bg-[#111111] rounded-2xl p-6 border border-white/5">
+          <div className="bg-[#111111] rounded-2xl p-6 border border-white/5 ring-1 ring-white/5">
             <p className="text-green-400 text-[10px] tracking-[0.2em] uppercase font-bold mb-3">Saldo Atual</p>
             <h2 className="text-3xl font-bold text-green-500">R$ {saldo.toLocaleString()}</h2>
           </div>
 
           {/* SAÍDA */}
-          <div className="bg-[#111111] rounded-2xl p-6 border border-white/5">
+          <div className="bg-[#111111] rounded-2xl p-6 border border-white/5 ring-1 ring-white/5">
             <p className="text-red-400 text-[10px] tracking-[0.2em] uppercase font-bold mb-3">Saídas</p>
             <h2 className="text-3xl font-bold text-red-500">R$ {saidas.toLocaleString()}</h2>
           </div>
 
           {/* ENTRADA */}
-          <div className="bg-[#111111] rounded-2xl p-6 border border-white/5">
+          <div className="bg-[#111111] rounded-2xl p-6 border border-white/5 ring-1 ring-white/5">
             <p className="text-green-300 text-[10px] tracking-[0.2em] uppercase font-bold mb-3">Entradas</p>
             <h2 className="text-3xl font-bold text-green-400">R$ {entradas.toLocaleString()}</h2>
           </div>
         </div>
 
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 md:gap-8">
           
-          {/* COLUNA ESQUERDA: Orçamento Mensal */}
+          {/* ORÇAMENTO MENSAL */}
           <div className="lg:col-span-1">
-            <div className="bg-[#111111] p-6 rounded-2xl border border-white/5 h-full">
+            <div className="bg-[#111111] p-6 rounded-2xl border border-white/5 h-full ring-1 ring-white/5">
               <div className="flex justify-between items-center mb-6">
                 <span className="text-gray-400 text-[10px] uppercase font-bold tracking-widest">Orçamento Mensal</span>
                 <span className="text-yellow-400 text-xs font-bold px-2 py-1 bg-yellow-400/10 rounded-lg">
@@ -118,7 +121,7 @@ export default function DashboardPage() {
                 </span>
               </div>
               
-              <div className="w-full bg-[#1C1C1C] h-3 rounded-full overflow-hidden mb-4">
+              <div className="w-full bg-[#1C1C1C] h-2.5 rounded-full overflow-hidden mb-4">
                 <div
                   className="bg-yellow-400 h-full transition-all duration-1000 ease-out"
                   style={{ width: `${porcentagem}%` }}
@@ -130,23 +133,23 @@ export default function DashboardPage() {
             </div>
           </div>
 
-          {/* COLUNA DIREITA: Categorias em Grid */}
+          {/* CATEGORIAS: Ajustado o padding interno para telas menores */}
           <div className="lg:col-span-2">
-            <div className="bg-[#111111] p-6 rounded-2xl border border-white/5">
+            <div className="bg-[#111111] p-6 md:p-8 rounded-2xl border border-white/5 ring-1 ring-white/5">
               <h3 className="text-lg font-bold mb-6">Gastos por Categoria</h3>
               
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-x-10 gap-y-6">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-x-12 gap-y-6">
                 {categorias.map((categoria, index) => {
                   const progresso = (categoria.atual / categoria.limite) * 100;
                   return (
                     <div key={index} className="group">
-                      <div className="flex justify-between text-xs mb-2">
-                        <span className="text-white/70 group-hover:text-white transition-colors">{categoria.nome}</span>
-                        <span className="text-white/40 italic">R$ {categoria.atual} / {categoria.limite}</span>
+                      <div className="flex justify-between text-xs mb-2.5">
+                        <span className="text-white/80 group-hover:text-white transition-colors">{categoria.nome}</span>
+                        <span className="text-white/40 font-mono">R$ {categoria.atual}</span>
                       </div>
                       <div className="w-full bg-[#1C1C1C] h-1.5 rounded-full overflow-hidden">
                         <div
-                          className="bg-yellow-400 h-full opacity-80 group-hover:opacity-100 transition-all duration-700"
+                          className="bg-yellow-400 h-full opacity-80 group-hover:opacity-100 transition-all duration-700 shadow-[0_0_8px_rgba(250,204,21,0.3)]"
                           style={{ width: `${progresso}%` }}
                         />
                       </div>
@@ -159,7 +162,7 @@ export default function DashboardPage() {
 
         </div>
 
-        <div className="mt-16 pb-8 text-center text-gray-600 text-[10px] tracking-widest uppercase">
+        <div className="mt-20 pb-10 text-center text-gray-600 text-[10px] tracking-[0.3em] uppercase">
           Disciplina financeira constrói liberdade.
         </div>
       </div>
@@ -169,4 +172,5 @@ export default function DashboardPage() {
       )}
     </div>
   );
+
 }
