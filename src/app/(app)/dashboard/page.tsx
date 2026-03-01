@@ -129,33 +129,45 @@ export default function DashboardPage() {
             </div>
           </div>
 
-          {/* Gastos por Categoria */}
-          <div className="lg:col-span-2">
-            <div className="bg-[#111111] p-6 md:p-8 rounded-2xl border border-white/5 ring-1 ring-white/5">
-              <h3 className="text-lg font-bold mb-6">Gastos por Categoria</h3>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-x-12 gap-y-6">
-                {categorias.map((categoria, index) => {
-                  const progresso = (categoria.atual / categoria.limite) * 100;
-                  return (
-                    <div key={index} className="group">
-                      <div className="flex justify-between text-xs mb-2.5">
-                        <span className="text-white/80 group-hover:text-white transition-colors">{categoria.nome}</span>
-                        <span className="text-white/40 font-mono">R$ {categoria.atual}</span>
-                      </div>
-                      <div className="w-full bg-[#1C1C1C] h-1.5 rounded-full overflow-hidden">
-                        <div
-                          className="bg-yellow-400 h-full opacity-80 group-hover:opacity-100 transition-all duration-700 shadow-[0_0_8px_rgba(250,204,21,0.3)]"
-                          style={{ width: `${progresso}%` }}
-                        />
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
+          {/* GASTOS POR CATEGORIA */}
+         <div className="lg:col-span-2">
+          <div className="bg-[#111111] p-6 md:p-8 rounded-2xl border border-white/5 ring-1 ring-white/5">
+         <h3 className="text-lg font-bold mb-6">Gastos por Categoria</h3>
+    
+    <div className="grid grid-cols-1 md:grid-cols-2 gap-x-12 gap-y-8">
+      {categorias.map((categoria, index) => {
+        const progresso = (categoria.atual / categoria.limite) * 100;
+        
+        return (
+          <div key={index} className="group">
+            {/* Linha de Texto: Nome à esquerda, Valores à direita */}
+            <div className="flex justify-between items-end mb-3">
+              <span className="text-white/90 font-medium text-sm group-hover:text-white transition-colors">
+                {categoria.nome}
+              </span>
+              
+              {/* Mostrando Atual e Limite conforme solicitado */}
+              <span className="text-[11px] font-mono tracking-tight">
+                <span className="text-white">R$ {categoria.atual.toLocaleString()}</span>
+                <span className="text-white/30 mx-1">/</span>
+                <span className="text-white/40">R$ {categoria.limite.toLocaleString()}</span>
+              </span>
+            </div>
+
+            {/* Barra de Progresso */}
+            <div className="w-full bg-[#1C1C1C] h-2 rounded-full overflow-hidden">
+              <div
+                className="bg-yellow-400 h-full opacity-90 group-hover:opacity-100 transition-all duration-700 shadow-[0_0_10px_rgba(250,204,21,0.2)]"
+                style={{ width: `${Math.min(progresso, 100)}%` }}
+              />
             </div>
           </div>
-        </div>
-
+        );
+      })}
+    </div>
+  </div>
+</div>
+          
         {/* Rodapé */}
         <div className="mt-20 pb-10 text-center text-gray-600 text-[10px] tracking-[0.3em] uppercase">
           Disciplina financeira constrói liberdade.
