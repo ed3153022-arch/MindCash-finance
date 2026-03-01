@@ -74,19 +74,26 @@ export default function DashboardPage() {
             </p>
           </div>
           
-          {/* BOTÕES: No mobile eles agora ocupam a largura total para facilitar o clique */}
-          <div className="flex flex-col sm:flex-row gap-3">
-            <button className="w-full sm:w-auto px-6 py-3 border border-white/10 rounded-xl text-sm font-medium hover:bg-white/5 transition">
-              Metas 📈
-            </button>
-            <button
-              onClick={() => setShowUpgradeModal(true)}
-              className="w-full sm:w-auto px-6 py-3 bg-yellow-400 hover:bg-yellow-300 text-black rounded-xl text-sm font-bold transition shadow-lg shadow-yellow-400/10"
-            >
-              + Nova transação
-            </button>
-          </div>
-        </div>
+          {/* BOTÕES DE AÇÃO: Sempre lado a lado */}
+<div className="flex flex-row gap-3 mb-10">
+  <button className="flex-1 px-4 py-4 border border-white/10 rounded-2xl text-sm font-medium hover:bg-white/5 transition flex items-center justify-center whitespace-nowrap">
+    Metas 📈
+  </button>
+  
+  <button
+    onClick={() => {
+      if (isBlocked) {
+        setShowUpgradeModal(true);
+        return;
+      }
+      setShowUpgradeModal(true);
+    }}
+    className="flex-1 bg-yellow-400 hover:bg-yellow-300 text-black rounded-2xl py-4 text-sm font-bold transition shadow-lg shadow-yellow-400/20 flex items-center justify-center whitespace-nowrap"
+  >
+    + Nova Transação 
+  </button>
+</div>
+
 
         {/* GRID DE RESUMO: Ajustei o gap para não ficar colado verticalmente no mobile */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4 md:gap-6 mb-8">
