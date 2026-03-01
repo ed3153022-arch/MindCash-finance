@@ -18,10 +18,7 @@ export default function DashboardPage() {
 
   useEffect(() => {
     const loadUser = async () => {
-      const {
-        data: { user },
-      } = await supabase.auth.getUser();
-
+      const { data: { user } } = await supabase.auth.getUser();
       if (!user) return;
 
       const { data } = await supabase
@@ -34,15 +31,12 @@ export default function DashboardPage() {
         setTrialEndsAt(data.trial_ends_at ? new Date(data.trial_ends_at) : null);
         setSubscriptionStatus(data.subscription_status);
       }
-
       setLoading(false);
     };
-
     loadUser();
   }, []);
 
   let isBlocked = false;
-
   if (trialEndsAt && subscriptionStatus !== "active") {
     const now = new Date();
     isBlocked = trialEndsAt.getTime() < now.getTime();
@@ -64,145 +58,115 @@ export default function DashboardPage() {
   ];
 
   return (
-  <div className="bg-black text-white min-h-screen">
-
-    <div className="max-w-md mx-auto px-4 py-10">
-
-      {/* TÍTULO */}
-      <div className="mb-10">
-        <h1 className="text-3xl font-bold">Dashboard</h1>
-        <p className="text-gray-500 text-sm mt-2">
-          Controle absoluto sobre suas finanças.
-        </p>
-      </div>
-
-      {/* PÍLULAS RESUMO */}
-      <div className="space-y-6 mb-12">
-
-        {/* SALDO */}
-        <div className="bg-[#111111] rounded-3xl px-6 py-7 border border-white/10">
-          <p className="text-green-400 text-xs tracking-widest uppercase mb-2">
-            Saldo
-          </p>
-          <h2 className="text-3xl font-bold text-green-500">
-            R$ {saldo.toLocaleString()}
-          </h2>
+    <div className="bg-black text-white min-h-screen antialiased">
+      {/* CONTAINER PRINCIPAL: Aumentado para max-w-6xl e adicionado padding responsivo */}
+      <div className="max-w-6xl mx-auto px-6 py-8 md:py-12">
+        
+        {/* HEADER: Alinhamento melhorado */}
+        <div className="flex flex-col md:flex-row md:items-end justify-between mb-10 gap-4">
+          <div>
+            <h1 className="text-4xl font-extrabold tracking-tight">Dashboard</h1>
+            <p className="text-gray-500 text-sm mt-1">
+              Controle absoluto sobre suas finanças.
+            </p>
+          </div>
+          
+          {/* BOTÕES DE AÇÃO: Agora no topo direito em telas grandes */}
+          <div className="flex gap-3">
+            <button className="px-6 py-3 border border-white/10 rounded-xl text-sm font-medium hover:bg-white/5 transition">
+              Metas 📈
+            </button>
+            <button
+              onClick={() => setShowUpgradeModal(true)}
+              className="px-6 py-3 bg-yellow-400 hover:bg-yellow-300 text-black rounded-xl text-sm font-bold transition shadow-lg shadow-yellow-400/10"
+            >
+              + Nova transação
+            </button>
+          </div>
         </div>
 
-        {/* SAÍDA */}
-        <div className="bg-[#111111] rounded-3xl px-6 py-7 border border-white/10">
-          <p className="text-red-400 text-xs tracking-widest uppercase mb-2">
-            Saída
-          </p>
-          <h2 className="text-3xl font-bold text-red-500">
-            R$ {saidas.toLocaleString()}
-          </h2>
+        {/* GRID DE RESUMO: 3 colunas em desktop, 1 em mobile */}
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+          {/* SALDO */}
+          <div className="bg-[#111111] rounded-2xl p-6 border border-white/5">
+            <p className="text-green-400 text-[10px] tracking-[0.2em] uppercase font-bold mb-3">Saldo Atual</p>
+            <h2 className="text-3xl font-bold text-green-500">R$ {saldo.toLocaleString()}</h2>
+          </div>
+
+          {/* SAÍDA */}
+          <div className="bg-[#111111] rounded-2xl p-6 border border-white/5">
+            <p className="text-red-400 text-[10px] tracking-[0.2em] uppercase font-bold mb-3">Saídas</p>
+            <h2 className="text-3xl font-bold text-red-500">R$ {saidas.toLocaleString()}</h2>
+          </div>
+
+          {/* ENTRADA */}
+          <div className="bg-[#111111] rounded-2xl p-6 border border-white/5">
+            <p className="text-green-300 text-[10px] tracking-[0.2em] uppercase font-bold mb-3">Entradas</p>
+            <h2 className="text-3xl font-bold text-green-400">R$ {entradas.toLocaleString()}</h2>
+          </div>
         </div>
 
-        {/* ENTRADA */}
-        <div className="bg-[#111111] rounded-3xl px-6 py-7 border border-white/10">
-          <p className="text-green-300 text-xs tracking-widest uppercase mb-2">
-            Entrada
-          </p>
-          <h2 className="text-3xl font-bold text-green-400">
-            R$ {entradas.toLocaleString()}
-          </h2>
-        </div>
-
-      </div>
-
-      {/* BOTÕES */}
-      <div className="flex gap-4 mb-14">
-
-        <button className="flex-1 border border-white/20 rounded-2xl py-4 text-white hover:bg-white/5 transition">
-          Metas 📈
-        </button>
-
-        <button
-          onClick={() => {
-            if (isBlocked) {
-              setShowUpgradeModal(true);
-              return;
-            }
-            setShowUpgradeModal(true);
-          }}
-          className="flex-1 bg-yellow-400 hover:bg-yellow-300 text-black rounded-2xl py-4 font-semibold transition"
-        >
-          + Nova transação
-        </button>
-
-      </div>
-
-      {/* ORÇAMENTO MENSAL */}
-      <div className="bg-[#111111] p-6 rounded-3xl border border-white/10 mb-14">
-
-        <div className="flex justify-between items-center mb-4">
-          <span className="text-gray-400 text-xs uppercase tracking-wider">
-            Orçamento mensal
-          </span>
-          <span className="text-yellow-400 text-xs font-semibold">
-            {porcentagem.toFixed(0)}% utilizado
-          </span>
-        </div>
-
-        <div className="w-full bg-[#1C1C1C] h-2 rounded-full overflow-hidden mb-4">
-          <div
-            className="bg-yellow-400 h-2 transition-all duration-700"
-            style={{ width: `${porcentagem}%` }}
-          />
-        </div>
-
-        <p className="text-gray-500 text-xs">
-          R$ {gastoAtual.toLocaleString()} de R$ {orcamentoMensal.toLocaleString()}
-        </p>
-
-      </div>
-
-      {/* ORÇAMENTO POR CATEGORIA */}
-      <div className="bg-[#111111] p-6 rounded-3xl border border-white/10">
-
-        <h3 className="text-base font-semibold mb-8">
-          Orçamento por categoria
-        </h3>
-
-        <div className="space-y-8">
-
-          {categorias.map((categoria, index) => {
-            const progresso = (categoria.atual / categoria.limite) * 100;
-
-            return (
-              <div key={index}>
-                <div className="flex justify-between text-xs mb-3">
-                  <span className="text-white/90">{categoria.nome}</span>
-                  <span className="text-white/60">
-                    R$ {categoria.atual} / {categoria.limite}
-                  </span>
-                </div>
-
-                <div className="w-full bg-[#1C1C1C] h-2 rounded-full overflow-hidden">
-                  <div
-                    className="bg-yellow-400 h-2 transition-all duration-700"
-                    style={{ width: `${progresso}%` }}
-                  />
-                </div>
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+          
+          {/* COLUNA ESQUERDA: Orçamento Mensal */}
+          <div className="lg:col-span-1">
+            <div className="bg-[#111111] p-6 rounded-2xl border border-white/5 h-full">
+              <div className="flex justify-between items-center mb-6">
+                <span className="text-gray-400 text-[10px] uppercase font-bold tracking-widest">Orçamento Mensal</span>
+                <span className="text-yellow-400 text-xs font-bold px-2 py-1 bg-yellow-400/10 rounded-lg">
+                  {porcentagem.toFixed(0)}%
+                </span>
               </div>
-            );
-          })}
+              
+              <div className="w-full bg-[#1C1C1C] h-3 rounded-full overflow-hidden mb-4">
+                <div
+                  className="bg-yellow-400 h-full transition-all duration-1000 ease-out"
+                  style={{ width: `${porcentagem}%` }}
+                />
+              </div>
+              <p className="text-gray-400 text-sm">
+                <span className="text-white font-medium">R$ {gastoAtual.toLocaleString()}</span> de R$ {orcamentoMensal.toLocaleString()}
+              </p>
+            </div>
+          </div>
+
+          {/* COLUNA DIREITA: Categorias em Grid */}
+          <div className="lg:col-span-2">
+            <div className="bg-[#111111] p-6 rounded-2xl border border-white/5">
+              <h3 className="text-lg font-bold mb-6">Gastos por Categoria</h3>
+              
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-x-10 gap-y-6">
+                {categorias.map((categoria, index) => {
+                  const progresso = (categoria.atual / categoria.limite) * 100;
+                  return (
+                    <div key={index} className="group">
+                      <div className="flex justify-between text-xs mb-2">
+                        <span className="text-white/70 group-hover:text-white transition-colors">{categoria.nome}</span>
+                        <span className="text-white/40 italic">R$ {categoria.atual} / {categoria.limite}</span>
+                      </div>
+                      <div className="w-full bg-[#1C1C1C] h-1.5 rounded-full overflow-hidden">
+                        <div
+                          className="bg-yellow-400 h-full opacity-80 group-hover:opacity-100 transition-all duration-700"
+                          style={{ width: `${progresso}%` }}
+                        />
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          </div>
 
         </div>
 
+        <div className="mt-16 pb-8 text-center text-gray-600 text-[10px] tracking-widest uppercase">
+          Disciplina financeira constrói liberdade.
+        </div>
       </div>
 
-      <div className="mt-16 text-center text-gray-600 text-xs">
-        Disciplina financeira constrói liberdade.
-      </div>
-
+      {showUpgradeModal && (
+        <UpgradeModal onClose={() => setShowUpgradeModal(false)} />
+      )}
     </div>
-
-    {showUpgradeModal && (
-      <UpgradeModal onClose={() => setShowUpgradeModal(false)} />
-    )}
-
-  </div>
-);
+  );
 }
