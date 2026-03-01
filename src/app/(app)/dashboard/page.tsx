@@ -1,10 +1,12 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { useRouter } from "next/navigation"; // Importação do roteador
 import { supabase } from "@/lib/supabase";
 import UpgradeModal from "@/components/UpgradeModal";
 
 export default function DashboardPage() {
+  const router = useRouter(); // Inicialização do roteador
   const [trialEndsAt, setTrialEndsAt] = useState<Date | null>(null);
   const [subscriptionStatus, setSubscriptionStatus] = useState<string>("inactive");
   const [loading, setLoading] = useState(true);
@@ -60,10 +62,9 @@ export default function DashboardPage() {
 
   return (
     <div className="bg-black text-white min-h-screen antialiased">
-      {/* CONTAINER PRINCIPAL: px-6 garante o respiro nas bordas do mobile */}
       <div className="max-w-6xl mx-auto px-6 py-8 md:px-10 md:py-12">
         
-        {/* HEADER: Título e Subtítulo */}
+        {/* HEADER */}
         <div className="flex flex-col md:flex-row md:items-center justify-between mb-10 gap-6">
           <div className="space-y-1">
             <h1 className="text-3xl md:text-4xl font-extrabold tracking-tight">Dashboard</h1>
@@ -72,11 +73,16 @@ export default function DashboardPage() {
             </p>
           </div>
           
-          {/* BOTÕES: Lado a lado no mobile e desktop */}
+          {/* BOTÕES */}
           <div className="flex flex-row gap-3 w-full md:w-auto">
-            <button className="flex-1 md:px-6 px-4 py-4 border border-white/10 rounded-2xl text-sm font-medium hover:bg-white/5 transition flex items-center justify-center whitespace-nowrap">
+            {/* BOTÃO METAS COM NAVEGAÇÃO */}
+            <button 
+              onClick={() => router.push("/metas")}
+              className="flex-1 md:px-6 px-4 py-4 border border-white/10 rounded-2xl text-sm font-medium hover:bg-white/5 transition flex items-center justify-center whitespace-nowrap"
+            >
               Metas 📈
             </button>
+            
             <button
               onClick={() => setShowUpgradeModal(true)}
               className="flex-1 md:px-8 bg-yellow-400 hover:bg-yellow-300 text-black rounded-2xl py-4 text-sm font-bold transition shadow-lg shadow-yellow-400/20 flex items-center justify-center whitespace-nowrap"
@@ -86,7 +92,7 @@ export default function DashboardPage() {
           </div>
         </div>
 
-        {/* CARDS DE RESUMO (Saldo, Saída, Entrada) */}
+        {/* CARDS DE RESUMO */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4 md:gap-6 mb-8">
           <div className="bg-[#111111] rounded-2xl p-6 border border-white/5 ring-1 ring-white/5">
             <p className="text-green-400 text-[10px] tracking-[0.2em] uppercase font-bold mb-3">Saldo Atual</p>
@@ -104,10 +110,8 @@ export default function DashboardPage() {
           </div>
         </div>
 
-        {/* SEÇÃO DE DETALHES (Orçamento e Categorias) */}
+        {/* ORÇAMENTO E CATEGORIAS */}
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 md:gap-8">
-          
-          {/* Coluna Orçamento Mensal */}
           <div className="lg:col-span-1">
             <div className="bg-[#111111] p-6 rounded-2xl border border-white/5 h-full ring-1 ring-white/5">
               <div className="flex justify-between items-center mb-6">
@@ -128,7 +132,6 @@ export default function DashboardPage() {
             </div>
           </div>
 
-          {/* Coluna Gastos por Categoria */}
           <div className="lg:col-span-2">
             <div className="bg-[#111111] p-6 md:p-8 rounded-2xl border border-white/5 ring-1 ring-white/5">
               <h3 className="text-lg font-bold mb-6">Gastos por Categoria</h3>
@@ -161,7 +164,6 @@ export default function DashboardPage() {
           </div>
         </div>
 
-        {/* Footer */}
         <div className="mt-20 pb-10 text-center text-gray-600 text-[10px] tracking-[0.3em] uppercase">
           Disciplina financeira constrói liberdade.
         </div>
