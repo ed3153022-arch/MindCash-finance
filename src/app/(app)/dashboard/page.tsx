@@ -10,6 +10,7 @@ export default function DashboardPage() {
   const [loading, setLoading] = useState(true);
   const [showUpgradeModal, setShowUpgradeModal] = useState(false);
 
+  // Dados fictícios (Mantenha sua lógica de integração aqui)
   const entradas = 10000;
   const saidas = 2637;
   const saldo = entradas - saidas;
@@ -20,13 +21,11 @@ export default function DashboardPage() {
     const loadUser = async () => {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) return;
-
       const { data } = await supabase
         .from("users")
         .select("trial_ends_at, subscription_status")
         .eq("id", user.id)
         .single();
-
       if (data) {
         setTrialEndsAt(data.trial_ends_at ? new Date(data.trial_ends_at) : null);
         setSubscriptionStatus(data.subscription_status);
@@ -59,14 +58,14 @@ export default function DashboardPage() {
 
   return (
     <div className="bg-black text-white min-h-screen antialiased">
-      {/* AJUSTE DE BORDA MOBILE: 
-        px-6: Garante 24px de distância da borda em celulares.
-        md:px-10: Aumenta o respiro em tablets/desktops.
+      {/* CONTAINER PRINCIPAL 
+        px-6: Respiro lateral no mobile.
+        md:px-10: Respiro lateral em telas maiores.
       */}
       <div className="max-w-6xl mx-auto px-6 py-8 md:px-10 md:py-12">
         
-        {/* HEADER */}
-        <div className="flex flex-col md:flex-row md:items-end justify-between mb-10 gap-6">
+        {/* HEADER: Título e Botões */}
+        <div className="flex flex-col md:flex-row md:items-center justify-between mb-10 gap-6">
           <div className="space-y-1">
             <h1 className="text-3xl md:text-4xl font-extrabold tracking-tight">Dashboard</h1>
             <p className="text-gray-500 text-sm">
@@ -75,50 +74,41 @@ export default function DashboardPage() {
           </div>
           
           {/* BOTÕES DE AÇÃO: Sempre lado a lado */}
-<div className="flex flex-row gap-3 mb-10">
-  <button className="flex-1 px-4 py-4 border border-white/10 rounded-2xl text-sm font-medium hover:bg-white/5 transition flex items-center justify-center whitespace-nowrap">
-    Metas 📈
-  </button>
-  
-  <button
-    onClick={() => {
-      if (isBlocked) {
-        setShowUpgradeModal(true);
-        return;
-      }
-      setShowUpgradeModal(true);
-    }}
-    className="flex-1 bg-yellow-400 hover:bg-yellow-300 text-black rounded-2xl py-4 text-sm font-bold transition shadow-lg shadow-yellow-400/20 flex items-center justify-center whitespace-nowrap"
-  >
-    + Nova Transação 
-  </button>
-</div>
+          <div className="flex flex-row gap-3 w-full md:w-auto">
+            <button className="flex-1 md:w-32 px-4 py-4 border border-white/10 rounded-2xl text-sm font-medium hover:bg-white/5 transition flex items-center justify-center whitespace-nowrap">
+              Metas 📈
+            </button>
+            <button
+              onClick={() => setShowUpgradeModal(true)}
+              className="flex-1 md:px-8 bg-yellow-400 hover:bg-yellow-300 text-black rounded-2xl py-4 text-sm font-bold transition shadow-lg shadow-yellow-400/20 flex items-center justify-center whitespace-nowrap"
+            >
+              + Transação
+            </button>
+          </div>
+        </div>
 
-
-        {/* GRID DE RESUMO: Ajustei o gap para não ficar colado verticalmente no mobile */}
+        {/* GRID DE RESUMO (Cards Superiores) */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4 md:gap-6 mb-8">
-          {/* SALDO */}
           <div className="bg-[#111111] rounded-2xl p-6 border border-white/5 ring-1 ring-white/5">
             <p className="text-green-400 text-[10px] tracking-[0.2em] uppercase font-bold mb-3">Saldo Atual</p>
             <h2 className="text-3xl font-bold text-green-500">R$ {saldo.toLocaleString()}</h2>
           </div>
 
-          {/* SAÍDA */}
           <div className="bg-[#111111] rounded-2xl p-6 border border-white/5 ring-1 ring-white/5">
             <p className="text-red-400 text-[10px] tracking-[0.2em] uppercase font-bold mb-3">Saídas</p>
             <h2 className="text-3xl font-bold text-red-500">R$ {saidas.toLocaleString()}</h2>
           </div>
 
-          {/* ENTRADA */}
           <div className="bg-[#111111] rounded-2xl p-6 border border-white/5 ring-1 ring-white/5">
             <p className="text-green-300 text-[10px] tracking-[0.2em] uppercase font-bold mb-3">Entradas</p>
             <h2 className="text-3xl font-bold text-green-400">R$ {entradas.toLocaleString()}</h2>
           </div>
         </div>
 
+        {/* SEÇÃO INFERIOR: Orçamento e Categorias */}
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 md:gap-8">
           
-          {/* ORÇAMENTO MENSAL */}
+          {/* Orçamento Mensal */}
           <div className="lg:col-span-1">
             <div className="bg-[#111111] p-6 rounded-2xl border border-white/5 h-full ring-1 ring-white/5">
               <div className="flex justify-between items-center mb-6">
@@ -127,7 +117,6 @@ export default function DashboardPage() {
                   {porcentagem.toFixed(0)}%
                 </span>
               </div>
-              
               <div className="w-full bg-[#1C1C1C] h-2.5 rounded-full overflow-hidden mb-4">
                 <div
                   className="bg-yellow-400 h-full transition-all duration-1000 ease-out"
@@ -140,11 +129,10 @@ export default function DashboardPage() {
             </div>
           </div>
 
-          {/* CATEGORIAS: Ajustado o padding interno para telas menores */}
+          {/* Gastos por Categoria */}
           <div className="lg:col-span-2">
             <div className="bg-[#111111] p-6 md:p-8 rounded-2xl border border-white/5 ring-1 ring-white/5">
               <h3 className="text-lg font-bold mb-6">Gastos por Categoria</h3>
-              
               <div className="grid grid-cols-1 md:grid-cols-2 gap-x-12 gap-y-6">
                 {categorias.map((categoria, index) => {
                   const progresso = (categoria.atual / categoria.limite) * 100;
@@ -166,9 +154,9 @@ export default function DashboardPage() {
               </div>
             </div>
           </div>
-
         </div>
 
+        {/* Rodapé */}
         <div className="mt-20 pb-10 text-center text-gray-600 text-[10px] tracking-[0.3em] uppercase">
           Disciplina financeira constrói liberdade.
         </div>
@@ -179,5 +167,4 @@ export default function DashboardPage() {
       )}
     </div>
   );
-
 }
