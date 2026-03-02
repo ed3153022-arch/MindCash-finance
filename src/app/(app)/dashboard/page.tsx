@@ -13,7 +13,7 @@ type Goal = {
   amount: number;
 };
 
-// Adicionei cores apenas para o gráfico de rosca identificar as fatias
+// Adicionado cores apenas para o funcionamento do gráfico de rosca
 const CATEGORIAS_LISTA = [
   { nome: "Moradia", icone: "🏠", cor: "#FF4500" },
   { nome: "Alimentação", icone: "🍔", cor: "#FFA500" },
@@ -31,14 +31,12 @@ export default function DashboardPage() {
   const [showUpgradeModal, setShowUpgradeModal] = useState(false);
   const [showTransacaoModal, setShowTransacaoModal] = useState(false);
   
-  // Estados de Dados do Supabase
   const [metas, setMetas] = useState<Goal[]>([]);
   const [totalSaidas, setTotalSaidas] = useState(0);
   const [totalEntradas, setTotalEntradas] = useState(0);
   const [gastosPorCategoria, setGastosPorCategoria] = useState<Record<string, number>>({});
   const [orcamentoGlobal, setOrcamentoGlobal] = useState(0);
 
-  // Estados do Formulário de Transação
   const [tipoTransacao, setTipoTransacao] = useState<"entrada" | "saida">("saida");
   const [categoriaTransacao, setCategoriaTransacao] = useState(CATEGORIAS_LISTA[0].nome);
   const [valorTransacao, setValorTransacao] = useState("");
@@ -91,7 +89,7 @@ export default function DashboardPage() {
     }
   }
 
-  // FUNÇÃO CORRIGIDA DE SALVAMENTO
+  // --- FUNÇÃO CORRIGIDA PARA OS ERROS DOS PRINTS ---
   async function handleSaveTransacao(e: React.FormEvent) {
     e.preventDefault();
     try {
@@ -109,24 +107,28 @@ export default function DashboardPage() {
         amount: valorFloat,
         type: tipoTransacao,
         category: tipoTransacao === "saida" ? categoriaTransacao : "Entrada",
-        created_at: new Date().toISOString(), 
+        // CORREÇÃO DO ERRO "MARÇO": Usamos ISOString para o banco aceitar a data
+        created_at: new Date().toISOString() 
       };
 
+      // Tenta inserir na tabela transactions
       const { error } = await supabase.from("transactions").insert([payload]);
 
       if (error) {
+        // Se der erro de "table not found", você precisa criar a tabela 'transactions' no SQL do Supabase
         alert(`Erro técnico: ${error.message}`);
+        console.error("Detalhes do erro:", error);
       } else {
         setShowTransacaoModal(false);
         setValorTransacao("");
         loadDashboardData(); 
       }
     } catch (err) {
-      alert("Erro ao processar a transação.");
+      alert("Erro inesperado ao salvar.");
     }
   }
 
-  // LÓGICA DO GRÁFICO DE ROSCA (DONUT)
+  // --- LÓGICA DO GRÁFICO DE ROSCA (DONUT) ---
   const renderDonutChart = () => {
     const raio = 50;
     const circunferencia = 2 * Math.PI * raio;
@@ -214,7 +216,7 @@ export default function DashboardPage() {
         {/* GRÁFICOS E METAS */}
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
           
-          {/* ORÇAMENTO GLOBAL COM GRÁFICO DE ROSCA */}
+          {/* ORÇAMENTO GLOBAL COM GRÁFICO DE ROSCA ESTILO INSTAGRAM */}
           <div className="bg-[#111111] p-8 rounded-[3rem] border border-white/5 flex flex-col items-center justify-center relative">
             <span className="text-gray-400 text-[10px] uppercase font-black tracking-[0.2em] mb-6 self-start">Uso do Orçamento</span>
             
