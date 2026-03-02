@@ -7,11 +7,28 @@ import { supabase } from "@/lib/supabase";
 type Goal = {
   id: string;
   title: string;
-  type: string;
+  type: "Limite de Categoria" | "Meta Mensal";
   category: string | null;
   amount: number;
-  month: string | null;
+  icon: string | null;
 };
+
+const CATEGORIAS_PREDEFINIDAS = [
+  { nome: "Moradia", icone: "🏠" },
+  { nome: "Alimentação", icone: "🍔" },
+  { nome: "Transporte", icone: "🚗" },
+  { nome: "Entretenimento", icone: "🎬" },
+  { nome: "Saúde", icone: "💊" },
+  { nome: "Educação", icone: "📚" },
+  { nome: "Assinaturas", icone: "💳" },
+  { nome: "Compras", icone: "🛍" },
+];
+
+const TIPOS_META = [
+  { nome: "Limite de Categoria", descricao: "Quanto posso gastar em uma categoria" },
+  { nome: "Meta de Ganho", descricao: "Quanto quero ganhar no mês" },
+  { nome: "Meta de Gasto Global", descricao: "Limite total de saídas do mês" },
+];
 
 export default function MetasPage() {
   const router = useRouter();
@@ -19,8 +36,10 @@ export default function MetasPage() {
   const [loading, setLoading] = useState(true);
   const [showModal, setShowModal] = useState(false);
 
-  // Estados para o formulário da nova meta
-  const [newGoal, setNewGoal] = useState({ title: "", amount: "", type: "Economia", category: "" });
+  // Estados do Formulário
+  const [tipoSelecionado, setTipoSelecionado] = useState(TIPOS_META[0].nome);
+  const [categoriaSelecionada, setCategoriaSelecionada] = useState(CATEGORIAS_PREDEFINIDAS[0]);
+  const [valorLimite, setValorLimite] = useState("");
 
   useEffect(() => {
     fetchGoals();
@@ -28,10 +47,7 @@ export default function MetasPage() {
 
   async function fetchGoals() {
     const { data: { user } } = await supabase.auth.getUser();
-    if (!user) {
-      setLoading(false);
-      return;
-    }
+    if (!user) { setLoading(false); return; }
 
     const { data } = await supabase
       .from("goals")
@@ -43,43 +59,28 @@ export default function MetasPage() {
     setLoading(false);
   }
 
-  async function handleCreateGoal(e: React.FormEvent) {
+  async function handleSaveGoal(e: React.FormEvent) {
     e.preventDefault();
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) return;
 
-    const { error } = await supabase.from("goals").insert([
-      { 
-        title: newGoal.title, 
-        amount: parseFloat(newGoal.amount), 
-        type: newGoal.type, 
-        category: newGoal.category, 
-        user_id: user.id 
-      }
-    ]);
+    const payload = {
+      user_id: user.id,
+      type: tipoSelecionado,
+      title: tipoSelecionado === "Limite de Categoria" ? categoriaSelecionada.nome : tipoSelecionado,
+      category: tipoSelecionado === "Limite de Categoria" ? categoriaSelecionada.nome : null,
+      icon: tipoSelecionado === "Limite de Categoria" ? categoriaSelecionada.icone : "💰",
+      amount: parseFloat(valorLimite),
+    };
+
+    const { error } = await supabase.from("goals").insert([payload]);
 
     if (!error) {
       setShowModal(false);
-      setNewGoal({ title: "", amount: "", type: "Economia", category: "" });
+      setValorLimite("");
       fetchGoals();
     }
   }
-
-  async function deleteGoal(id: string) {
-    if (!confirm("Tem certeza?")) return;
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) return;
-
-    const { error } = await supabase
-      .from("goals")
-      .delete()
-      .eq("id", id)
-      .eq("user_id", user.id);
-
-    if (!error) setGoals(prev => prev.filter(g => g.id !== id));
-  }
-
-  const totalEmMetas = goals.reduce((acc, goal) => acc + (goal.amount || 0), 0);
 
   return (
     <div className="bg-black text-white min-h-screen antialiased">
@@ -88,107 +89,94 @@ export default function MetasPage() {
         {/* HEADER */}
         <div className="flex flex-col md:flex-row md:items-center justify-between mb-10 gap-6">
           <div className="space-y-1">
-            <button 
-              onClick={() => router.push("/dashboard")}
-              className="text-gray-500 hover:text-white text-xs uppercase tracking-widest mb-2 flex items-center gap-2"
-            >
-              ← Voltar
+            <button onClick={() => router.push("/dashboard")} className="text-gray-500 hover:text-white text-xs uppercase tracking-widest mb-2 flex items-center gap-2">
+              ← Dashboard
             </button>
-            <h1 className="text-3xl font-extrabold tracking-tight">Minhas Metas</h1>
+            <h1 className="text-3xl font-extrabold">Planejamento de Metas</h1>
           </div>
-
-          <button
-            onClick={() => setShowModal(true)}
-            className="bg-yellow-400 hover:bg-yellow-300 text-black px-6 py-3 rounded-xl font-bold transition w-full md:w-auto text-sm"
-          >
-            + Criar Meta
+          <button onClick={() => setShowModal(true)} className="bg-yellow-400 hover:bg-yellow-300 text-black px-8 py-4 rounded-2xl font-bold transition shadow-lg shadow-yellow-400/20">
+            + Configurar Nova Meta
           </button>
         </div>
 
-        {/* CARDS RESUMO */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-10">
-          <div className="bg-[#111111] p-6 rounded-2xl border border-white/5 ring-1 ring-white/5">
-            <p className="text-gray-500 text-[10px] uppercase font-bold mb-2">Total Planejado</p>
-            <h2 className="text-2xl font-bold">R$ {totalEmMetas.toLocaleString()}</h2>
-          </div>
-          <div className="bg-[#111111] p-6 rounded-2xl border border-white/5 ring-1 ring-white/5">
-            <p className="text-yellow-500 text-[10px] uppercase font-bold mb-2">Quantidade</p>
-            <h2 className="text-2xl font-bold">{goals.length}</h2>
-          </div>
-        </div>
-
-        {/* LISTA DE METAS */}
-        <div className="bg-[#111111] rounded-2xl border border-white/5 ring-1 ring-white/5 overflow-hidden">
-          {loading ? (
-            <p className="p-10 text-center text-gray-500">Carregando...</p>
-          ) : (
-            <div className="divide-y divide-white/5">
-              {goals.map((goal) => (
-                <div key={goal.id} className="p-5 md:p-6 hover:bg-white/[0.02]">
-                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-                    <div>
-                      <span className="text-[10px] bg-white/10 px-2 py-0.5 rounded text-gray-400 uppercase font-bold">
-                        {goal.type}
-                      </span>
-                      <h3 className="text-lg font-bold mt-1 break-words">{goal.title}</h3>
-                    </div>
-                    <div className="flex items-center justify-between sm:justify-end gap-6">
-                      <div className="text-right">
-                        <p className="text-xl font-mono font-bold">R$ {goal.amount?.toLocaleString()}</p>
-                      </div>
-                      <button onClick={() => deleteGoal(goal.id)} className="p-2 text-gray-500 hover:text-red-500 transition">
-                        🗑️
-                      </button>
-                    </div>
-                  </div>
+        {/* LISTAGEM DE METAS E LIMITES */}
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+          {goals.map((goal) => (
+            <div key={goal.id} className="bg-[#111111] p-6 rounded-3xl border border-white/5 ring-1 ring-white/5 flex flex-col justify-between">
+              <div>
+                <div className="flex justify-between items-start mb-4">
+                  <span className="text-3xl">{goal.icon}</span>
+                  <span className="text-[10px] bg-white/5 px-2 py-1 rounded text-gray-500 uppercase font-bold tracking-tighter italic">
+                    {goal.type}
+                  </span>
                 </div>
-              ))}
+                <h3 className="text-xl font-bold mb-1">{goal.title}</h3>
+                <p className="text-gray-500 text-sm">Limite/Meta definido</p>
+              </div>
+              <div className="mt-6 flex justify-between items-end">
+                <span className="text-2xl font-mono font-bold text-yellow-400">R$ {goal.amount.toLocaleString()}</span>
+                <button className="text-gray-600 hover:text-red-500 transition text-sm">Excluir</button>
+              </div>
             </div>
-          )}
+          ))}
         </div>
       </div>
 
-      {/* MODAL DE CRIAÇÃO (Sempre em cima de tudo) */}
+      {/* MODAL DE CONFIGURAÇÃO */}
       {showModal && (
-        <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-          <div className="bg-[#111111] border border-white/10 w-full max-w-md rounded-3xl p-8 shadow-2xl">
-            <h2 className="text-2xl font-bold mb-6">Nova Meta</h2>
-            <form onSubmit={handleCreateGoal} className="space-y-4">
-              <div>
-                <label className="text-xs text-gray-400 uppercase font-bold px-1">Título</label>
-                <input 
-                  required
-                  className="w-full bg-black border border-white/10 rounded-xl p-3 mt-1 focus:border-yellow-400 outline-none transition"
-                  placeholder="Ex: Reserva de Emergência"
-                  value={newGoal.title}
-                  onChange={e => setNewGoal({...newGoal, title: e.target.value})}
-                />
+        <div className="fixed inset-0 bg-black/90 backdrop-blur-md z-50 flex items-center justify-center p-4">
+          <div className="bg-[#111111] border border-white/10 w-full max-w-lg rounded-[2.5rem] p-8 shadow-2xl overflow-y-auto max-h-[90vh]">
+            <h2 className="text-2xl font-bold mb-6 text-center">O que vamos definir?</h2>
+            
+            <form onSubmit={handleSaveGoal} className="space-y-6">
+              {/* SELEÇÃO DO TIPO */}
+              <div className="grid grid-cols-1 gap-3">
+                {TIPOS_META.map((tipo) => (
+                  <button
+                    key={tipo.nome}
+                    type="button"
+                    onClick={() => setTipoSelecionado(tipo.nome)}
+                    className={`p-4 rounded-2xl border text-left transition ${tipoSelecionado === tipo.nome ? 'border-yellow-400 bg-yellow-400/5' : 'border-white/5 bg-black'}`}
+                  >
+                    <p className={`font-bold ${tipoSelecionado === tipo.nome ? 'text-yellow-400' : 'text-white'}`}>{tipo.nome}</p>
+                    <p className="text-xs text-gray-500">{tipo.descricao}</p>
+                  </button>
+                ))}
               </div>
+
+              {/* SELEÇÃO DE CATEGORIA (Aparece apenas se for Limite de Categoria) */}
+              {tipoSelecionado === "Limite de Categoria" && (
+                <div className="grid grid-cols-4 gap-2">
+                  {CATEGORIAS_PREDEFINIDAS.map((cat) => (
+                    <button
+                      key={cat.nome}
+                      type="button"
+                      onClick={() => setCategoriaSelecionada(cat)}
+                      className={`flex flex-col items-center p-3 rounded-xl border transition ${categoriaSelecionada.nome === cat.nome ? 'border-yellow-400 bg-yellow-400/10' : 'border-white/5 bg-black'}`}
+                    >
+                      <span className="text-xl mb-1">{cat.icone}</span>
+                      <span className="text-[10px] truncate w-full text-center">{cat.nome}</span>
+                    </button>
+                  ))}
+                </div>
+              )}
+
+              {/* VALOR */}
               <div>
-                <label className="text-xs text-gray-400 uppercase font-bold px-1">Valor (R$)</label>
+                <label className="text-[10px] text-gray-500 uppercase font-bold tracking-widest px-1">Qual o valor (R$)?</label>
                 <input 
                   required
                   type="number"
-                  className="w-full bg-black border border-white/10 rounded-xl p-3 mt-1 focus:border-yellow-400 outline-none transition"
-                  placeholder="0.00"
-                  value={newGoal.amount}
-                  onChange={e => setNewGoal({...newGoal, amount: e.target.value})}
+                  className="w-full bg-black border border-white/10 rounded-2xl p-4 mt-2 focus:border-yellow-400 outline-none text-xl font-mono"
+                  placeholder="0,00"
+                  value={valorLimite}
+                  onChange={e => setValorLimite(e.target.value)}
                 />
               </div>
-              <div className="flex gap-3 pt-4">
-                <button 
-                  type="button"
-                  onClick={() => setShowModal(false)}
-                  className="flex-1 py-3 text-gray-400 hover:text-white font-semibold transition"
-                >
-                  Cancelar
-                </button>
-                <button 
-                  type="submit"
-                  className="flex-1 bg-yellow-400 text-black py-3 rounded-xl font-bold hover:bg-yellow-300 transition"
-                >
-                  Salvar Meta
-                </button>
+
+              <div className="flex gap-4 pt-4">
+                <button type="button" onClick={() => setShowModal(false)} className="flex-1 py-4 text-gray-500 font-bold italic">Cancelar</button>
+                <button type="submit" className="flex-1 bg-yellow-400 text-black py-4 rounded-2xl font-black hover:bg-yellow-300 transition">Confirmar Meta</button>
               </div>
             </form>
           </div>
