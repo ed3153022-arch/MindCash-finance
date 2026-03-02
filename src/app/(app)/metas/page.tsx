@@ -10,7 +10,6 @@ type Goal = {
   type: string;
   category: string | null;
   amount: number;
-  icon: string | null;
 };
 
 const CATEGORIAS_PREDEFINIDAS = [
@@ -36,7 +35,6 @@ export default function MetasPage() {
   const [loading, setLoading] = useState(true);
   const [showModal, setShowModal] = useState(false);
 
-  // Estados do Formulário
   const [tipoSelecionado, setTipoSelecionado] = useState(TIPOS_META[0].nome);
   const [categoriaSelecionada, setCategoriaSelecionada] = useState(CATEGORIAS_PREDEFINIDAS[0]);
   const [valorLimite, setValorLimite] = useState("");
@@ -59,68 +57,51 @@ export default function MetasPage() {
     setLoading(false);
   }
 
-  // FUNÇÃO SALVAR AJUSTADA E TESTADA
+  // FUNÇÃO SALVAR SEM A COLUNA 'ICON' PARA EVITAR O ERRO
   async function handleSaveGoal(e: React.FormEvent) {
     e.preventDefault();
     try {
       const { data: { user } } = await supabase.auth.getUser();
-      if (!user) {
-        alert("Usuário não autenticado!");
-        return;
-      }
-
-      const valorFloat = parseFloat(valorLimite);
-      if (isNaN(valorFloat)) {
-        alert("Por favor, insira um valor numérico válido.");
-        return;
-      }
+      if (!user) return;
 
       const payload = {
         user_id: user.id,
         type: tipoSelecionado,
         title: tipoSelecionado === "Limite de Categoria" ? categoriaSelecionada.nome : tipoSelecionado,
         category: tipoSelecionado === "Limite de Categoria" ? categoriaSelecionada.nome : null,
-        icon: tipoSelecionado === "Limite de Categoria" ? categoriaSelecionada.icone : "💰",
-        amount: valorFloat,
-        month: new Date().toLocaleString('pt-BR', { month: 'long' }), // Prevenção de erro de campo obrigatório
+        amount: parseFloat(valorLimite),
+        month: new Date().toLocaleString('pt-BR', { month: 'long' }),
       };
 
       const { error } = await supabase.from("goals").insert([payload]);
 
       if (error) {
-        console.error("Erro Supabase:", error);
-        alert(`Erro ao salvar no banco: ${error.message}`);
+        alert(`Erro: ${error.message}`);
       } else {
         setShowModal(false);
         setValorLimite("");
-        fetchGoals(); // Atualiza a lista automaticamente
+        fetchGoals();
       }
     } catch (err) {
-      console.error("Erro inesperado:", err);
-      alert("Erro ao processar a solicitação.");
+      alert("Erro ao processar salvamento.");
     }
   }
 
   async function deleteGoal(id: string) {
-    if (!confirm("Tem certeza que deseja excluir esta meta?")) return;
+    if (!confirm("Excluir esta meta?")) return;
     const { data: { user } } = await supabase.auth.getUser();
-    if (!user) return;
-
-    const { error } = await supabase
-      .from("goals")
-      .delete()
-      .eq("id", id)
-      .eq("user_id", user.id);
-
-    if (!error) {
-      setGoals((prev) => prev.filter((g) => g.id !== id));
-    } else {
-      alert("Erro ao excluir.");
-    }
+    const { error } = await supabase.from("goals").delete().eq("id", id).eq("user_id", user?.id);
+    if (!error) setGoals(prev => prev.filter(g => g.id !== id));
   }
 
+  // Função para pegar o ícone baseado na categoria ou tipo
+  const getIcon = (goal: Goal) => {
+    if (goal.type !== "Limite de Categoria") return "💰";
+    return CATEGORIAS_PREDEFINIDAS.find(c => c.nome === goal.category)?.icone || "🎯";
+  };
+
   return (
-    <div className="bg-black text-white min-h-screen antialiased">
+    <div className="bg-black text-white min-h-screen antialiased font-sans">
       <div className="max-w-6xl mx-auto px-6 py-8 md:px-10 md:py-12">
         
         {/* HEADER */}
@@ -129,42 +110,34 @@ export default function MetasPage() {
             <button onClick={() => router.push("/dashboard")} className="text-gray-500 hover:text-white text-xs uppercase tracking-widest mb-2 flex items-center gap-2">
               ← Dashboard
             </button>
-            <h1 className="text-3xl font-extrabold italic tracking-tight text-white">Metas & Planejamento</h1>
+            <h1 className="text-3xl font-extrabold italic tracking-tight">Minhas metas</h1>
           </div>
-          <button onClick={() => setShowModal(true)} className="bg-yellow-400 hover:bg-yellow-300 text-black px-8 py-4 rounded-2xl font-bold transition shadow-lg shadow-yellow-400/20 w-full md:w-auto active:scale-95">
+          <button onClick={() => setShowModal(true)} className="bg-yellow-400 hover:bg-yellow-300 text-black px-8 py-4 rounded-2xl font-bold transition w-full md:w-auto active:scale-95">
             + Configurar Nova Meta
           </button>
         </div>
 
         {/* LISTAGEM */}
         {loading ? (
-          <p className="text-center text-gray-500 py-10 font-mono">Carregando metas...</p>
-        ) : goals.length === 0 ? (
-          <div className="text-center py-20 bg-[#111111] rounded-[2rem] border border-dashed border-white/10">
-            <p className="text-gray-500 font-medium">Você ainda não definiu limites ou metas.</p>
-          </div>
+          <p className="text-center text-gray-500 py-10 font-mono">Sincronizando...</p>
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
             {goals.map((goal) => (
               <div key={goal.id} className="bg-[#111111] p-7 rounded-[2rem] border border-white/5 ring-1 ring-white/5 flex flex-col justify-between">
                 <div>
                   <div className="flex justify-between items-start mb-4">
-                    <span className="text-3xl">{goal.icon}</span>
-                    <span className="text-[9px] bg-white/5 px-2 py-1 rounded text-gray-400 uppercase font-black tracking-widest">
+                    <span className="text-3xl">{getIcon(goal)}</span>
+                    <span className="text-[9px] bg-white/5 px-2 py-1 rounded text-gray-400 uppercase font-black tracking-widest italic">
                       {goal.type}
                     </span>
                   </div>
-                  <h3 className="text-xl font-bold mb-1 break-words">{goal.title}</h3>
-                  <p className="text-gray-500 text-xs">Valor planejado</p>
+                  <h3 className="text-xl font-bold mb-1">{goal.title}</h3>
                 </div>
                 <div className="mt-8 flex justify-between items-end">
                   <span className="text-2xl font-mono font-black text-yellow-400">
                     R$ {goal.amount?.toLocaleString()}
                   </span>
-                  <button 
-                    onClick={() => deleteGoal(goal.id)}
-                    className="text-red-500/40 hover:text-red-500 transition-colors p-2 hover:bg-red-500/10 rounded-lg"
-                  >
+                  <button onClick={() => deleteGoal(goal.id)} className="text-red-500/40 hover:text-red-500 transition-colors p-2">
                     🗑️
                   </button>
                 </div>
@@ -178,7 +151,7 @@ export default function MetasPage() {
       {showModal && (
         <div className="fixed inset-0 bg-black/90 backdrop-blur-md z-50 flex items-center justify-center p-4">
           <div className="bg-[#111111] border border-white/10 w-full max-w-lg rounded-[2.5rem] p-8 shadow-2xl overflow-y-auto max-h-[90vh]">
-            <h2 className="text-2xl font-bold mb-6 text-center">Configurar Meta</h2>
+            <h2 className="text-2xl font-bold mb-6 text-center">Nova Meta</h2>
             
             <form onSubmit={handleSaveGoal} className="space-y-6">
               <div className="grid grid-cols-1 gap-3">
@@ -212,13 +185,12 @@ export default function MetasPage() {
               )}
 
               <div>
-                <label className="text-[10px] text-gray-500 uppercase font-black tracking-widest px-1">Valor do Objetivo (R$)</label>
+                <label className="text-[10px] text-gray-500 uppercase font-black tracking-widest px-1">Valor (R$)</label>
                 <input 
                   required
                   type="number"
                   step="0.01"
                   className="w-full bg-black border border-white/10 rounded-2xl p-4 mt-2 focus:border-yellow-400 outline-none text-xl font-mono text-yellow-400"
-                  placeholder="0.00"
                   value={valorLimite}
                   onChange={e => setValorLimite(e.target.value)}
                 />
