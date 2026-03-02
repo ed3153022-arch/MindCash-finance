@@ -116,7 +116,7 @@ export default function MetasPage() {
             <button onClick={() => router.push("/dashboard")} className="text-gray-500 hover:text-white text-xs uppercase tracking-widest mb-2 flex items-center gap-2 transition">
               ← Dashboard
             </button>
-            <h1 className="text-3xl font-extrabold italic tracking-tight">Metas e Planejamento</h1>
+            <h1 className="text-3xl font-extrabold italic tracking-tight">Minhas metas</h1>
           </div>
           <button onClick={() => setShowModal(true)} className="bg-yellow-400 hover:bg-yellow-300 text-black px-8 py-4 rounded-2xl font-bold transition w-full md:w-auto active:scale-95 shadow-lg shadow-yellow-400/20">
             + Configurar Nova Meta
