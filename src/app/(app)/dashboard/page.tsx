@@ -8,11 +8,12 @@ import UpgradeModal from "@/components/UpgradeModal";
 type Goal = {
   id: string;
   title: string;
+  type: string;
   category: string | null;
   amount: number;
 };
 
-// Cores vibrantes estilo gráfico financeiro premium
+// Adicionei cores apenas para o gráfico de rosca identificar as fatias
 const CATEGORIAS_LISTA = [
   { nome: "Moradia", icone: "🏠", cor: "#FF4500" },
   { nome: "Alimentação", icone: "🍔", cor: "#FFA500" },
@@ -27,15 +28,17 @@ const CATEGORIAS_LISTA = [
 export default function DashboardPage() {
   const router = useRouter();
   const [loading, setLoading] = useState(true);
+  const [showUpgradeModal, setShowUpgradeModal] = useState(false);
   const [showTransacaoModal, setShowTransacaoModal] = useState(false);
   
-  // Estados de Dados
+  // Estados de Dados do Supabase
   const [metas, setMetas] = useState<Goal[]>([]);
   const [totalSaidas, setTotalSaidas] = useState(0);
   const [totalEntradas, setTotalEntradas] = useState(0);
   const [gastosPorCategoria, setGastosPorCategoria] = useState<Record<string, number>>({});
+  const [orcamentoGlobal, setOrcamentoGlobal] = useState(0);
 
-  // Estados do Formulário (Sincronizados com sua correção)
+  // Estados do Formulário de Transação
   const [tipoTransacao, setTipoTransacao] = useState<"entrada" | "saida">("saida");
   const [categoriaTransacao, setCategoriaTransacao] = useState(CATEGORIAS_LISTA[0].nome);
   const [valorTransacao, setValorTransacao] = useState("");
@@ -64,6 +67,7 @@ export default function DashboardPage() {
       if (transacoes) {
         const saidas = transacoes.filter(t => t.type === 'saida').reduce((acc, t) => acc + t.amount, 0);
         const entradas = transacoes.filter(t => t.type === 'entrada').reduce((acc, t) => acc + t.amount, 0);
+        
         const agrupado = transacoes.filter(t => t.type === 'saida').reduce((acc, t) => {
           acc[t.category] = (acc[t.category] || 0) + t.amount;
           return acc;
@@ -73,15 +77,21 @@ export default function DashboardPage() {
         setTotalEntradas(entradas);
         setGastosPorCategoria(agrupado);
       }
-      if (goalsData) setMetas(goalsData);
+
+      if (goalsData) {
+        setMetas(goalsData);
+        const global = goalsData.find(g => g.type === "Meta de Gasto Global")?.amount || 
+                       goalsData.filter(g => g.type === "Limite de Categoria").reduce((acc, g) => acc + g.amount, 0);
+        setOrcamentoGlobal(global || 5000);
+      }
     } catch (err) {
-      console.error(err);
+      console.error("Erro ao carregar dashboard:", err);
     } finally {
       setLoading(false);
     }
   }
 
-  // FUNÇÃO DE SALVAMENTO CORRIGIDA E INTEGRADA
+  // FUNÇÃO CORRIGIDA DE SALVAMENTO
   async function handleSaveTransacao(e: React.FormEvent) {
     e.preventDefault();
     try {
@@ -109,14 +119,14 @@ export default function DashboardPage() {
       } else {
         setShowTransacaoModal(false);
         setValorTransacao("");
-        loadDashboardData(); // Atualiza o gráfico de rosca na hora!
+        loadDashboardData(); 
       }
     } catch (err) {
       alert("Erro ao processar a transação.");
     }
   }
 
-  // Renderização do Gráfico de Rosca (Donut)
+  // LÓGICA DO GRÁFICO DE ROSCA (DONUT)
   const renderDonutChart = () => {
     const raio = 50;
     const circunferencia = 2 * Math.PI * raio;
@@ -128,7 +138,7 @@ export default function DashboardPage() {
     })).filter(f => f.valor > 0);
 
     if (fatias.length === 0) {
-      return <circle cx="80" cy="80" r={raio} fill="none" stroke="#1C1C1C" strokeWidth="18" />;
+      return <circle cx="80" cy="80" r={raio} fill="none" stroke="#222" strokeWidth="15" />;
     }
 
     return fatias.map((fatia, i) => {
@@ -145,101 +155,131 @@ export default function DashboardPage() {
           r={raio}
           fill="none"
           stroke={fatia.cor}
-          strokeWidth="18"
+          strokeWidth="15"
           strokeDasharray={dashArray}
           strokeDashoffset={dashOffset}
-          strokeLinecap={fatias.length === 1 ? "butt" : "round"}
-          className="transition-all duration-1000 ease-in-out"
+          strokeLinecap="round"
+          className="transition-all duration-1000"
         />
       );
     });
   };
 
-  if (loading) return <div className="bg-black min-h-screen flex items-center justify-center text-yellow-400 italic animate-pulse">MINDCASH...</div>;
+  const getIcon = (cat: string | null) => CATEGORIAS_LISTA.find(c => c.nome === cat)?.icone || "💰";
+  const porcentagemGlobal = (totalSaidas / (orcamentoGlobal || 1)) * 100;
+
+  if (loading) return (
+    <div className="bg-black min-h-screen flex items-center justify-center">
+      <div className="text-yellow-400 font-black italic animate-pulse tracking-widest text-xl">MINDCASH</div>
+    </div>
+  );
 
   return (
-    <div className="bg-black text-white min-h-screen antialiased">
-      <div className="max-w-6xl mx-auto px-6 py-10">
+    <div className="bg-black text-white min-h-screen antialiased font-sans">
+      <div className="max-w-6xl mx-auto px-6 py-8 md:px-10 md:py-12">
         
         {/* HEADER */}
-        <div className="flex justify-between items-center mb-12">
+        <div className="flex flex-col md:flex-row md:items-center justify-between mb-10 gap-6">
           <div className="space-y-1">
-            <h1 className="text-3xl font-black italic uppercase tracking-tighter">Dashboard</h1>
-            <p className="text-gray-500 text-[10px] font-bold uppercase tracking-[0.3em]">Gestão de Ativos</p>
+            <h1 className="text-4xl font-black italic tracking-tighter uppercase">Dashboard</h1>
+            <p className="text-gray-500 text-xs font-medium tracking-widest uppercase">Inteligência Financeira</p>
           </div>
-          <button onClick={() => setShowTransacaoModal(true)} className="bg-yellow-400 text-black px-8 py-4 rounded-2xl font-black uppercase text-xs tracking-widest hover:scale-105 transition active:scale-95 shadow-lg shadow-yellow-400/10">
-            + Transação
-          </button>
+          
+          <div className="flex flex-row gap-3 w-full md:w-auto">
+            <button onClick={() => router.push("/metas")} className="flex-1 md:px-6 px-4 py-4 border border-white/10 rounded-2xl text-xs font-bold hover:bg-white/5 transition uppercase tracking-widest">
+              Metas 📈
+            </button>
+            <button onClick={() => setShowTransacaoModal(true)} className="flex-1 md:px-8 bg-yellow-400 hover:bg-yellow-300 text-black rounded-2xl py-4 text-xs font-black transition shadow-lg shadow-yellow-400/20 uppercase tracking-widest">
+              + Transação
+            </button>
+          </div>
         </div>
 
         {/* CARDS DE RESUMO */}
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-10">
-          <div className="bg-[#0A0A0A] p-8 rounded-[2.5rem] border border-white/5 flex justify-between items-end">
-            <div>
-              <p className="text-gray-500 text-[10px] font-black uppercase tracking-widest mb-4">Saldo Total</p>
-              <h2 className="text-4xl font-black tracking-tighter">R$ {(totalEntradas - totalSaidas).toLocaleString('pt-BR')}</h2>
-            </div>
-            <div className="text-green-500 text-xs font-bold bg-green-500/10 px-3 py-1 rounded-full">+ Entradas</div>
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-10">
+          <div className="bg-[#111111] rounded-[2.5rem] p-7 border border-white/5 ring-1 ring-white/5 shadow-2xl">
+            <p className="text-gray-500 text-[10px] tracking-[0.3em] uppercase font-black mb-4">Saldo Disponível</p>
+            <h2 className="text-4xl font-black tracking-tighter">R$ {(totalEntradas - totalSaidas).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</h2>
           </div>
-          <div className="bg-[#0A0A0A] p-8 rounded-[2.5rem] border border-white/5 flex justify-between items-end">
-            <div>
-              <p className="text-gray-500 text-[10px] font-black uppercase tracking-widest mb-4">Gasto Mensal</p>
-              <h2 className="text-4xl font-black tracking-tighter text-red-500">R$ {totalSaidas.toLocaleString('pt-BR')}</h2>
-            </div>
-            <div className="text-red-500 text-xs font-bold bg-red-500/10 px-3 py-1 rounded-full">- Saídas</div>
+          <div className="bg-[#111111] rounded-[2.5rem] p-7 border border-white/5 ring-1 ring-white/5">
+            <p className="text-red-500/80 text-[10px] tracking-[0.3em] uppercase font-black mb-4">Total Saídas</p>
+            <h2 className="text-4xl font-black tracking-tighter text-red-500">R$ {totalSaidas.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</h2>
+          </div>
+          <div className="bg-[#111111] rounded-[2.5rem] p-7 border border-white/5 ring-1 ring-white/5">
+            <p className="text-green-500/80 text-[10px] tracking-[0.3em] uppercase font-black mb-4">Total Entradas</p>
+            <h2 className="text-4xl font-black tracking-tighter text-green-500">R$ {totalEntradas.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</h2>
           </div>
         </div>
 
-        {/* GRÁFICO DE ROSCA ESTILO INSTAGRAM */}
-        <div className="bg-[#0A0A0A] p-10 rounded-[3rem] border border-white/5 shadow-2xl">
-          <h3 className="text-sm font-black uppercase italic mb-12 tracking-widest text-gray-400">Distribuição de Gastos</h3>
+        {/* GRÁFICOS E METAS */}
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
           
-          <div className="flex flex-col lg:flex-row items-center justify-around gap-16">
-            {/* SVG DO GRÁFICO */}
-            <div className="relative w-72 h-72">
+          {/* ORÇAMENTO GLOBAL COM GRÁFICO DE ROSCA */}
+          <div className="bg-[#111111] p-8 rounded-[3rem] border border-white/5 flex flex-col items-center justify-center relative">
+            <span className="text-gray-400 text-[10px] uppercase font-black tracking-[0.2em] mb-6 self-start">Uso do Orçamento</span>
+            
+            <div className="relative w-48 h-48 flex items-center justify-center">
               <svg className="w-full h-full -rotate-90" viewBox="0 0 160 160">
                 {renderDonutChart()}
               </svg>
-              <div className="absolute inset-0 flex flex-col items-center justify-center">
-                <span className="text-[10px] text-gray-600 uppercase font-black tracking-widest">Total</span>
-                <span className="text-3xl font-black tracking-tighter italic">R$ {totalSaidas.toLocaleString()}</span>
+              <div className="absolute flex flex-col items-center">
+                <span className="text-3xl font-black tracking-tighter">{porcentagemGlobal.toFixed(0)}%</span>
+                <span className="text-[8px] text-gray-500 uppercase font-black tracking-widest">Gasto</span>
               </div>
             </div>
 
-            {/* LEGENDA DINÂMICA */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-12 gap-y-6 w-full lg:w-auto">
-              {CATEGORIAS_LISTA.map(cat => {
-                const valor = gastosPorCategoria[cat.nome] || 0;
-                if (valor === 0) return null;
-                return (
-                  <div key={cat.nome} className="flex items-center justify-between gap-8 border-b border-white/5 pb-2">
-                    <div className="flex items-center gap-3">
-                      <div className="w-2.5 h-2.5 rounded-full shadow-[0_0_8px] shadow-current" style={{ backgroundColor: cat.cor, color: cat.cor }} />
-                      <span className="text-[11px] font-black uppercase tracking-tight text-gray-300">{cat.icone} {cat.nome}</span>
+            <p className="text-gray-500 text-[10px] font-bold uppercase tracking-tighter mt-8 self-start">
+              <span className="text-white font-black">R$ {totalSaidas.toLocaleString()}</span> de R$ {orcamentoGlobal.toLocaleString()}
+            </p>
+          </div>
+
+          {/* LIMITES POR CATEGORIA */}
+          <div className="lg:col-span-2 bg-[#111111] p-8 rounded-[3rem] border border-white/5">
+            <h3 className="text-xl font-black mb-8 italic uppercase tracking-tighter">Limites por Categoria</h3>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-x-12 gap-y-10">
+              {metas.filter(g => g.type === "Limite de Categoria").length === 0 ? (
+                <div className="col-span-2 text-center py-10 text-gray-600 text-xs italic">Nenhum limite configurado em Metas.</div>
+              ) : (
+                metas.filter(g => g.type === "Limite de Categoria").map((meta) => {
+                  const gastoReal = gastosPorCategoria[meta.category || ""] || 0;
+                  const progresso = (gastoReal / meta.amount) * 100;
+                  return (
+                    <div key={meta.id} className="group">
+                      <div className="flex justify-between items-end mb-3">
+                        <span className="text-sm font-bold flex items-center gap-2 italic uppercase tracking-tighter">
+                          <span className="text-xl grayscale group-hover:grayscale-0 transition">{getIcon(meta.category)}</span>
+                          {meta.title}
+                        </span>
+                        <span className="text-[10px] font-mono font-bold text-gray-500">
+                          <span className="text-white">R$ {gastoReal.toFixed(0)}</span> / {meta.amount}
+                        </span>
+                      </div>
+                      <div className="w-full bg-white/5 h-2 rounded-full overflow-hidden border border-white/5">
+                        <div className={`h-full transition-all duration-700 ${progresso > 90 ? 'bg-red-500' : 'bg-yellow-400 opacity-80 group-hover:opacity-100'}`} style={{ width: `${Math.min(progresso, 100)}%` }} />
+                      </div>
                     </div>
-                    <span className="text-[11px] font-mono font-bold text-white">R$ {valor.toLocaleString()}</span>
-                  </div>
-                );
-              })}
+                  );
+                })
+              )}
             </div>
           </div>
         </div>
       </div>
 
-      {/* MODAL DE REGISTRO (Utilizando seu handleSaveTransacao corrigido) */}
+      {/* MODAL DE TRANSAÇÃO */}
       {showTransacaoModal && (
-        <div className="fixed inset-0 bg-black/90 backdrop-blur-md z-50 flex items-center justify-center p-6">
-          <div className="bg-[#111111] border border-white/10 w-full max-w-sm rounded-[2.5rem] p-8">
-            <h2 className="text-xl font-black mb-8 italic uppercase text-center tracking-tighter">Novo Lançamento</h2>
+        <div className="fixed inset-0 bg-black/95 backdrop-blur-xl z-50 flex items-center justify-center p-4">
+          <div className="bg-[#111111] border border-white/10 w-full max-w-sm rounded-[2.5rem] p-8 shadow-2xl">
+            <h2 className="text-2xl font-black mb-6 italic tracking-tighter uppercase text-center">Registrar</h2>
             <form onSubmit={handleSaveTransacao} className="space-y-6">
-              <div className="flex bg-black p-1 rounded-2xl border border-white/5">
-                <button type="button" onClick={() => setTipoTransacao("saida")} className={`flex-1 py-3 rounded-xl text-[10px] font-black uppercase transition ${tipoTransacao === 'saida' ? 'bg-red-500 text-white' : 'text-gray-600'}`}>Saída</button>
-                <button type="button" onClick={() => setTipoTransacao("entrada")} className={`flex-1 py-3 rounded-xl text-[10px] font-black uppercase transition ${tipoTransacao === 'entrada' ? 'bg-green-500 text-white' : 'text-gray-600'}`}>Entrada</button>
+              <div className="flex bg-black p-1.5 rounded-2xl border border-white/5 shadow-inner">
+                <button type="button" onClick={() => setTipoTransacao("saida")} className={`flex-1 py-3 rounded-xl text-[10px] font-black uppercase tracking-widest transition ${tipoTransacao === 'saida' ? 'bg-red-500 text-white shadow-lg shadow-red-500/20' : 'text-gray-500'}`}>Saída</button>
+                <button type="button" onClick={() => setTipoTransacao("entrada")} className={`flex-1 py-3 rounded-xl text-[10px] font-black uppercase tracking-widest transition ${tipoTransacao === 'entrada' ? 'bg-green-500 text-white shadow-lg shadow-green-500/20' : 'text-gray-500'}`}>Entrada</button>
               </div>
               
               {tipoTransacao === "saida" && (
                 <select 
-                  className="w-full bg-black border border-white/10 rounded-2xl p-4 text-xs font-bold outline-none focus:border-yellow-400 transition"
+                  className="w-full bg-black border border-white/10 rounded-2xl p-4 text-xs font-bold uppercase tracking-widest outline-none focus:border-yellow-400 transition"
                   value={categoriaTransacao}
                   onChange={(e) => setCategoriaTransacao(e.target.value)}
                 >
@@ -247,20 +287,25 @@ export default function DashboardPage() {
                 </select>
               )}
 
-              <input 
-                required type="number" step="0.01" placeholder="R$ 0,00"
-                className="w-full bg-black border border-white/10 rounded-2xl p-5 text-2xl font-black text-yellow-400 outline-none focus:border-yellow-400"
-                value={valorTransacao} onChange={(e) => setValorTransacao(e.target.value)}
-              />
+              <div className="relative">
+                <span className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-600 font-mono text-xl">R$</span>
+                <input 
+                  required type="number" step="0.01" placeholder="0,00"
+                  className="w-full bg-black border border-white/10 rounded-2xl p-5 pl-12 text-3xl font-mono text-yellow-400 outline-none focus:border-yellow-400 transition"
+                  value={valorTransacao} onChange={(e) => setValorTransacao(e.target.value)}
+                />
+              </div>
 
-              <div className="flex gap-4 pt-4">
-                <button type="button" onClick={() => setShowTransacaoModal(false)} className="flex-1 py-4 text-gray-500 font-black text-[10px] uppercase">Sair</button>
-                <button type="submit" className="flex-1 bg-yellow-400 text-black py-4 rounded-2xl font-black text-[10px] uppercase shadow-lg shadow-yellow-400/20">Salvar</button>
+              <div className="flex gap-4">
+                <button type="button" onClick={() => setShowTransacaoModal(false)} className="flex-1 py-4 text-gray-600 font-black uppercase text-[10px] tracking-[0.2em] hover:text-white transition">Cancelar</button>
+                <button type="submit" className="flex-1 bg-yellow-400 text-black py-4 rounded-2xl font-black uppercase text-[10px] tracking-[0.2em] hover:bg-yellow-300 transition">Confirmar</button>
               </div>
             </form>
           </div>
         </div>
       )}
+
+      {showUpgradeModal && <UpgradeModal onClose={() => setShowUpgradeModal(false)} />}
     </div>
   );
 }
