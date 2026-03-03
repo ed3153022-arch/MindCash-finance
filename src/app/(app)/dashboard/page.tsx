@@ -13,7 +13,6 @@ type Goal = {
   amount: number;
 };
 
-// Adicionado cores apenas para o funcionamento do gráfico de rosca
 const CATEGORIAS_LISTA = [
   { nome: "Moradia", icone: "🏠", cor: "#FF4500" },
   { nome: "Alimentação", icone: "🍔", cor: "#FFA500" },
@@ -38,7 +37,7 @@ export default function DashboardPage() {
   const [orcamentoGlobal, setOrcamentoGlobal] = useState(0);
 
   const [tipoTransacao, setTipoTransacao] = useState<"entrada" | "saida">("saida");
-  const [categoriaTransacao, setCategoriaTransacao] = useState(CATEGORIAS_LISTA[0].nome);
+  const [categoriaTransacao, setCategoriaTransacao] = useState("");
   const [valorTransacao, setValorTransacao] = useState("");
 
   useEffect(() => {
@@ -52,7 +51,6 @@ export default function DashboardPage() {
       if (!user) return;
 
       const { data: goalsData } = await supabase.from("goals").select("*").eq("user_id", user.id);
-      
       const agora = new Date();
       const inicioMes = new Date(agora.getFullYear(), agora.getMonth(), 1).toISOString();
       
@@ -65,7 +63,6 @@ export default function DashboardPage() {
       if (transacoes) {
         const saidas = transacoes.filter(t => t.type === 'saida').reduce((acc, t) => acc + t.amount, 0);
         const entradas = transacoes.filter(t => t.type === 'entrada').reduce((acc, t) => acc + t.amount, 0);
-        
         const agrupado = transacoes.filter(t => t.type === 'saida').reduce((acc, t) => {
           acc[t.category] = (acc[t.category] || 0) + t.amount;
           return acc;
@@ -81,188 +78,185 @@ export default function DashboardPage() {
         const global = goalsData.find(g => g.type === "Meta de Gasto Global")?.amount || 
                        goalsData.filter(g => g.type === "Limite de Categoria").reduce((acc, g) => acc + g.amount, 0);
         setOrcamentoGlobal(global || 5000);
+
+        const primeiraMeta = goalsData.find(g => g.type === "Limite de Categoria");
+        if (primeiraMeta) setCategoriaTransacao(primeiraMeta.category || "");
       }
     } catch (err) {
-      console.error("Erro ao carregar dashboard:", err);
+      console.error(err);
     } finally {
       setLoading(false);
     }
   }
 
-  // --- FUNÇÃO CORRIGIDA PARA OS ERROS DOS PRINTS ---
   async function handleSaveTransacao(e: React.FormEvent) {
     e.preventDefault();
-    try {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) return;
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return;
 
-      const valorFloat = parseFloat(valorTransacao);
-      if (isNaN(valorFloat)) {
-        alert("Insira um valor válido");
-        return;
-      }
+    const payload = {
+      user_id: user.id,
+      amount: parseFloat(valorTransacao),
+      type: tipoTransacao,
+      category: tipoTransacao === "saida" ? categoriaTransacao : "Entrada",
+      created_at: new Date().toISOString()
+    };
 
-      const payload = {
-        user_id: user.id,
-        amount: valorFloat,
-        type: tipoTransacao,
-        category: tipoTransacao === "saida" ? categoriaTransacao : "Entrada",
-        // CORREÇÃO DO ERRO "MARÇO": Usamos ISOString para o banco aceitar a data
-        created_at: new Date().toISOString() 
-      };
-
-      // Tenta inserir na tabela transactions
-      const { error } = await supabase.from("transactions").insert([payload]);
-
-      if (error) {
-        // Se der erro de "table not found", você precisa criar a tabela 'transactions' no SQL do Supabase
-        alert(`Erro técnico: ${error.message}`);
-        console.error("Detalhes do erro:", error);
-      } else {
-        setShowTransacaoModal(false);
-        setValorTransacao("");
-        loadDashboardData(); 
-      }
-    } catch (err) {
-      alert("Erro inesperado ao salvar.");
+    const { error } = await supabase.from("transactions").insert([payload]);
+    if (!error) {
+      setShowTransacaoModal(false);
+      setValorTransacao("");
+      loadDashboardData();
     }
   }
 
-  // --- LÓGICA DO GRÁFICO DE ROSCA (DONUT) ---
-  const renderDonutChart = () => {
-    const raio = 50;
+  const getIconData = (cat: string | null) => CATEGORIAS_LISTA.find(c => c.nome === cat) || { icone: "💰", cor: "#888" };
+
+  // --- AJUSTE 2: GRÁFICO COM ÍCONES NA BORDA (ESTILO CANVA) ---
+  const renderDonutChartWithIcons = () => {
+    const raio = 55;
+    const centro = 80;
     const circunferencia = 2 * Math.PI * raio;
-    let acumulado = 0;
+    let acumuladoPercent = 0;
 
     const fatias = CATEGORIAS_LISTA.map(cat => ({
       ...cat,
       valor: gastosPorCategoria[cat.nome] || 0
     })).filter(f => f.valor > 0);
 
-    if (fatias.length === 0) {
-      return <circle cx="80" cy="80" r={raio} fill="none" stroke="#222" strokeWidth="15" />;
-    }
-
     return fatias.map((fatia, i) => {
       const percentual = fatia.valor / (totalSaidas || 1);
       const dashArray = `${percentual * circunferencia} ${circunferencia}`;
-      const dashOffset = -acumulado * circunferencia;
-      acumulado += percentual;
+      const dashOffset = -acumuladoPercent * circunferencia;
+      
+      // Cálculo do ângulo para posicionar o ícone no final da fatia
+      // -90 graus para começar no topo do círculo
+      const anguloIcone = (acumuladoPercent + percentual) * 360 - 90;
+      
+      acumuladoPercent += percentual;
 
       return (
-        <circle
-          key={i}
-          cx="80"
-          cy="80"
-          r={raio}
-          fill="none"
-          stroke={fatia.cor}
-          strokeWidth="15"
-          strokeDasharray={dashArray}
-          strokeDashoffset={dashOffset}
-          strokeLinecap="round"
-          className="transition-all duration-1000"
-        />
+        <g key={i}>
+          {/* O Arco Colorido */}
+          <circle
+            cx={centro}
+            cy={centro}
+            r={raio}
+            fill="none"
+            stroke={fatia.cor}
+            strokeWidth="14"
+            strokeDasharray={dashArray}
+            strokeDashoffset={dashOffset}
+            strokeLinecap="round"
+            className="transition-all duration-1000"
+          />
+          
+          {/* O Ícone na Borda (Posicionamento matemático) */}
+          <g transform={`rotate(${anguloIcone} ${centro} ${centro})`}>
+            <text
+              x={centro + raio} 
+              y={centro + 5}
+              fontSize="16"
+              className="select-none"
+              style={{ transform: 'rotate(90deg)', transformOrigin: 'center' }}
+              textAnchor="middle"
+            >
+              {fatia.icone}
+            </text>
+          </g>
+        </g>
       );
     });
   };
 
-  const getIcon = (cat: string | null) => CATEGORIAS_LISTA.find(c => c.nome === cat)?.icone || "💰";
   const porcentagemGlobal = (totalSaidas / (orcamentoGlobal || 1)) * 100;
-
-  if (loading) return (
-    <div className="bg-black min-h-screen flex items-center justify-center">
-      <div className="text-yellow-400 font-black italic animate-pulse tracking-widest text-xl">MINDCASH</div>
-    </div>
-  );
 
   return (
     <div className="bg-black text-white min-h-screen antialiased font-sans">
-      <div className="max-w-6xl mx-auto px-6 py-8 md:px-10 md:py-12">
+      <div className="max-w-6xl mx-auto px-6 py-8">
         
         {/* HEADER */}
-        <div className="flex flex-col md:flex-row md:items-center justify-between mb-10 gap-6">
+        <div className="flex flex-col md:flex-row justify-between mb-10 gap-6">
           <div className="space-y-1">
             <h1 className="text-4xl font-black italic tracking-tighter uppercase">Dashboard</h1>
             <p className="text-gray-500 text-xs font-medium tracking-widest uppercase">Inteligência Financeira</p>
           </div>
-          
-          <div className="flex flex-row gap-3 w-full md:w-auto">
-            <button onClick={() => router.push("/metas")} className="flex-1 md:px-6 px-4 py-4 border border-white/10 rounded-2xl text-xs font-bold hover:bg-white/5 transition uppercase tracking-widest">
-              Metas 📈
-            </button>
-            <button onClick={() => setShowTransacaoModal(true)} className="flex-1 md:px-8 bg-yellow-400 hover:bg-yellow-300 text-black rounded-2xl py-4 text-xs font-black transition shadow-lg shadow-yellow-400/20 uppercase tracking-widest">
-              + Transação
-            </button>
+          <div className="flex gap-3">
+            <button onClick={() => router.push("/metas")} className="flex-1 px-6 py-4 border border-white/10 rounded-2xl text-xs font-bold uppercase tracking-widest hover:bg-white/5 transition">Metas 📈</button>
+            <button onClick={() => setShowTransacaoModal(true)} className="flex-1 px-8 bg-yellow-400 text-black rounded-2xl py-4 text-xs font-black uppercase tracking-widest shadow-lg shadow-yellow-400/20 transition hover:bg-yellow-300">+ Transação</button>
           </div>
         </div>
 
         {/* CARDS DE RESUMO */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-10">
-          <div className="bg-[#111111] rounded-[2.5rem] p-7 border border-white/5 ring-1 ring-white/5 shadow-2xl">
+          <div className="bg-[#111111] rounded-[2.5rem] p-7 border border-white/5 shadow-2xl">
             <p className="text-gray-500 text-[10px] tracking-[0.3em] uppercase font-black mb-4">Saldo Disponível</p>
-            <h2 className="text-4xl font-black tracking-tighter">R$ {(totalEntradas - totalSaidas).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</h2>
+            <h2 className="text-3xl font-black tracking-tighter">R$ {(totalEntradas - totalSaidas).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</h2>
           </div>
-          <div className="bg-[#111111] rounded-[2.5rem] p-7 border border-white/5 ring-1 ring-white/5">
+          <div className="bg-[#111111] rounded-[2.5rem] p-7 border border-white/5">
             <p className="text-red-500/80 text-[10px] tracking-[0.3em] uppercase font-black mb-4">Total Saídas</p>
-            <h2 className="text-4xl font-black tracking-tighter text-red-500">R$ {totalSaidas.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</h2>
+            <h2 className="text-3xl font-black tracking-tighter text-red-500">R$ {totalSaidas.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</h2>
           </div>
-          <div className="bg-[#111111] rounded-[2.5rem] p-7 border border-white/5 ring-1 ring-white/5">
+          <div className="bg-[#111111] rounded-[2.5rem] p-7 border border-white/5">
             <p className="text-green-500/80 text-[10px] tracking-[0.3em] uppercase font-black mb-4">Total Entradas</p>
-            <h2 className="text-4xl font-black tracking-tighter text-green-500">R$ {totalEntradas.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</h2>
+            <h2 className="text-3xl font-black tracking-tighter text-green-500">R$ {totalEntradas.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</h2>
           </div>
         </div>
 
         {/* GRÁFICOS E METAS */}
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
           
-          {/* ORÇAMENTO GLOBAL COM GRÁFICO DE ROSCA ESTILO INSTAGRAM */}
-          <div className="bg-[#111111] p-8 rounded-[3rem] border border-white/5 flex flex-col items-center justify-center relative">
-            <span className="text-gray-400 text-[10px] uppercase font-black tracking-[0.2em] mb-6 self-start">Uso do Orçamento</span>
+          {/* Ajuste 2: Gráfico Estilo Canva com ícones flutuantes */}
+          <div className="bg-[#111111] p-8 rounded-[3rem] border border-white/5 flex flex-col items-center justify-center">
+            <span className="text-gray-400 text-[10px] uppercase font-black tracking-[0.2em] mb-8 self-start">Uso do Orçamento</span>
             
-            <div className="relative w-48 h-48 flex items-center justify-center">
-              <svg className="w-full h-full -rotate-90" viewBox="0 0 160 160">
-                {renderDonutChart()}
+            <div className="relative w-56 h-56 flex items-center justify-center">
+              <svg className="w-full h-full" viewBox="0 0 160 160">
+                {/* Círculo de fundo (trilha cinza) */}
+                <circle cx="80" cy="80" r="55" fill="none" stroke="#222" strokeWidth="14" />
+                {renderDonutChartWithIcons()}
               </svg>
+              
               <div className="absolute flex flex-col items-center">
                 <span className="text-3xl font-black tracking-tighter">{porcentagemGlobal.toFixed(0)}%</span>
                 <span className="text-[8px] text-gray-500 uppercase font-black tracking-widest">Gasto</span>
               </div>
             </div>
 
-            <p className="text-gray-500 text-[10px] font-bold uppercase tracking-tighter mt-8 self-start">
-              <span className="text-white font-black">R$ {totalSaidas.toLocaleString()}</span> de R$ {orcamentoGlobal.toLocaleString()}
-            </p>
+            <div className="mt-8 self-start">
+               <p className="text-gray-500 text-[10px] font-bold uppercase tracking-tighter">
+                <span className="text-white font-black">R$ {totalSaidas.toLocaleString()}</span> de R$ {orcamentoGlobal.toLocaleString()}
+              </p>
+            </div>
           </div>
 
-          {/* LIMITES POR CATEGORIA */}
+          {/* Ajuste 1: Limites por Categoria com espaçamento corrigido */}
           <div className="lg:col-span-2 bg-[#111111] p-8 rounded-[3rem] border border-white/5">
             <h3 className="text-xl font-black mb-8 italic uppercase tracking-tighter">Limites por Categoria</h3>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-x-12 gap-y-10">
-              {metas.filter(g => g.type === "Limite de Categoria").length === 0 ? (
-                <div className="col-span-2 text-center py-10 text-gray-600 text-xs italic">Nenhum limite configurado em Metas.</div>
-              ) : (
-                metas.filter(g => g.type === "Limite de Categoria").map((meta) => {
-                  const gastoReal = gastosPorCategoria[meta.category || ""] || 0;
-                  const progresso = (gastoReal / meta.amount) * 100;
-                  return (
-                    <div key={meta.id} className="group">
-                      <div className="flex justify-between items-end mb-3">
-                        <span className="text-sm font-bold flex items-center gap-2 italic uppercase tracking-tighter">
-                          <span className="text-xl grayscale group-hover:grayscale-0 transition">{getIcon(meta.category)}</span>
-                          {meta.title}
-                        </span>
-                        <span className="text-[10px] font-mono font-bold text-gray-500">
-                          <span className="text-white">R$ {gastoReal.toFixed(0)}</span> / {meta.amount}
-                        </span>
-                      </div>
-                      <div className="w-full bg-white/5 h-2 rounded-full overflow-hidden border border-white/5">
-                        <div className={`h-full transition-all duration-700 ${progresso > 90 ? 'bg-red-500' : 'bg-yellow-400 opacity-80 group-hover:opacity-100'}`} style={{ width: `${Math.min(progresso, 100)}%` }} />
-                      </div>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-x-10 gap-y-10">
+              {metas.filter(g => g.type === "Limite de Categoria").map((meta) => {
+                const gastoReal = gastosPorCategoria[meta.category || ""] || 0;
+                const progresso = (gastoReal / meta.amount) * 100;
+                const iconData = getIconData(meta.category);
+                
+                return (
+                  <div key={meta.id} className="group">
+                    <div className="flex justify-between items-end mb-3">
+                      <span className="text-sm font-bold flex items-center gap-2 italic uppercase tracking-tighter">
+                        <span className="text-xl">{iconData.icone}</span>
+                        {meta.title}
+                      </span>
+                      <span className="text-[9px] font-mono font-bold text-gray-500 shrink-0">
+                        <span className="text-white">R$ {gastoReal.toFixed(0)}</span> / {meta.amount}
+                      </span>
                     </div>
-                  );
-                })
-              )}
+                    <div className="w-full bg-white/5 h-2 rounded-full overflow-hidden border border-white/5">
+                      <div className="h-full transition-all duration-700" 
+                        style={{ width: `${Math.min(progresso, 100)}%`, backgroundColor: iconData.cor }} />
+                    </div>
+                  </div>
+                );
+              })}
             </div>
           </div>
         </div>
@@ -274,28 +268,33 @@ export default function DashboardPage() {
           <div className="bg-[#111111] border border-white/10 w-full max-w-sm rounded-[2.5rem] p-8 shadow-2xl">
             <h2 className="text-2xl font-black mb-6 italic tracking-tighter uppercase text-center">Registrar</h2>
             <form onSubmit={handleSaveTransacao} className="space-y-6">
-              <div className="flex bg-black p-1.5 rounded-2xl border border-white/5 shadow-inner">
-                <button type="button" onClick={() => setTipoTransacao("saida")} className={`flex-1 py-3 rounded-xl text-[10px] font-black uppercase tracking-widest transition ${tipoTransacao === 'saida' ? 'bg-red-500 text-white shadow-lg shadow-red-500/20' : 'text-gray-500'}`}>Saída</button>
-                <button type="button" onClick={() => setTipoTransacao("entrada")} className={`flex-1 py-3 rounded-xl text-[10px] font-black uppercase tracking-widest transition ${tipoTransacao === 'entrada' ? 'bg-green-500 text-white shadow-lg shadow-green-500/20' : 'text-gray-500'}`}>Entrada</button>
+              <div className="flex bg-black p-1.5 rounded-2xl border border-white/5">
+                <button type="button" onClick={() => setTipoTransacao("saida")} className={`flex-1 py-3 rounded-xl text-[10px] font-black uppercase tracking-widest transition ${tipoTransacao === 'saida' ? 'bg-red-500 text-white shadow-lg' : 'text-gray-500'}`}>Saída</button>
+                <button type="button" onClick={() => setTipoTransacao("entrada")} className={`flex-1 py-3 rounded-xl text-[10px] font-black uppercase tracking-widest transition ${tipoTransacao === 'entrada' ? 'bg-green-500 text-white shadow-lg' : 'text-gray-500'}`}>Entrada</button>
               </div>
               
               {tipoTransacao === "saida" && (
                 <select 
-                  className="w-full bg-black border border-white/10 rounded-2xl p-4 text-xs font-bold uppercase tracking-widest outline-none focus:border-yellow-400 transition"
+                  className="w-full bg-black border border-white/10 rounded-2xl p-4 text-xs font-bold uppercase outline-none focus:border-yellow-400 transition"
                   value={categoriaTransacao}
                   onChange={(e) => setCategoriaTransacao(e.target.value)}
                 >
-                  {CATEGORIAS_LISTA.map(c => <option key={c.nome} value={c.nome}>{c.icone} {c.nome}</option>)}
+                  {metas.filter(g => g.type === "Limite de Categoria").map(meta => (
+                    <option key={meta.id} value={meta.category || ""}>
+                      {getIconData(meta.category).icone} {meta.category}
+                    </option>
+                  ))}
+                  {metas.filter(g => g.type === "Limite de Categoria").length === 0 && (
+                     <option disabled>Nenhuma meta definida</option>
+                  )}
                 </select>
               )}
 
               <div className="relative">
                 <span className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-600 font-mono text-xl">R$</span>
-                <input 
-                  required type="number" step="0.01" placeholder="0,00"
+                <input required type="number" step="0.01" placeholder="0,00"
                   className="w-full bg-black border border-white/10 rounded-2xl p-5 pl-12 text-3xl font-mono text-yellow-400 outline-none focus:border-yellow-400 transition"
-                  value={valorTransacao} onChange={(e) => setValorTransacao(e.target.value)}
-                />
+                  value={valorTransacao} onChange={(e) => setValorTransacao(e.target.value)} />
               </div>
 
               <div className="flex gap-4">
@@ -306,8 +305,6 @@ export default function DashboardPage() {
           </div>
         </div>
       )}
-
-      {showUpgradeModal && <UpgradeModal onClose={() => setShowUpgradeModal(false)} />}
     </div>
   );
 }
