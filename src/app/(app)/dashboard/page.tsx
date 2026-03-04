@@ -46,13 +46,14 @@ export default function DashboardPage() {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) return;
 
-      // Busca apenas metas de limite para o cálculo do gráfico
+      // 1. Busca metas (Limites)
       const { data: goalsData } = await supabase
         .from("goals")
         .select("*")
         .eq("user_id", user.id)
         .eq("type", "Limite de Categoria");
 
+      // 2. Busca transações do mês atual
       const agora = new Date();
       const inicioMes = new Date(agora.getFullYear(), agora.getMonth(), 1).toISOString();
       
@@ -77,9 +78,9 @@ export default function DashboardPage() {
 
       if (goalsData) {
         setMetas(goalsData);
-        // SOMA TOTAL DOS LIMITES: Resolve o erro de 1056% somando todos os seus testes
-        const somaLimites = goalsData.reduce((acc, g) => acc + g.amount, 0);
-        setOrcamentoGlobal(somaLimites || 1);
+        // CORREÇÃO DO CÁLCULO: Soma todos os limites cadastrados (resolve o erro de 1056%)
+        const somaTotalLimites = goalsData.reduce((acc, g) => acc + (Number(g.amount) || 0), 0);
+        setOrcamentoGlobal(somaTotalLimites || 1);
         
         if (goalsData.length > 0) setCategoriaTransacao(goalsData[0].category || "");
       }
@@ -128,9 +129,9 @@ export default function DashboardPage() {
   if (loading) return null;
 
   return (
-    /* CONTAINER SEM MAX-WIDTH PARA RESPEITAR O LAYOUT.TSX */
     <div className="w-full space-y-10 animate-in fade-in duration-500">
       
+      {/* HEADER */}
       <div className="flex flex-col md:flex-row justify-between gap-6">
         <div className="space-y-1">
           <h1 className="text-5xl font-black italic uppercase leading-none tracking-tighter">Dashboard</h1>
@@ -142,10 +143,11 @@ export default function DashboardPage() {
         </div>
       </div>
 
+      {/* CARDS RESUMO */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-        <div className="bg-[#111111] rounded-[2.5rem] p-8 border border-white/5">
+        <div className="bg-[#111111] rounded-[2.5rem] p-8 border border-white/5 shadow-inner">
           <p className="text-gray-500 text-[9px] tracking-[0.3em] uppercase font-black mb-4">Saldo Disponível</p>
-          <h2 className="text-3xl font-black tracking-tighter italic">R$ {(totalEntradas - totalSaidas).toLocaleString('pt-BR')}</h2>
+          <h2 className="text-3xl font-black tracking-tighter italic text-white">R$ {(totalEntradas - totalSaidas).toLocaleString('pt-BR')}</h2>
         </div>
         <div className="bg-[#111111] rounded-[2.5rem] p-8 border border-white/5">
           <p className="text-red-500/80 text-[9px] tracking-[0.3em] uppercase font-black mb-4">Total Saídas</p>
@@ -157,9 +159,11 @@ export default function DashboardPage() {
         </div>
       </div>
 
+      {/* GRÁFICO E LISTA */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
         
-        <div className="bg-[#111111] p-10 rounded-[3.5rem] border border-white/5 flex flex-col items-center">
+        {/* COLUNA DO GRÁFICO */}
+        <div className="bg-[#111111] p-10 rounded-[3.5rem] border border-white/5 flex flex-col items-center shadow-2xl">
           <span className="text-gray-400 text-[10px] uppercase font-black tracking-[0.2em] mb-10 self-start">Uso do Orçamento</span>
           
           <div className="relative w-56 h-56 flex items-center justify-center mb-10">
@@ -168,12 +172,12 @@ export default function DashboardPage() {
               {renderDonutChart()}
             </svg>
             <div className="absolute flex flex-col items-center">
-              <span className="text-5xl font-black tracking-tighter">{porcentagemGlobal.toFixed(0)}%</span>
+              <span className="text-5xl font-black tracking-tighter text-white">{porcentagemGlobal.toFixed(0)}%</span>
               <span className="text-[10px] text-gray-500 uppercase font-black tracking-widest">Gasto</span>
             </div>
           </div>
 
-          {/* LEGENDA: 3 Colunas, apenas categorias com gastos reais */}
+          {/* LEGENDA DINÂMICA: 3 Colunas, apenas ícones de gastos reais */}
           <div className="w-full grid grid-cols-3 gap-y-6 mb-8 mt-4">
             {CATEGORIAS_LISTA.map(cat => {
               const valorGasto = gastosPorCategoria[cat.nome] || 0;
@@ -189,13 +193,14 @@ export default function DashboardPage() {
 
           <div className="pt-6 border-t border-white/5 w-full">
             <p className="text-gray-500 text-[11px] font-black uppercase tracking-tighter">
-              <span className="text-white text-lg font-black">R$ {totalSaidas.toLocaleString()}</span> DE R$ {orcamentoGlobal.toLocaleString()}
+              <span className="text-white text-lg font-black italic">R$ {totalSaidas.toLocaleString()}</span> DE R$ {orcamentoGlobal.toLocaleString()}
             </p>
           </div>
         </div>
 
-        <div className="lg:col-span-2 bg-[#111111] p-10 rounded-[3.5rem] border border-white/5">
-          <h3 className="text-2xl font-black mb-10 italic uppercase tracking-tighter">Limites por Categoria</h3>
+        {/* COLUNA DAS METAS */}
+        <div className="lg:col-span-2 bg-[#111111] p-10 rounded-[3.5rem] border border-white/5 shadow-2xl">
+          <h3 className="text-2xl font-black mb-10 italic uppercase tracking-tighter text-white">Limites por Categoria</h3>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-12">
             {metas.map((meta) => {
               const gastoReal = gastosPorCategoria[meta.category || ""] || 0;
@@ -207,18 +212,18 @@ export default function DashboardPage() {
               if (progresso >= 90) corProgresso = "#EF4444";
 
               return (
-                <div key={meta.id}>
+                <div key={meta.id} className="group">
                   <div className="flex justify-between items-end mb-4">
-                    <span className="text-sm font-black flex items-center gap-3 italic uppercase tracking-tighter">
-                      <span className="text-2xl">{catData.icone}</span>
+                    <span className="text-sm font-black flex items-center gap-3 italic uppercase tracking-tighter text-white">
+                      <span className="text-2xl group-hover:scale-110 transition-transform">{catData.icone}</span>
                       {meta.category}
                     </span>
                     <div className="text-right">
-                      <span className="block text-[10px] font-black text-white">R$ {gastoReal.toLocaleString()} / {meta.amount}</span>
+                      <span className="block text-[10px] font-black text-white italic">R$ {gastoReal.toLocaleString()} / {meta.amount}</span>
                     </div>
                   </div>
-                  <div className="w-full bg-white/5 h-3 rounded-full overflow-hidden border border-white/5">
-                    <div className="h-full transition-all duration-1000 ease-out" 
+                  <div className="w-full bg-white/5 h-3 rounded-full overflow-hidden border border-white/5 p-[2px]">
+                    <div className="h-full rounded-full transition-all duration-1000 ease-out" 
                       style={{ width: `${Math.min(progresso, 100)}%`, backgroundColor: corProgresso }} />
                   </div>
                 </div>
@@ -227,6 +232,8 @@ export default function DashboardPage() {
           </div>
         </div>
       </div>
+      
+      {/* O MODAL DE REGISTRO CONTINUA AQUI... (mantive a lógica anterior) */}
     </div>
   );
 }
