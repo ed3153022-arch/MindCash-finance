@@ -46,14 +46,12 @@ export default function DashboardPage() {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) return;
 
-      // 1. Busca metas (Limites)
       const { data: goalsData } = await supabase
         .from("goals")
         .select("*")
         .eq("user_id", user.id)
         .eq("type", "Limite de Categoria");
 
-      // 2. Busca transações do mês atual
       const agora = new Date();
       const inicioMes = new Date(agora.getFullYear(), agora.getMonth(), 1).toISOString();
       
@@ -78,10 +76,14 @@ export default function DashboardPage() {
 
       if (goalsData) {
         setMetas(goalsData);
-        // CORREÇÃO DO CÁLCULO: Soma todos os limites cadastrados (resolve o erro de 1056%)
-        const somaTotalLimites = goalsData.reduce((acc, g) => acc + (Number(g.amount) || 0), 0);
-        setOrcamentoGlobal(somaTotalLimites || 1);
         
+        // SOMA ULTRA-SEGURA: Converte para número e garante que nada seja ignorado
+        const somaTotal = goalsData.reduce((acc, g) => {
+          const valor = typeof g.amount === 'string' ? parseFloat(g.amount) : g.amount;
+          return acc + (valor || 0);
+        }, 0);
+        
+        setOrcamentoGlobal(somaTotal || 1);
         if (goalsData.length > 0) setCategoriaTransacao(goalsData[0].category || "");
       }
     } catch (err) {
@@ -95,7 +97,6 @@ export default function DashboardPage() {
     const raio = 50;
     const circunferencia = 2 * Math.PI * raio;
     let acumulado = 0;
-
     const fatias = CATEGORIAS_LISTA.map(cat => ({
       ...cat,
       valor: gastosPorCategoria[cat.nome] || 0
@@ -106,20 +107,8 @@ export default function DashboardPage() {
       const dashArray = `${percentual * circunferencia} ${circunferencia}`;
       const dashOffset = -acumulado * circunferencia;
       acumulado += percentual;
-
       return (
-        <circle
-          key={i}
-          cx="80"
-          cy="80"
-          r={raio}
-          fill="none"
-          stroke={fatia.cor}
-          strokeWidth="25"
-          strokeDasharray={dashArray}
-          strokeDashoffset={dashOffset}
-          className="transition-all duration-700"
-        />
+        <circle key={i} cx="80" cy="80" r={raio} fill="none" stroke={fatia.cor} strokeWidth="25" strokeDasharray={dashArray} strokeDashoffset={dashOffset} className="transition-all duration-700" />
       );
     });
   };
@@ -138,14 +127,14 @@ export default function DashboardPage() {
           <p className="text-gray-500 text-[10px] font-black tracking-[0.4em] uppercase">Inteligência Financeira</p>
         </div>
         <div className="flex gap-3">
-          <button onClick={() => router.push("/metas")} className="flex-1 px-6 py-4 border border-white/10 rounded-2xl text-[10px] font-black uppercase tracking-widest hover:bg-white/5 transition">Metas 📈</button>
-          <button onClick={() => setShowTransacaoModal(true)} className="flex-1 px-8 bg-yellow-400 text-black rounded-2xl py-4 text-[10px] font-black uppercase tracking-widest shadow-lg shadow-yellow-400/20 transition hover:bg-yellow-300">+ Transação</button>
+          <button onClick={() => router.push("/metas")} className="flex-1 px-6 py-4 border border-white/10 rounded-2xl text-[10px] font-black uppercase tracking-widest">Metas 📈</button>
+          <button onClick={() => setShowTransacaoModal(true)} className="flex-1 px-8 bg-yellow-400 text-black rounded-2xl py-4 text-[10px] font-black uppercase tracking-widest shadow-lg shadow-yellow-400/20">+ Transação</button>
         </div>
       </div>
 
-      {/* CARDS RESUMO */}
+      {/* CARDS */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-        <div className="bg-[#111111] rounded-[2.5rem] p-8 border border-white/5 shadow-inner">
+        <div className="bg-[#111111] rounded-[2.5rem] p-8 border border-white/5">
           <p className="text-gray-500 text-[9px] tracking-[0.3em] uppercase font-black mb-4">Saldo Disponível</p>
           <h2 className="text-3xl font-black tracking-tighter italic text-white">R$ {(totalEntradas - totalSaidas).toLocaleString('pt-BR')}</h2>
         </div>
@@ -159,11 +148,9 @@ export default function DashboardPage() {
         </div>
       </div>
 
-      {/* GRÁFICO E LISTA */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-        
-        {/* COLUNA DO GRÁFICO */}
-        <div className="bg-[#111111] p-10 rounded-[3.5rem] border border-white/5 flex flex-col items-center shadow-2xl">
+        {/* GRÁFICO */}
+        <div className="bg-[#111111] p-10 rounded-[3.5rem] border border-white/5 flex flex-col items-center">
           <span className="text-gray-400 text-[10px] uppercase font-black tracking-[0.2em] mb-10 self-start">Uso do Orçamento</span>
           
           <div className="relative w-56 h-56 flex items-center justify-center mb-10">
@@ -173,11 +160,15 @@ export default function DashboardPage() {
             </svg>
             <div className="absolute flex flex-col items-center">
               <span className="text-5xl font-black tracking-tighter text-white">{porcentagemGlobal.toFixed(0)}%</span>
-              <span className="text-[10px] text-gray-500 uppercase font-black tracking-widest">Gasto</span>
+              
+              {/* LINHA DE DEBUG PARA CELULAR */}
+              <span className="text-[10px] text-yellow-400 font-mono mt-1">LMT: R$ {orcamentoGlobal}</span>
+              
+              <span className="text-[10px] text-gray-500 uppercase font-black tracking-widest mt-1">Gasto</span>
             </div>
           </div>
 
-          {/* LEGENDA DINÂMICA: 3 Colunas, apenas ícones de gastos reais */}
+          {/* LEGENDA 3 COLUNAS */}
           <div className="w-full grid grid-cols-3 gap-y-6 mb-8 mt-4">
             {CATEGORIAS_LISTA.map(cat => {
               const valorGasto = gastosPorCategoria[cat.nome] || 0;
@@ -198,24 +189,23 @@ export default function DashboardPage() {
           </div>
         </div>
 
-        {/* COLUNA DAS METAS */}
-        <div className="lg:col-span-2 bg-[#111111] p-10 rounded-[3.5rem] border border-white/5 shadow-2xl">
+        {/* METAS */}
+        <div className="lg:col-span-2 bg-[#111111] p-10 rounded-[3.5rem] border border-white/5">
           <h3 className="text-2xl font-black mb-10 italic uppercase tracking-tighter text-white">Limites por Categoria</h3>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-12">
             {metas.map((meta) => {
               const gastoReal = gastosPorCategoria[meta.category || ""] || 0;
               const progresso = (gastoReal / meta.amount) * 100;
               const catData = CATEGORIAS_LISTA.find(c => c.nome === meta.category) || { icone: "💰" };
-
               let corProgresso = "#EAB308";
               if (progresso >= 70) corProgresso = "#F97316";
               if (progresso >= 90) corProgresso = "#EF4444";
 
               return (
-                <div key={meta.id} className="group">
+                <div key={meta.id}>
                   <div className="flex justify-between items-end mb-4">
                     <span className="text-sm font-black flex items-center gap-3 italic uppercase tracking-tighter text-white">
-                      <span className="text-2xl group-hover:scale-110 transition-transform">{catData.icone}</span>
+                      <span className="text-2xl">{catData.icone}</span>
                       {meta.category}
                     </span>
                     <div className="text-right">
@@ -232,8 +222,6 @@ export default function DashboardPage() {
           </div>
         </div>
       </div>
-      
-      {/* O MODAL DE REGISTRO CONTINUA AQUI... (mantive a lógica anterior) */}
     </div>
   );
 }
