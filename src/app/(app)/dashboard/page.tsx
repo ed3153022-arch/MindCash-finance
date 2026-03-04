@@ -46,6 +46,7 @@ export default function DashboardPage() {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) return;
 
+      // BUSCA DE METAS CORRIGIDA: Puxa todos os limites do usuário sem travas de data
       const { data: goalsData } = await supabase
         .from("goals")
         .select("*")
@@ -77,7 +78,7 @@ export default function DashboardPage() {
       if (goalsData) {
         setMetas(goalsData);
         
-        // SOMA ULTRA-SEGURA: Converte para número e garante que nada seja ignorado
+        // SOMA TODAS AS METAS: Se tiver 2 de alimentação e 1 de transporte, ele soma tudo aqui.
         const somaTotal = goalsData.reduce((acc, g) => {
           const valor = typeof g.amount === 'string' ? parseFloat(g.amount) : g.amount;
           return acc + (valor || 0);
@@ -87,7 +88,7 @@ export default function DashboardPage() {
         if (goalsData.length > 0) setCategoriaTransacao(goalsData[0].category || "");
       }
     } catch (err) {
-      console.error(err);
+      console.error("Erro ao carregar dados:", err);
     } finally {
       setLoading(false);
     }
@@ -127,12 +128,12 @@ export default function DashboardPage() {
           <p className="text-gray-500 text-[10px] font-black tracking-[0.4em] uppercase">Inteligência Financeira</p>
         </div>
         <div className="flex gap-3">
-          <button onClick={() => router.push("/metas")} className="flex-1 px-6 py-4 border border-white/10 rounded-2xl text-[10px] font-black uppercase tracking-widest">Metas 📈</button>
-          <button onClick={() => setShowTransacaoModal(true)} className="flex-1 px-8 bg-yellow-400 text-black rounded-2xl py-4 text-[10px] font-black uppercase tracking-widest shadow-lg shadow-yellow-400/20">+ Transação</button>
+          <button onClick={() => router.push("/metas")} className="flex-1 px-6 py-4 border border-white/10 rounded-2xl text-[10px] font-black uppercase tracking-widest hover:bg-white/5 transition">Metas 📈</button>
+          <button onClick={() => setShowTransacaoModal(true)} className="flex-1 px-8 bg-yellow-400 text-black rounded-2xl py-4 text-[10px] font-black uppercase tracking-widest shadow-lg shadow-yellow-400/20 transition hover:bg-yellow-300">+ Transação</button>
         </div>
       </div>
 
-      {/* CARDS */}
+      {/* CARDS RESUMO */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
         <div className="bg-[#111111] rounded-[2.5rem] p-8 border border-white/5">
           <p className="text-gray-500 text-[9px] tracking-[0.3em] uppercase font-black mb-4">Saldo Disponível</p>
@@ -150,7 +151,7 @@ export default function DashboardPage() {
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
         {/* GRÁFICO */}
-        <div className="bg-[#111111] p-10 rounded-[3.5rem] border border-white/5 flex flex-col items-center">
+        <div className="bg-[#111111] p-10 rounded-[3.5rem] border border-white/5 flex flex-col items-center shadow-2xl">
           <span className="text-gray-400 text-[10px] uppercase font-black tracking-[0.2em] mb-10 self-start">Uso do Orçamento</span>
           
           <div className="relative w-56 h-56 flex items-center justify-center mb-10">
@@ -161,14 +162,14 @@ export default function DashboardPage() {
             <div className="absolute flex flex-col items-center">
               <span className="text-5xl font-black tracking-tighter text-white">{porcentagemGlobal.toFixed(0)}%</span>
               
-              {/* LINHA DE DEBUG PARA CELULAR */}
-              <span className="text-[10px] text-yellow-400 font-mono mt-1">LMT: R$ {orcamentoGlobal}</span>
+              {/* DEBUG AMARELO PARA O CELULAR */}
+              <span className="text-[10px] text-yellow-400 font-mono mt-1 font-bold italic">LMT: R$ {orcamentoGlobal}</span>
               
               <span className="text-[10px] text-gray-500 uppercase font-black tracking-widest mt-1">Gasto</span>
             </div>
           </div>
 
-          {/* LEGENDA 3 COLUNAS */}
+          {/* LEGENDA DINÂMICA EM 3 COLUNAS */}
           <div className="w-full grid grid-cols-3 gap-y-6 mb-8 mt-4">
             {CATEGORIAS_LISTA.map(cat => {
               const valorGasto = gastosPorCategoria[cat.nome] || 0;
@@ -189,8 +190,8 @@ export default function DashboardPage() {
           </div>
         </div>
 
-        {/* METAS */}
-        <div className="lg:col-span-2 bg-[#111111] p-10 rounded-[3.5rem] border border-white/5">
+        {/* LISTA DE METAS */}
+        <div className="lg:col-span-2 bg-[#111111] p-10 rounded-[3.5rem] border border-white/5 shadow-2xl">
           <h3 className="text-2xl font-black mb-10 italic uppercase tracking-tighter text-white">Limites por Categoria</h3>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-12">
             {metas.map((meta) => {
