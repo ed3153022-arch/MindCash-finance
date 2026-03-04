@@ -48,10 +48,12 @@ export default function DashboardPage() {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) return;
 
+      // 1. Busca as Metas (Goals)
       const { data: goalsData } = await supabase.from("goals").select("*").eq("user_id", user.id);
+      
+      // 2. Busca Transações do Mês Atual
       const agora = new Date();
       const inicioMes = new Date(agora.getFullYear(), agora.getMonth(), 1).toISOString();
-      
       const { data: transacoes } = await supabase
         .from("transactions")
         .select("*")
@@ -73,9 +75,14 @@ export default function DashboardPage() {
 
       if (goalsData) {
         setMetas(goalsData);
-        const global = goalsData.find(g => g.type === "Meta de Gasto Global")?.amount || 
-                       goalsData.filter(g => g.type === "Limite de Categoria").reduce((acc, g) => acc + g.amount, 0);
-        setOrcamentoGlobal(global || 5000);
+        
+        // --- CÁLCULO MATEMÁTICO PRECISO ---
+        // Soma todos os limites de categoria para formar o total do orçamento
+        const somaLimites = goalsData
+          .filter(g => g.type === "Limite de Categoria")
+          .reduce((acc, g) => acc + g.amount, 0);
+        
+        setOrcamentoGlobal(somaLimites || 1); // Evita divisão por zero
 
         const primeiraMeta = goalsData.find(g => g.type === "Limite de Categoria");
         if (primeiraMeta) setCategoriaTransacao(primeiraMeta.category || "");
@@ -110,11 +117,11 @@ export default function DashboardPage() {
 
   const getIconData = (cat: string | null) => CATEGORIAS_LISTA.find(c => c.nome === cat) || { icone: "💰", cor: "#888" };
 
-  const renderDonutChartWithIcons = () => {
-    const raio = 55;
-    const centro = 80;
+  // Render do gráfico simplificado com legenda abaixo
+  const renderDonutChart = () => {
+    const raio = 50;
     const circunferencia = 2 * Math.PI * raio;
-    let acumuladoPercent = 0;
+    let acumulado = 0;
 
     const fatias = CATEGORIAS_LISTA.map(cat => ({
       ...cat,
@@ -124,31 +131,22 @@ export default function DashboardPage() {
     return fatias.map((fatia, i) => {
       const percentual = fatia.valor / (totalSaidas || 1);
       const dashArray = `${percentual * circunferencia} ${circunferencia}`;
-      const dashOffset = -acumuladoPercent * circunferencia;
-      const anguloMeioFatia = (acumuladoPercent + percentual / 2) * 360 - 90;
-      acumuladoPercent += percentual;
-
-      const xIcone = centro + raio * Math.cos((anguloMeioFatia * Math.PI) / 180);
-      const yIcone = centro + raio * Math.sin((anguloMeioFatia * Math.PI) / 180);
+      const dashOffset = -acumulado * circunferencia;
+      acumulado += percentual;
 
       return (
-        <g key={i}>
-          <circle cx={centro} cy={centro} r={raio} fill="none" stroke={fatia.cor} strokeWidth="18"
-            strokeDasharray={dashArray} strokeDashoffset={dashOffset} strokeLinecap="round" className="transition-all duration-1000" />
-          <text x={xIcone} y={yIcone} fontSize="14" textAnchor="middle" alignmentBaseline="middle" className="select-none pointer-events-none">
-            {fatia.icone}
-          </text>
-        </g>
+        <circle key={i} cx="80" cy="80" r={raio} fill="none" stroke={fatia.cor} strokeWidth="15"
+          strokeDasharray={dashArray} strokeDashoffset={dashOffset} strokeLinecap="round" className="transition-all duration-1000" />
       );
     });
   };
 
   const porcentagemGlobal = (totalSaidas / (orcamentoGlobal || 1)) * 100;
 
-  if (loading) return <div className="text-white p-10 font-black italic uppercase">Carregando...</div>;
+  if (loading) return null;
 
   return (
-    <div className="w-full space-y-10 animate-in fade-in duration-700">
+    <div className="w-full space-y-10 animate-in fade-in duration-500">
       
       {/* HEADER */}
       <div className="flex flex-col md:flex-row justify-between gap-6">
@@ -166,49 +164,66 @@ export default function DashboardPage() {
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
         <div className="bg-[#111111] rounded-[2.5rem] p-8 border border-white/5">
           <p className="text-gray-500 text-[9px] tracking-[0.3em] uppercase font-black mb-4">Saldo Disponível</p>
-          <h2 className="text-3xl font-black tracking-tighter italic">R$ {(totalEntradas - totalSaidas).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</h2>
+          <h2 className="text-3xl font-black tracking-tighter italic">R$ {(totalEntradas - totalSaidas).toLocaleString('pt-BR')}</h2>
         </div>
         <div className="bg-[#111111] rounded-[2.5rem] p-8 border border-white/5">
           <p className="text-red-500/80 text-[9px] tracking-[0.3em] uppercase font-black mb-4">Total Saídas</p>
-          <h2 className="text-3xl font-black tracking-tighter italic text-red-500">R$ {totalSaidas.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</h2>
+          <h2 className="text-3xl font-black tracking-tighter italic text-red-500">R$ {totalSaidas.toLocaleString('pt-BR')}</h2>
         </div>
         <div className="bg-[#111111] rounded-[2.5rem] p-8 border border-white/5">
           <p className="text-green-500/80 text-[9px] tracking-[0.3em] uppercase font-black mb-4">Total Entradas</p>
-          <h2 className="text-3xl font-black tracking-tighter italic text-green-500">R$ {totalEntradas.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</h2>
+          <h2 className="text-3xl font-black tracking-tighter italic text-green-500">R$ {totalEntradas.toLocaleString('pt-BR')}</h2>
         </div>
       </div>
 
-      {/* GRÁFICOS E LIMITES */}
+      {/* CONTEÚDO PRINCIPAL */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
         
-        {/* GRÁFICO DE ROSCA ESTILO CANVA */}
-        <div className="bg-[#111111] p-10 rounded-[3.5rem] border border-white/5 flex flex-col items-center">
-          <span className="text-gray-400 text-[9px] uppercase font-black tracking-[0.3em] mb-10 self-start">Uso do Orçamento</span>
-          <div className="relative w-64 h-64 flex items-center justify-center">
-            <svg className="w-full h-full overflow-visible" viewBox="0 0 160 160">
-              <circle cx="80" cy="80" r="55" fill="none" stroke="#1a1a1a" strokeWidth="18" />
-              {renderDonutChartWithIcons()}
+        {/* GRÁFICO DE ROSCA COM LEGENDA */}
+        <div className="bg-[#111111] p-8 rounded-[3.5rem] border border-white/5 flex flex-col items-center">
+          <span className="text-gray-400 text-[10px] uppercase font-black tracking-[0.2em] mb-8 self-start">Uso do Orçamento</span>
+          
+          <div className="relative w-48 h-48 flex items-center justify-center mb-10">
+            <svg className="w-full h-full -rotate-90" viewBox="0 0 160 160">
+              <circle cx="80" cy="80" r="50" fill="none" stroke="#222" strokeWidth="15" />
+              {renderDonutChart()}
             </svg>
             <div className="absolute flex flex-col items-center">
-              <span className="text-5xl font-black tracking-tighter">{porcentagemGlobal.toFixed(0)}%</span>
+              <span className="text-4xl font-black tracking-tighter">{porcentagemGlobal.toFixed(0)}%</span>
               <span className="text-[10px] text-gray-500 uppercase font-black tracking-widest">Gasto</span>
             </div>
           </div>
-          <div className="mt-10 self-start w-full">
-             <p className="text-gray-500 text-[10px] font-black uppercase tracking-tighter">
-              <span className="text-white text-lg">R$ {totalSaidas.toLocaleString()}</span> de R$ {orcamentoGlobal.toLocaleString()}
+
+          <div className="w-full space-y-3 mb-8">
+            {CATEGORIAS_LISTA.map(cat => {
+              const valor = gastosPorCategoria[cat.nome] || 0;
+              if (valor === 0) return null;
+              return (
+                <div key={cat.nome} className="flex justify-between items-center bg-black/40 p-3 rounded-2xl border border-white/5">
+                  <span className="text-[11px] font-bold uppercase tracking-tighter">{cat.icone} {cat.nome}</span>
+                  <span className="text-[11px] font-mono font-bold text-gray-400">R$ {valor.toLocaleString()}</span>
+                </div>
+              );
+            })}
+          </div>
+
+          <div className="pt-6 border-t border-white/5 w-full">
+            {/* TEXTO DO CÁLCULO CIRCULADO NO PRINT */}
+            <p className="text-gray-500 text-[11px] font-black uppercase tracking-tighter">
+              <span className="text-white text-lg font-black">R$ {totalSaidas.toLocaleString()}</span> DE R$ {orcamentoGlobal.toLocaleString()}
             </p>
           </div>
         </div>
 
-        {/* LIMITES POR CATEGORIA COM CORES DE ALERTA */}
+        {/* LIMITES POR CATEGORIA COM CORES DE CALOR */}
         <div className="lg:col-span-2 bg-[#111111] p-10 rounded-[3.5rem] border border-white/5">
-          <h3 className="text-2xl font-black mb-10 italic uppercase tracking-tighter leading-none">Limites por Categoria</h3>
+          <h3 className="text-2xl font-black mb-10 italic uppercase tracking-tighter">Limites por Categoria</h3>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-x-12 gap-y-12">
             {metas.filter(g => g.type === "Limite de Categoria").map((meta) => {
               const gastoReal = gastosPorCategoria[meta.category || ""] || 0;
               const progresso = (gastoReal / meta.amount) * 100;
-              
+              const iconData = getIconData(meta.category);
+
               let corProgresso = "#EAB308"; // Amarelo
               if (progresso >= 70 && progresso < 90) corProgresso = "#F97316"; // Laranja
               if (progresso >= 90) corProgresso = "#EF4444"; // Vermelho
@@ -217,12 +232,13 @@ export default function DashboardPage() {
                 <div key={meta.id} className="group">
                   <div className="flex justify-between items-end mb-4">
                     <span className="text-sm font-black flex items-center gap-3 italic uppercase tracking-tighter">
-                      <span className="text-2xl">{getIconData(meta.category).icone}</span>
+                      <span className="text-2xl">{iconData.icone}</span>
                       {meta.category}
                     </span>
-                    <span className="text-[10px] font-mono font-bold text-gray-500">
-                      <span className="text-white text-sm font-black">R$ {gastoReal.toFixed(0)}</span> / {meta.amount}
-                    </span>
+                    <div className="text-right">
+                      <span className="block text-[10px] font-black text-white">R$ {gastoReal.toLocaleString()} / {meta.amount}</span>
+                      <span className="text-[8px] font-bold text-gray-500 uppercase tracking-widest">Faltam R$ {Math.max(0, meta.amount - gastoReal).toLocaleString()}</span>
+                    </div>
                   </div>
                   <div className="w-full bg-white/5 h-3 rounded-full overflow-hidden border border-white/5">
                     <div className="h-full transition-all duration-1000 ease-out" 
@@ -235,37 +251,26 @@ export default function DashboardPage() {
         </div>
       </div>
 
-      {/* MODAL DE REGISTRO */}
+      {/* MODAL DE REGISTRO ... (Código de registro mantido para funcionalidade) */}
       {showTransacaoModal && (
         <div className="fixed inset-0 bg-black/95 backdrop-blur-xl z-50 flex items-center justify-center p-6">
           <div className="bg-[#111111] border border-white/10 w-full max-w-sm rounded-[3rem] p-10">
             <h2 className="text-3xl font-black mb-8 italic tracking-tighter uppercase text-center">Registrar</h2>
             <form onSubmit={handleSaveTransacao} className="space-y-8">
-              <div className="flex bg-black p-2 rounded-2xl border border-white/5">
+               <div className="flex bg-black p-2 rounded-2xl border border-white/5">
                 <button type="button" onClick={() => setTipoTransacao("saida")} className={`flex-1 py-4 rounded-xl text-[10px] font-black uppercase tracking-widest transition ${tipoTransacao === 'saida' ? 'bg-red-500 text-white shadow-lg' : 'text-gray-500'}`}>Saída</button>
                 <button type="button" onClick={() => setTipoTransacao("entrada")} className={`flex-1 py-4 rounded-xl text-[10px] font-black uppercase tracking-widest transition ${tipoTransacao === 'entrada' ? 'bg-green-500 text-white shadow-lg' : 'text-gray-500'}`}>Entrada</button>
               </div>
-              
+              <input required type="number" step="0.01" placeholder="R$ 0,00" className="w-full bg-black border border-white/10 rounded-2xl p-6 text-3xl font-mono text-yellow-400 outline-none" value={valorTransacao} onChange={(e) => setValorTransacao(e.target.value)} />
               {tipoTransacao === "saida" && (
-                <select className="w-full bg-black border border-white/10 rounded-2xl p-5 text-[11px] font-black uppercase outline-none focus:border-yellow-400 transition"
-                  value={categoriaTransacao} onChange={(e) => setCategoriaTransacao(e.target.value)}>
+                <select className="w-full bg-black border border-white/10 rounded-2xl p-5 text-[11px] font-black uppercase" value={categoriaTransacao} onChange={(e) => setCategoriaTransacao(e.target.value)}>
                   {metas.filter(g => g.type === "Limite de Categoria").map(meta => (
-                    <option key={meta.id} value={meta.category || ""}>{getIconData(meta.category).icone} {meta.category}</option>
+                    <option key={meta.id} value={meta.category || ""}>{meta.category}</option>
                   ))}
                 </select>
               )}
-
-              <div className="relative">
-                <span className="absolute left-6 top-1/2 -translate-y-1/2 text-gray-600 font-mono text-2xl">R$</span>
-                <input required type="number" step="0.01" placeholder="0,00"
-                  className="w-full bg-black border border-white/10 rounded-3xl p-6 pl-16 text-4xl font-mono text-yellow-400 outline-none"
-                  value={valorTransacao} onChange={(e) => setValorTransacao(e.target.value)} />
-              </div>
-
-              <div className="flex gap-4">
-                <button type="button" onClick={() => setShowTransacaoModal(false)} className="flex-1 py-4 text-gray-500 font-black uppercase text-[10px] tracking-widest">Cancelar</button>
-                <button type="submit" className="flex-1 bg-yellow-400 text-black py-5 rounded-2xl font-black uppercase text-[11px] tracking-widest shadow-xl shadow-yellow-400/10">Confirmar</button>
-              </div>
+              <button type="submit" className="w-full bg-yellow-400 text-black py-5 rounded-2xl font-black uppercase text-[11px] tracking-widest">Confirmar</button>
+              <button type="button" onClick={() => setShowTransacaoModal(false)} className="w-full text-gray-500 font-black uppercase text-[10px] mt-2">Cancelar</button>
             </form>
           </div>
         </div>
