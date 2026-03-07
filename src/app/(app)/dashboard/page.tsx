@@ -49,7 +49,6 @@ export default function DashboardPage() {
     setLoading(false);
   }
 
-  // Cálculos de Resumo
   const entradas = transacoes.filter(t => t.type === "entrada").reduce((acc, t) => acc + Number(t.amount), 0);
   const saídas = transacoes.filter(t => t.type === "saida").reduce((acc, t) => acc + Number(t.amount), 0);
   const saldo = entradas - saídas;
@@ -60,7 +59,6 @@ export default function DashboardPage() {
     metas.some(m => m.category?.toLowerCase() === cat.nome.toLowerCase())
   );
 
-  // Função para definir a cor da barra de progresso
   const getProgressColor = (percent: number) => {
     if (percent >= 90) return "bg-red-500";
     if (percent >= 70) return "bg-orange-500";
@@ -75,32 +73,33 @@ export default function DashboardPage() {
       {/* HEADER */}
       <div className="flex flex-col gap-4">
         <h1 className="text-5xl font-black italic uppercase tracking-tighter italic">DASHBOARD</h1>
+        <p className="text-zinc-500 text-[10px] font-black tracking-[0.4em] uppercase -mt-4">Inteligência Financeira</p>
         <div className="grid grid-cols-2 gap-3">
-          <button onClick={() => router.push("/metas")} className="bg-[#111] border border-white/10 py-4 rounded-2xl font-black text-[10px] uppercase tracking-widest text-white">Metas 📈</button>
-          <button onClick={() => setShowModal(true)} className="bg-yellow-400 text-black py-4 rounded-2xl font-black text-[10px] uppercase tracking-widest">+ Transação</button>
+          <button onClick={() => router.push("/metas")} className="bg-zinc-900 border border-white/5 py-4 rounded-2xl font-black text-[10px] uppercase tracking-widest text-white active:scale-95 transition">Metas 📈</button>
+          <button onClick={() => setShowModal(true)} className="bg-yellow-400 text-black py-4 rounded-2xl font-black text-[10px] uppercase tracking-widest active:scale-95 transition">+ Transação</button>
         </div>
       </div>
 
-      {/* CARDS DE SALDO */}
-      <div className="space-y-3">
+      {/* CARDS DE SALDO - AGORA UM ABAIXO DO OUTRO */}
+      <div className="space-y-2">
         <div className="bg-[#111] p-6 rounded-3xl border border-white/5">
           <p className="text-zinc-500 text-[9px] font-black uppercase tracking-widest mb-1">Saldo Disponível</p>
           <h2 className="text-3xl font-black italic text-white">R$ {saldo.toLocaleString('pt-BR')}</h2>
         </div>
-        <div className="grid grid-cols-2 gap-3">
-          <div className="bg-[#111] p-5 rounded-3xl border border-white/5">
-            <p className="text-red-500 text-[9px] font-black uppercase tracking-widest mb-1">Total Saídas</p>
-            <h2 className="text-xl font-black italic text-red-500">R$ {saídas.toLocaleString('pt-BR')}</h2>
-          </div>
-          <div className="bg-[#111] p-5 rounded-3xl border border-white/5">
-            <p className="text-green-500 text-[9px] font-black uppercase tracking-widest mb-1">Total Entradas</p>
-            <h2 className="text-xl font-black italic text-green-500">R$ {entradas.toLocaleString('pt-BR')}</h2>
-          </div>
+        <div className="bg-[#111] p-6 rounded-3xl border border-white/5">
+          <p className="text-red-500 text-[9px] font-black uppercase tracking-widest mb-1 italic">Total Saídas</p>
+          <h2 className="text-3xl font-black italic text-red-500">R$ {saídas.toLocaleString('pt-BR')}</h2>
+        </div>
+        <div className="bg-[#111] p-6 rounded-3xl border border-white/5">
+          <p className="text-green-500 text-[9px] font-black uppercase tracking-widest mb-1 italic">Total Entradas</p>
+          <h2 className="text-3xl font-black italic text-green-500">R$ {entradas.toLocaleString('pt-BR')}</h2>
         </div>
       </div>
 
       {/* GRÁFICO DE ROSCA */}
       <div className="bg-[#111] p-10 rounded-[3rem] border border-white/5 flex flex-col items-center">
+        <span className="text-zinc-500 text-[10px] font-black uppercase tracking-[0.2em] mb-10 self-start italic">Uso do Orçamento</span>
+        
         <div className="relative w-64 h-64 flex items-center justify-center">
           <svg className="w-full h-full -rotate-90" viewBox="0 0 160 160">
             <circle cx="80" cy="80" r="70" fill="none" stroke="#141414" strokeWidth="18" />
@@ -115,17 +114,25 @@ export default function DashboardPage() {
             <span className="text-[10px] text-zinc-500 font-black tracking-widest uppercase">Gasto</span>
           </div>
         </div>
-        <div className="flex gap-6 mt-8">
-          {categoriasAtivas.map(c => <span key={c.nome} className="text-3xl">{c.emoji}</span>)}
+
+        {/* LEGENDA COM BOLINHA E EMOJI */}
+        <div className="flex gap-6 mt-10">
+          {categoriasAtivas.map(c => (
+            <div key={c.nome} className="flex flex-col items-center gap-2">
+              <div className="w-2 h-2 rounded-full" style={{ backgroundColor: c.cor }} />
+              <span className="text-3xl">{c.emoji}</span>
+            </div>
+          ))}
         </div>
-        <p className="mt-6 text-zinc-500 font-black text-[11px] uppercase tracking-tighter">
-          <span className="text-white text-base">R$ {saídas.toLocaleString()}</span> de R$ {orcamentoTotal.toLocaleString()}
+
+        <p className="mt-8 text-zinc-500 font-black text-[11px] uppercase tracking-tighter">
+          <span className="text-white text-base italic">R$ {saídas.toLocaleString()}</span> DE R$ {orcamentoTotal.toLocaleString()}
         </p>
       </div>
 
-      {/* LIMITES POR CATEGORIA (BARRAS COLORIDAS) */}
+      {/* LIMITES POR CATEGORIA */}
       <div className="bg-[#111] p-8 rounded-[3rem] border border-white/5 space-y-8">
-        <h3 className="text-xl font-black italic uppercase text-white">Limites por Categoria</h3>
+        <h3 className="text-xl font-black italic uppercase text-white tracking-tighter">Limites por Categoria</h3>
         <div className="space-y-8">
           {metas.map(meta => {
             const gastoCat = transacoes
@@ -141,7 +148,7 @@ export default function DashboardPage() {
                     <span className="text-2xl">{catInfo?.emoji}</span>
                     <span className="text-xs font-black uppercase italic text-white">{meta.category}</span>
                   </div>
-                  <span className="text-[10px] font-black text-zinc-400">
+                  <span className="text-[10px] font-black text-zinc-400 italic">
                     R$ {gastoCat.toLocaleString()} / {meta.amount.toLocaleString()}
                   </span>
                 </div>
@@ -160,10 +167,10 @@ export default function DashboardPage() {
       {/* MODAL DE REGISTRO */}
       {showModal && (
         <div className="fixed inset-0 bg-black/95 backdrop-blur-md z-[100] flex items-center justify-center p-6">
-          <div className="bg-[#111] w-full max-w-md rounded-[2.5rem] p-8 border border-white/10">
+          <div className="bg-[#111] w-full max-w-md rounded-[2.5rem] p-8 border border-white/10 shadow-2xl">
             <div className="flex justify-between items-center mb-8">
               <h2 className="text-2xl font-black italic uppercase text-white">Novo Registro</h2>
-              <button onClick={() => setShowModal(false)} className="text-zinc-500 font-bold text-[10px] uppercase">Fechar X</button>
+              <button onClick={() => setShowModal(false)} className="text-zinc-500 font-bold text-[10px] uppercase tracking-widest">Fechar X</button>
             </div>
             
             <div className="grid grid-cols-2 gap-2 bg-black p-1 rounded-2xl mb-8 border border-white/5">
@@ -182,7 +189,10 @@ export default function DashboardPage() {
               </div>
             )}
 
-            <input type="number" placeholder="0,00" value={valor} onChange={(e) => setValor(e.target.value)} className="w-full bg-black border border-white/10 p-6 rounded-2xl text-3xl font-black mb-8 outline-none text-white focus:border-yellow-400" />
+            <div className="space-y-2 mb-8">
+              <label className="text-[10px] font-black uppercase tracking-widest text-zinc-500 ml-2">Valor (R$)</label>
+              <input type="number" placeholder="0,00" value={valor} onChange={(e) => setValor(e.target.value)} className="w-full bg-black border border-white/10 p-6 rounded-2xl text-4xl font-black italic outline-none text-white focus:border-yellow-400 placeholder:text-white/5" />
+            </div>
             
             <button onClick={async () => {
               if(!valor || (tipo === 'saida' && !catSel)) return alert("Preencha tudo!");
@@ -196,7 +206,7 @@ export default function DashboardPage() {
               setShowModal(false);
               setValor("");
               loadData();
-            }} className="w-full bg-yellow-400 text-black py-5 rounded-2xl font-black uppercase text-xs shadow-lg shadow-yellow-400/20 active:scale-95 transition">Confirmar Registro</button>
+            }} className="w-full bg-yellow-400 text-black py-5 rounded-2xl font-black uppercase text-xs shadow-xl shadow-yellow-400/20 active:scale-95 transition">Confirmar Registro</button>
           </div>
         </div>
       )}
