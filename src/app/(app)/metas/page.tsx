@@ -55,26 +55,35 @@ export default function MetasPage() {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) throw new Error("Usuário não autenticado");
 
-      const valorNumerico = parseFloat(valorMeta);
-      // Gera a data atual para preencher a coluna 'month' que é obrigatória no seu banco
+      // CORREÇÃO AQUI: Limpa pontos de milhar e converte vírgula decimal em ponto
+      // Ex: "2.000,50" -> "2000.50"
+      const valorLimpo = valorMeta.toString().replace(/\./g, "").replace(",", ".");
+      const valorNumerico = parseFloat(valorLimpo);
+
+      if (isNaN(valorNumerico)) {
+        alert("Por favor, insira um valor numérico válido.");
+        setIsSaving(false);
+        return;
+      }
+
       const dataAtual = new Date().toISOString().split('T')[0];
 
-      // PASSO 1: Deleta a meta antiga daquela categoria para evitar erro de conflito
+      // PASSO 1: Deleta a meta antiga daquela categoria
       await supabase
         .from("goals")
         .delete()
         .eq("user_id", user.id)
         .eq("category", categoriaMeta);
 
-      // PASSO 2: Insere a nova meta preenchendo as colunas que estavam dando erro de "NULL"
+      // PASSO 2: Insere com todos os campos obrigatórios
       const { error } = await supabase.from("goals").insert({
         user_id: user.id,
         category: categoriaMeta,
-        title: `Meta de ${categoriaMeta}`, // Resolve erro da coluna 'title'
+        title: `Meta de ${categoriaMeta}`,
         amount: valorNumerico,
-        type: "Mensal",                     // Resolve erro da coluna 'type'
-        month: dataAtual,                   // Resolve erro da coluna 'month'
-        current_amount: 0                   // Valor padrão inicial
+        type: "Mensal",
+        month: dataAtual,
+        current_amount: 0
       });
 
       if (error) throw error;
@@ -102,7 +111,6 @@ export default function MetasPage() {
 
   return (
     <div className="w-full space-y-10 pb-20 p-4">
-      {/* HEADER */}
       <div className="flex justify-between items-end mt-4">
         <div className="space-y-1">
           <h1 className="text-5xl font-black italic uppercase leading-none tracking-tighter text-white">Metas</h1>
@@ -111,7 +119,6 @@ export default function MetasPage() {
         <button onClick={() => router.push("/dashboard")} className="px-6 py-3 bg-zinc-900 border border-white/10 rounded-xl text-[10px] font-black uppercase text-white">Voltar</button>
       </div>
 
-      {/* LISTA DE METAS ATUAIS */}
       <div className="bg-[#111] p-6 rounded-[2.5rem] border border-white/5">
         <div className="flex justify-between items-center mb-8">
           <h3 className="text-xl font-black italic uppercase text-white tracking-tighter">Meus Limites</h3>
@@ -129,7 +136,7 @@ export default function MetasPage() {
                 </div>
               </div>
               <div className="flex items-center gap-4">
-                <span className="text-lg font-black text-white italic">R$ {Number(meta.amount).toLocaleString()}</span>
+                <span className="text-lg font-black text-white italic">R$ {Number(meta.amount).toLocaleString('pt-BR')}</span>
                 <button onClick={() => handleDeleteMeta(meta.id)} className="bg-red-500/10 text-red-500 p-2 rounded-lg text-[10px] font-black">✕</button>
               </div>
             </div>
@@ -139,7 +146,6 @@ export default function MetasPage() {
         </div>
       </div>
 
-      {/* MODAL DE CRIAÇÃO (ESTILO QUADRADOS) */}
       {showMetaModal && (
         <div className="fixed inset-0 bg-black/95 backdrop-blur-md z-50 flex items-center justify-center p-6">
           <div className="bg-[#111] w-full max-w-md rounded-[2.5rem] p-8 border border-white/10 max-h-[90vh] overflow-y-auto">
@@ -169,7 +175,8 @@ export default function MetasPage() {
               <div className="space-y-3">
                 <label className="text-[10px] font-black uppercase text-zinc-500 ml-2 italic">2. Valor do Limite (R$)</label>
                 <input 
-                  type="number" 
+                  type="text" 
+                  inputMode="numeric"
                   placeholder="0,00" 
                   value={valorMeta} 
                   onChange={(e) => setValorMeta(e.target.value)} 
