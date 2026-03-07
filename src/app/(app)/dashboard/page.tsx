@@ -72,18 +72,18 @@ export default function DashboardPage() {
       
       {/* HEADER */}
       <div className="flex flex-col gap-4">
-        <h1 className="text-5xl font-black italic uppercase tracking-tighter italic">DASHBOARD</h1>
-        <p className="text-zinc-500 text-[10px] font-black tracking-[0.4em] uppercase -mt-4">Inteligência Financeira</p>
+        <h1 className="text-5xl font-black italic uppercase tracking-tighter">DASHBOARD</h1>
+        <p className="text-zinc-500 text-[10px] font-black tracking-[0.4em] uppercase -mt-4 italic">Inteligência Financeira</p>
         <div className="grid grid-cols-2 gap-3">
           <button onClick={() => router.push("/metas")} className="bg-zinc-900 border border-white/5 py-4 rounded-2xl font-black text-[10px] uppercase tracking-widest text-white active:scale-95 transition">Metas 📈</button>
           <button onClick={() => setShowModal(true)} className="bg-yellow-400 text-black py-4 rounded-2xl font-black text-[10px] uppercase tracking-widest active:scale-95 transition">+ Transação</button>
         </div>
       </div>
 
-      {/* CARDS DE SALDO - AGORA UM ABAIXO DO OUTRO */}
-      <div className="space-y-2">
+      {/* CARDS DE SALDO */}
+      <div className="flex flex-col gap-3">
         <div className="bg-[#111] p-6 rounded-3xl border border-white/5">
-          <p className="text-zinc-500 text-[9px] font-black uppercase tracking-widest mb-1">Saldo Disponível</p>
+          <p className="text-zinc-500 text-[9px] font-black uppercase tracking-widest mb-1 italic">Saldo Disponível</p>
           <h2 className="text-3xl font-black italic text-white">R$ {saldo.toLocaleString('pt-BR')}</h2>
         </div>
         <div className="bg-[#111] p-6 rounded-3xl border border-white/5">
@@ -104,18 +104,17 @@ export default function DashboardPage() {
           <svg className="w-full h-full -rotate-90" viewBox="0 0 160 160">
             <circle cx="80" cy="80" r="70" fill="none" stroke="#141414" strokeWidth="18" />
             <circle cx="80" cy="80" r="70" fill="none" 
-              stroke={categoriasAtivas[0]?.cor || "#FF007A"} 
+              stroke={categoriasAtivas[0]?.cor || "#FFD700"} 
               strokeWidth="20" strokeDasharray="440" 
               strokeDashoffset={440 - (440 * porcentagemGeral) / 100} 
               strokeLinecap="round" className="transition-all duration-1000" />
           </svg>
           <div className="absolute flex flex-col items-center">
             <span className="text-6xl font-black italic text-white">{porcentagemGeral}%</span>
-            <span className="text-[10px] text-zinc-500 font-black tracking-widest uppercase">Gasto</span>
+            <span className="text-[10px] text-zinc-500 font-black tracking-widest uppercase italic">Gasto</span>
           </div>
         </div>
 
-        {/* LEGENDA COM BOLINHA E EMOJI */}
         <div className="flex gap-6 mt-10">
           {categoriasAtivas.map(c => (
             <div key={c.nome} className="flex flex-col items-center gap-2">
@@ -124,9 +123,8 @@ export default function DashboardPage() {
             </div>
           ))}
         </div>
-
-        <p className="mt-8 text-zinc-500 font-black text-[11px] uppercase tracking-tighter">
-          <span className="text-white text-base italic">R$ {saídas.toLocaleString()}</span> DE R$ {orcamentoTotal.toLocaleString()}
+        <p className="mt-8 text-zinc-500 font-black text-[11px] uppercase tracking-tighter italic">
+          <span className="text-white text-base">R$ {saídas.toLocaleString('pt-BR')}</span> DE R$ {orcamentoTotal.toLocaleString('pt-BR')}
         </p>
       </div>
 
@@ -149,7 +147,7 @@ export default function DashboardPage() {
                     <span className="text-xs font-black uppercase italic text-white">{meta.category}</span>
                   </div>
                   <span className="text-[10px] font-black text-zinc-400 italic">
-                    R$ {gastoCat.toLocaleString()} / {meta.amount.toLocaleString()}
+                    R$ {gastoCat.toLocaleString('pt-BR')} / {meta.amount.toLocaleString('pt-BR')}
                   </span>
                 </div>
                 <div className="w-full bg-white/5 h-2.5 rounded-full overflow-hidden">
@@ -167,7 +165,7 @@ export default function DashboardPage() {
       {/* MODAL DE REGISTRO */}
       {showModal && (
         <div className="fixed inset-0 bg-black/95 backdrop-blur-md z-[100] flex items-center justify-center p-6">
-          <div className="bg-[#111] w-full max-w-md rounded-[2.5rem] p-8 border border-white/10 shadow-2xl">
+          <div className="bg-[#111] w-full max-w-md rounded-[2.5rem] p-8 border border-white/10">
             <div className="flex justify-between items-center mb-8">
               <h2 className="text-2xl font-black italic uppercase text-white">Novo Registro</h2>
               <button onClick={() => setShowModal(false)} className="text-zinc-500 font-bold text-[10px] uppercase tracking-widest">Fechar X</button>
@@ -190,23 +188,35 @@ export default function DashboardPage() {
             )}
 
             <div className="space-y-2 mb-8">
-              <label className="text-[10px] font-black uppercase tracking-widest text-zinc-500 ml-2">Valor (R$)</label>
-              <input type="number" placeholder="0,00" value={valor} onChange={(e) => setValor(e.target.value)} className="w-full bg-black border border-white/10 p-6 rounded-2xl text-4xl font-black italic outline-none text-white focus:border-yellow-400 placeholder:text-white/5" />
+              <label className="text-[10px] font-black uppercase tracking-widest text-zinc-500 ml-2 italic">Valor (R$)</label>
+              <input 
+                type="text" 
+                inputMode="numeric"
+                placeholder="0,00" 
+                value={valor} 
+                onChange={(e) => setValor(e.target.value)} 
+                className="w-full bg-black border border-white/10 p-6 rounded-2xl text-4xl font-black italic outline-none text-white focus:border-yellow-400" 
+              />
             </div>
             
             <button onClick={async () => {
               if(!valor || (tipo === 'saida' && !catSel)) return alert("Preencha tudo!");
+              
+              // LIMPEZA DE PONTO IGUAL NAS METAS
+              const valorLimpo = valor.toString().replace(/\./g, "").replace(",", ".");
+              const valorNumerico = parseFloat(valorLimpo);
+
               const { data: { user } } = await supabase.auth.getUser();
               await supabase.from("transactions").insert({
                 user_id: user?.id,
                 type: tipo,
                 category: tipo === 'saida' ? catSel : 'Receita',
-                amount: parseFloat(valor)
+                amount: valorNumerico
               });
               setShowModal(false);
               setValor("");
               loadData();
-            }} className="w-full bg-yellow-400 text-black py-5 rounded-2xl font-black uppercase text-xs shadow-xl shadow-yellow-400/20 active:scale-95 transition">Confirmar Registro</button>
+            }} className="w-full bg-yellow-400 text-black py-5 rounded-2xl font-black uppercase text-xs shadow-xl active:scale-95 transition">Confirmar Registro</button>
           </div>
         </div>
       )}
