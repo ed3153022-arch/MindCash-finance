@@ -1,203 +1,252 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
-import { supabase } from "@/lib/supabase";
+import { createClientComponentClient } from "@supabase/auth-helpers-nextjs";
+import { Plus, Target, ChevronDown, Check } from "lucide-react";
 
-type Goal = {
-  id: string;
-  category: string | null;
-  amount: number;
-  type: string;
-};
-
-const CATEGORIAS_LISTA = [
-  { nome: "Moradia", icone: "🏠", cor: "#FF4500" },
-  { nome: "Alimentação", icone: "🍔", cor: "#FF1493" },
-  { nome: "Transporte", icone: "🚗", cor: "#00CED1" },
-  { nome: "Entretenimento", icone: "🎬", cor: "#32CD32" },
-  { nome: "Saúde", icone: "💊", cor: "#FFA500" },
-  { nome: "Educação", icone: "📚", cor: "#4169E1" },
-  { nome: "Assinaturas", icone: "💳", cor: "#FFD700" },
-  { nome: "Compras", icone: "🛍", cor: "#8A2BE2" },
+// Definição rigorosa das categorias para evitar erros de digitação
+const CATEGORIAS_MASTER = [
+  { id: "alimentacao", nome: "Alimentação", emoji: "🍔", cor: "#FF007A" },
+  { id: "moradia", nome: "Moradia", emoji: "🏠", cor: "#FF4D00" },
+  { id: "transporte", nome: "Transporte", emoji: "🚗", cor: "#00E5FF" },
+  { id: "lazer", nome: "Lazer", emoji: "🎬", cor: "#39FF14" },
+  { id: "saude", nome: "Saúde", emoji: "💊", cor: "#FFB800" },
+  { id: "outros", nome: "Outros", emoji: "⚡", cor: "#7B61FF" },
 ];
 
-export default function DashboardPage() {
+export default function Dashboard() {
   const router = useRouter();
-  const [loading, setLoading] = useState(true);
-  const [showTransacaoModal, setShowTransacaoModal] = useState(false);
+  const supabase = createClientComponentClient();
   
-  const [metas, setMetas] = useState<Goal[]>([]);
-  const [totalSaidas, setTotalSaidas] = useState(0);
-  const [totalEntradas, setTotalEntradas] = useState(0);
-  const [gastosPorCategoria, setGastosPorCategoria] = useState<Record<string, number>>({});
-  const [orcamentoGlobal, setOrcamentoGlobal] = useState(0);
-
-  const [tipoTransacao, setTipoTransacao] = useState<"entrada" | "saida">("saida");
-  const [categoriaTransacao, setCategoriaTransacao] = useState("");
-  const [valorTransacao, setValorTransacao] = useState("");
+  // Estados da Página
+  const [loading, setLoading] = useState(true);
+  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [metas, setMetas] = useState<any[]>([]);
+  const [transacoes, setTransacoes] = useState<any[]>([]);
+  
+  // Estados do Novo Registro
+  const [tipo, setTipo] = useState<"entrada" | "saida">("saida");
+  const [categoriaSel, setCategoriaSel] = useState("");
+  const [valor, setValor] = useState("");
 
   useEffect(() => {
-    loadDashboardData();
+    loadData();
   }, []);
 
-  async function loadDashboardData() {
-    setLoading(true);
+  async function loadData() {
     try {
+      setLoading(true);
       const { data: { user } } = await supabase.auth.getUser();
-      if (!user) return;
-
-      const { data: goalsData } = await supabase
-        .from("goals")
-        .select("*")
-        .eq("user_id", user.id)
-        .eq("type", "Limite de Categoria");
+      if (!user) return router.push("/login");
 
       const agora = new Date();
-      const inicioMes = new Date(agora.getFullYear(), agora.getMonth(), 1).toISOString();
-      
-      const { data: transacoes } = await supabase
-        .from("transactions")
-        .select("*")
-        .eq("user_id", user.id)
-        .gte("created_at", inicioMes);
+      const primeiroDia = new Date(agora.getFullYear(), agora.getMonth(), 1).toISOString();
 
-      if (transacoes) {
-        const saidas = transacoes.filter(t => t.type === 'saida').reduce((acc, t) => acc + t.amount, 0);
-        const entradas = transacoes.filter(t => t.type === 'entrada').reduce((acc, t) => acc + t.amount, 0);
-        const agrupado = transacoes.filter(t => t.type === 'saida').reduce((acc, t) => {
-          if (t.category) acc[t.category] = (acc[t.category] || 0) + t.amount;
-          return acc;
-        }, {} as Record<string, number>);
+      const [metasRes, transRes] = await Promise.all([
+        supabase.from("goals").select("*").eq("user_id", user.id),
+        supabase.from("transactions").select("*").eq("user_id", user.id).gte("created_at", primeiroDia)
+      ]);
 
-        setTotalSaidas(saidas);
-        setTotalEntradas(entradas);
-        setGastosPorCategoria(agrupado);
-      }
-
-      if (goalsData) {
-        setMetas(goalsData);
-        const somaTotal = goalsData.reduce((acc, g) => acc + (Number(g.amount) || 0), 0);
-        setOrcamentoGlobal(somaTotal || 1);
-        if (goalsData.length > 0) setCategoriaTransacao(goalsData[0].category || "");
-      }
-    } catch (err) {
-      console.error(err);
+      setMetas(metasRes.data || []);
+      setTransacoes(transRes.data || []);
+    } catch (error) {
+      console.error("Erro ao carregar dados:", error);
     } finally {
       setLoading(false);
     }
   }
 
-  const handleAddTransaction = async () => {
-    try {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) return;
-      await supabase.from("transactions").insert({
-        user_id: user.id,
-        type: tipoTransacao,
-        category: tipoTransacao === "saida" ? categoriaTransacao : null,
-        amount: parseFloat(valorTransacao.replace(",", ".")),
-      });
-      setShowTransacaoModal(false);
-      setValorTransacao("");
-      loadDashboardData();
-    } catch (err) { alert("Erro ao salvar"); }
-  };
+  // Cálculos de Saldo
+  const totalEntradas = transacoes.filter(t => t.type === "entrada").reduce((acc, t) => acc + Number(t.amount), 0);
+  const totalSaidas = transacoes.filter(t => t.type === "saida").reduce((acc, t) => acc + Number(t.amount), 0);
+  const saldoDisponivel = totalEntradas - totalSaidas;
+  const limiteTotalMetas = metas.reduce((acc, m) => acc + Number(m.target_amount), 0);
+  const porcentagemGeral = limiteTotalMetas > 0 ? Math.round((totalSaidas / limiteTotalMetas) * 100) : 0;
 
-  const renderDonutChart = () => {
-    const raio = 50;
-    const circunferencia = 2 * Math.PI * raio;
-    let acumulado = 0;
+  // Filtrar categorias que possuem metas cadastradas
+  const categoriasComMeta = CATEGORIAS_MASTER.filter(cat => 
+    metas.some(m => m.category.toLowerCase() === cat.nome.toLowerCase())
+  );
 
-    return CATEGORIAS_LISTA.map((cat, i) => {
-      const gastoReal = gastosPorCategoria[cat.nome] || 0;
-      if (gastoReal <= 0) return null;
-      const percentual = gastoReal / (orcamentoGlobal || 1);
-      const dashArray = `${percentual * circunferencia} ${circunferencia}`;
-      const dashOffset = -acumulado * circunferencia;
-      acumulado += percentual;
-      return (
-        <circle key={i} cx="80" cy="80" r={raio} fill="none" stroke={cat.cor} strokeWidth="25" strokeDasharray={dashArray} strokeDashoffset={dashOffset} strokeLinecap="round" className="transition-all duration-1000" />
-      );
+  async function handleAddTransaction() {
+    if (!valor || (tipo === "saida" && !categoriaSel)) return alert("Preencha todos os campos");
+
+    const { data: { user } } = await supabase.auth.getUser();
+    
+    const { error } = await supabase.from("transactions").insert({
+      user_id: user?.id,
+      type: tipo,
+      category: tipo === "entrada" ? "Receita" : categoriaSel,
+      amount: parseFloat(valor.replace(",", ".")),
+      description: tipo === "entrada" ? "Entrada de Saldo" : `Gasto em ${categoriaSel}`
     });
-  };
 
-  if (loading) return null;
+    if (!error) {
+      setIsModalOpen(false);
+      setValor("");
+      setCategoriaSel("");
+      loadData();
+    }
+  }
+
+  if (loading) return (
+    <div className="flex h-screen items-center justify-center bg-black text-white">
+      <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-yellow-400"></div>
+    </div>
+  );
 
   return (
-    <div className="w-full space-y-10">
+    <div className="min-h-screen bg-black text-white p-4 font-sans">
       
-      {/* HEADER - Seus botões originais */}
-      <div className="flex flex-col md:flex-row justify-between gap-6">
-        <div className="space-y-1">
-          <h1 className="text-5xl font-black italic uppercase leading-none tracking-tighter">Dashboard</h1>
-          <p className="text-gray-500 text-[10px] font-black tracking-[0.4em] uppercase">Inteligência Financeira</p>
+      {/* Título e Botões Superiores */}
+      <header className="mb-6">
+        <h1 className="text-4xl font-black italic tracking-tighter uppercase leading-none mb-1">DASHBOARD</h1>
+        <p className="text-[10px] text-zinc-500 font-bold uppercase tracking-[0.2em] mb-6">Inteligência Financeira</p>
+        
+        <div className="grid grid-cols-2 gap-3">
+          <button 
+            onClick={() => router.push("/metas")}
+            className="flex items-center justify-center gap-2 bg-zinc-900/50 border border-zinc-800 h-14 rounded-xl font-bold text-xs uppercase hover:bg-zinc-800 transition-all"
+          >
+            Metas 📈
+          </button>
+          <button 
+            onClick={() => setIsModalOpen(true)}
+            className="flex items-center justify-center gap-2 bg-yellow-400 text-black h-14 rounded-xl font-black text-xs uppercase hover:bg-yellow-500 transition-all"
+          >
+            + Transação
+          </button>
         </div>
-        <div className="flex gap-3">
-          <button onClick={() => router.push("/metas")} className="flex-1 px-6 py-4 border border-white/10 rounded-2xl text-[10px] font-black uppercase tracking-widest hover:bg-white/5 transition">Metas 📈</button>
-          <button onClick={() => setShowTransacaoModal(true)} className="flex-1 px-8 bg-yellow-400 text-black rounded-2xl py-4 text-[10px] font-black uppercase tracking-widest shadow-lg shadow-yellow-400/20 transition hover:bg-yellow-300">+ Transação</button>
-        </div>
-      </div>
+      </header>
 
-      {/* CARDS RESUMO */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-        <div className="bg-[#111] rounded-[2.5rem] p-8 border border-white/5">
-          <p className="text-gray-500 text-[9px] uppercase font-black mb-4 tracking-widest">Saldo Disponível</p>
-          <h2 className="text-3xl font-black italic">R$ {(totalEntradas - totalSaidas).toLocaleString('pt-BR')}</h2>
-        </div>
-        <div className="bg-[#111] rounded-[2.5rem] p-8 border border-white/5">
-          <p className="text-red-500 text-[9px] uppercase font-black mb-4 tracking-widest">Saídas</p>
-          <h2 className="text-3xl font-black italic text-red-500">R$ {totalSaidas.toLocaleString('pt-BR')}</h2>
-        </div>
-        <div className="bg-[#111] rounded-[2.5rem] p-8 border border-white/5">
-          <p className="text-green-500 text-[9px] uppercase font-black mb-4 tracking-widest">Entradas</p>
-          <h2 className="text-3xl font-black italic text-green-500">R$ {totalEntradas.toLocaleString('pt-BR')}</h2>
-        </div>
-      </div>
-
-      {/* GRÁFICO E LEGENDA */}
-      <div className="bg-[#111] p-10 rounded-[3.5rem] border border-white/5 flex flex-col items-center max-w-md mx-auto">
-        <span className="text-gray-400 text-[10px] uppercase font-black mb-10 self-start">Uso do Orçamento</span>
-        <div className="relative w-64 h-64 flex items-center justify-center mb-10">
-          <svg className="w-full h-full -rotate-90 overflow-visible" viewBox="0 0 160 160">
-            <circle cx="80" cy="80" r="50" fill="none" stroke="#1a1a1a" strokeWidth="25" />
-            {renderDonutChart()}
-          </svg>
-          <div className="absolute flex flex-col items-center">
-            <span className="text-6xl font-black tracking-tighter">{((totalSaidas / (orcamentoGlobal || 1)) * 100).toFixed(0)}%</span>
-            <span className="text-[10px] text-gray-500 uppercase font-black">Gasto</span>
+      {/* Cards de Saldo */}
+      <section className="space-y-2 mb-8">
+        <div className="bg-zinc-900/40 p-4 rounded-2xl border border-zinc-800/50">
+          <span className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest">Saldo Disponível</span>
+          <div className="text-3xl font-black italic mt-1">
+            R$ {saldoDisponivel.toLocaleString('pt-BR')}
           </div>
         </div>
 
-        {/* Legenda Dinâmica baseada nas metas */}
-        <div className="w-full grid grid-cols-4 gap-y-6">
-          {metas.map(meta => {
-            const catData = CATEGORIAS_LISTA.find(c => c.nome === meta.category);
-            if (!catData) return null;
-            return (
-              <div key={meta.id} className="flex flex-col items-center gap-1">
-                <div className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: catData.cor }} />
-                <span className="text-2xl">{catData.icone}</span>
-              </div>
-            );
-          })}
+        <div className="grid grid-cols-2 gap-2">
+          <div className="bg-zinc-900/40 p-4 rounded-2xl border border-zinc-800/50">
+            <span className="text-[10px] font-bold text-red-500/80 uppercase tracking-widest">Total Saídas</span>
+            <div className="text-xl font-black italic text-red-500 mt-1">R$ {totalSaidas.toLocaleString('pt-BR')}</div>
+          </div>
+          <div className="bg-zinc-900/40 p-4 rounded-2xl border border-zinc-800/50">
+            <span className="text-[10px] font-bold text-green-500/80 uppercase tracking-widest">Total Entradas</span>
+            <div className="text-xl font-black italic text-green-500 mt-1">R$ {totalEntradas.toLocaleString('pt-BR')}</div>
+          </div>
         </div>
-      </div>
+      </section>
 
-      {/* MODAL DE REGISTRO */}
-      {showTransacaoModal && (
-        <div className="fixed inset-0 bg-black/90 backdrop-blur-md z-[100] flex items-center justify-center p-6">
-          <div className="bg-[#111] w-full max-w-md rounded-[2.5rem] p-10 border border-white/10 relative">
-            <button onClick={() => setShowTransacaoModal(false)} className="absolute top-8 right-8 text-gray-500 font-black text-[10px] uppercase">Fechar X</button>
-            <h2 className="text-2xl font-black italic uppercase mb-8">Novo Registro</h2>
-            <div className="space-y-6">
-              <div className="flex bg-white/5 p-1 rounded-2xl">
-                <button onClick={() => setTipoTransacao("saida")} className={`flex-1 py-3 rounded-xl text-[10px] font-black uppercase ${tipoTransacao === "saida" ? "bg-red-500 text-white" : "text-gray-500"}`}>Saída</button>
-                <button onClick={() => setTipoTransacao("entrada")} className={`flex-1 py-3 rounded-xl text-[10px] font-black uppercase ${tipoTransacao === "entrada" ? "bg-green-500 text-white" : "text-gray-500"}`}>Entrada</button>
-              </div>
-              <input type="text" placeholder="R$ 0,00" value={valorTransacao} onChange={(e) => setValorTransacao(e.target.value)} className="w-full bg-white/5 border border-white/10 rounded-2xl p-6 text-3xl font-black text-white outline-none" />
-              <button onClick={handleAddTransaction} className="w-full bg-yellow-400 text-black py-5 rounded-2xl font-black uppercase text-[11px] shadow-lg shadow-yellow-400/20">Confirmar</button>
+      {/* Gráfico de Rosca Estilizado */}
+      <section className="bg-zinc-900/60 p-6 rounded-[40px] border border-zinc-800 flex flex-col items-center">
+        <h2 className="text-[10px] font-bold text-zinc-400 uppercase tracking-widest mb-8 self-start">Uso do Orçamento</h2>
+        
+        <div className="relative w-56 h-56 flex items-center justify-center">
+          <svg className="w-full h-full transform -rotate-90">
+            {/* Círculo de Fundo (Track) */}
+            <circle cx="112" cy="112" r="90" stroke="#1a1a1a" strokeWidth="22" fill="transparent" />
+            
+            {/* Arco de Progresso Real */}
+            <circle 
+              cx="112" cy="112" r="90" 
+              stroke={categoriasComMeta[0]?.cor || "#FF007A"} 
+              strokeWidth="24" 
+              fill="transparent" 
+              strokeDasharray={565.48}
+              strokeDashoffset={565.48 - (565.48 * Math.min(porcentagemGeral, 100)) / 100}
+              strokeLinecap="round"
+              className="transition-all duration-1000 ease-out"
+            />
+          </svg>
+          <div className="absolute inset-0 flex flex-col items-center justify-center">
+            <span className="text-5xl font-black italic leading-none">{porcentagemGeral}%</span>
+            <span className="text-[9px] font-bold text-zinc-500 uppercase mt-1">Gasto</span>
+          </div>
+        </div>
+
+        {/* Legenda Dinâmica (Só mostra o que tem meta) */}
+        <div className="grid grid-cols-3 gap-4 mt-10 w-full">
+          {categoriasComMeta.map(cat => (
+            <div key={cat.id} className="flex flex-col items-center gap-1">
+              <div className="w-2 h-2 rounded-full" style={{ backgroundColor: cat.cor }} />
+              <span className="text-xl">{cat.emoji}</span>
             </div>
+          ))}
+        </div>
+      </section>
+
+      {/* Modal de Transação (Otimizado) */}
+      {isModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-end justify-center p-4 bg-black/80 backdrop-blur-sm">
+          <div className="bg-zinc-900 w-full max-w-md rounded-[32px] p-6 border border-zinc-800 animate-in slide-in-from-bottom duration-300">
+            <div className="flex justify-between items-center mb-6">
+              <h2 className="text-xl font-black italic uppercase italic">Novo Registro</h2>
+              <button onClick={() => setIsModalOpen(false)} className="text-[10px] font-bold text-zinc-500 uppercase">Fechar X</button>
+            </div>
+
+            {/* Selector Tipo */}
+            <div className="grid grid-cols-2 gap-2 p-1 bg-black rounded-2xl mb-6">
+              <button 
+                onClick={() => setTipo("saida")}
+                className={`h-12 rounded-xl font-bold text-xs uppercase transition-all ${tipo === 'saida' ? 'bg-red-500 text-white shadow-lg shadow-red-500/20' : 'text-zinc-500'}`}
+              >
+                Saída
+              </button>
+              <button 
+                onClick={() => setTipo("entrada")}
+                className={`h-12 rounded-xl font-bold text-xs uppercase transition-all ${tipo === 'entrada' ? 'bg-green-500 text-white shadow-lg shadow-green-500/20' : 'text-zinc-500'}`}
+              >
+                Entrada
+              </button>
+            </div>
+
+            {/* Categorias (Exibidas como Botões) */}
+            {tipo === "saida" && (
+              <div className="mb-6">
+                <p className="text-[10px] font-bold text-zinc-500 uppercase mb-3">Selecione a Categoria</p>
+                <div className="grid grid-cols-3 gap-2">
+                  {categoriasComMeta.length > 0 ? (
+                    categoriasComMeta.map(cat => (
+                      <button
+                        key={cat.id}
+                        onClick={() => setCategoriaSel(cat.nome)}
+                        className={`flex flex-col items-center justify-center p-3 rounded-2xl border transition-all ${categoriaSel === cat.nome ? 'border-yellow-400 bg-yellow-400/10' : 'border-zinc-800 bg-black/40'}`}
+                      >
+                        <span className="text-2xl mb-1">{cat.emoji}</span>
+                        <span className="text-[9px] font-bold uppercase truncate w-full text-center">{cat.nome}</span>
+                      </button>
+                    ))
+                  ) : (
+                    <div className="col-span-3 p-4 text-center border border-dashed border-zinc-800 rounded-2xl text-zinc-500 text-[10px] uppercase font-bold">
+                      Nenhuma meta cadastrada
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
+
+            {/* Campo Valor */}
+            <div className="mb-8">
+              <p className="text-[10px] font-bold text-zinc-500 uppercase mb-2">Valor (R$)</p>
+              <input 
+                type="number"
+                placeholder="0,00"
+                value={valor}
+                onChange={(e) => setValor(e.target.value)}
+                className="w-full bg-black border border-zinc-800 h-16 rounded-2xl px-6 text-2xl font-black italic focus:border-yellow-400 outline-none transition-all"
+              />
+            </div>
+
+            <button 
+              onClick={handleAddTransaction}
+              className="w-full bg-yellow-400 text-black h-16 rounded-2xl font-black text-xs uppercase shadow-xl shadow-yellow-400/10 active:scale-95 transition-all"
+            >
+              Confirmar Registro
+            </button>
           </div>
         </div>
       )}
