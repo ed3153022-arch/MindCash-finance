@@ -56,6 +56,8 @@ export default function MetasPage() {
       if (!user) throw new Error("Usuário não autenticado");
 
       const valorNumerico = parseFloat(valorMeta);
+      // Gera a data atual para preencher a coluna 'month' que é obrigatória no seu banco
+      const dataAtual = new Date().toISOString().split('T')[0];
 
       // PASSO 1: Deleta a meta antiga daquela categoria para evitar erro de conflito
       await supabase
@@ -64,12 +66,15 @@ export default function MetasPage() {
         .eq("user_id", user.id)
         .eq("category", categoriaMeta);
 
-      // PASSO 2: Insere a nova meta
+      // PASSO 2: Insere a nova meta preenchendo as colunas que estavam dando erro de "NULL"
       const { error } = await supabase.from("goals").insert({
         user_id: user.id,
         category: categoriaMeta,
+        title: `Meta de ${categoriaMeta}`, // Resolve erro da coluna 'title'
         amount: valorNumerico,
-        type: "Limite de Categoria"
+        type: "Mensal",                     // Resolve erro da coluna 'type'
+        month: dataAtual,                   // Resolve erro da coluna 'month'
+        current_amount: 0                   // Valor padrão inicial
       });
 
       if (error) throw error;
@@ -141,7 +146,6 @@ export default function MetasPage() {
             <h2 className="text-3xl font-black italic uppercase text-white mb-8 tracking-tighter">Novo Limite</h2>
             
             <div className="space-y-8">
-              {/* GRID DE CATEGORIAS EM QUADRADOS */}
               <div className="space-y-3">
                 <label className="text-[10px] font-black uppercase text-zinc-500 ml-2 italic">1. Escolha a Categoria</label>
                 <div className="grid grid-cols-3 gap-2">
@@ -162,7 +166,6 @@ export default function MetasPage() {
                 </div>
               </div>
 
-              {/* INPUT DE VALOR */}
               <div className="space-y-3">
                 <label className="text-[10px] font-black uppercase text-zinc-500 ml-2 italic">2. Valor do Limite (R$)</label>
                 <input 
