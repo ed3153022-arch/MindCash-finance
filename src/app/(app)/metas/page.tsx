@@ -111,8 +111,8 @@ export default function MetasPage() {
       {/* HEADER */}
       <div className="flex justify-between items-end w-full">
         <div className="space-y-1">
-          <h1 className="text-5xl font-black italic uppercase leading-none tracking-tighter text-white">Metas</h1>
-          <p className="text-gray-500 text-[10px] font-black tracking-[0.4em] uppercase italic">Limites Mensais</p>
+          <h1 className="text-5xl font-black italic uppercase leading-none tracking-tighter text-white">LIMITES</h1>
+          <p className="text-gray-500 text-[10px] font-black tracking-[0.4em] uppercase italic">Teto de Gastos</p>
         </div>
         <button 
           onClick={() => router.push("/dashboard")} 
