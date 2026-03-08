@@ -93,10 +93,10 @@ export default function DashboardPage() {
   if (loading) return null;
 
   return (
-    <div className="w-full space-y-10 pb-16">
+    <div className="w-full space-y-6 pb-20"> {/* space-y-6 unifica todos os respiros entre cards */}
       
       {/* HEADER */}
-      <div className="flex flex-col gap-2">
+      <div className="flex flex-col gap-2 px-2">
         <h1 className="text-5xl font-black italic uppercase tracking-tighter leading-none">DASHBOARD</h1>
         <p className="text-zinc-500 text-[10px] font-black tracking-[0.4em] uppercase italic">Inteligência Financeira</p>
         
@@ -108,25 +108,26 @@ export default function DashboardPage() {
 
       {/* CARDS DE SALDO */}
       <div className="flex flex-col gap-6 w-full">
-        <div className="bg-[#111] px-8 py-10 rounded-[2.5rem] border border-white/5 w-full">
+        {/* px-12 protege as palavras de baterem na borda redonda */}
+        <div className="bg-[#111] px-12 py-10 rounded-[2.5rem] border border-white/5 w-full">
           <p className="text-zinc-500 text-[9px] font-black uppercase tracking-widest mb-1 italic">Saldo Disponível</p>
           <h2 className="text-4xl font-black italic text-white break-words">R$ {saldo.toLocaleString('pt-BR')}</h2>
         </div>
         
-        <div className="bg-[#111] px-8 py-8 rounded-[2.5rem] border border-white/5 w-full">
+        <div className="bg-[#111] px-12 py-8 rounded-[2.5rem] border border-white/5 w-full">
           <p className="text-red-500 text-[9px] font-black uppercase tracking-widest mb-1 italic">Total Saídas</p>
           <h2 className="text-3xl font-black italic text-red-500 break-words">R$ {saídas.toLocaleString('pt-BR')}</h2>
         </div>
 
-        <div className="bg-[#111] px-8 py-8 rounded-[2.5rem] border border-white/5 w-full">
+        <div className="bg-[#111] px-12 py-8 rounded-[2.5rem] border border-white/5 w-full">
           <p className="text-green-500 text-[9px] font-black uppercase tracking-widest mb-1 italic">Total Entradas</p>
           <h2 className="text-3xl font-black italic text-green-500 break-words">R$ {entradas.toLocaleString('pt-BR')}</h2>
         </div>
       </div>
 
       {/* GRÁFICO DE ROSCA */}
-      <div className="bg-[#111] px-8 py-12 rounded-[3rem] border border-white/5 flex flex-col items-center w-full my-4">
-        <span className="text-zinc-500 text-[10px] font-black uppercase tracking-[0.2em] mb-10 self-start italic px-2">Uso do Orçamento</span>
+      <div className="bg-[#111] px-12 py-12 rounded-[3rem] border border-white/5 flex flex-col items-center w-full">
+        <span className="text-zinc-500 text-[10px] font-black uppercase tracking-[0.2em] mb-10 self-start italic">Uso do Orçamento</span>
         
         <div className="relative w-64 h-64 flex items-center justify-center mb-10">
           <svg className="w-full h-full -rotate-90" viewBox="0 0 160 160">
@@ -154,8 +155,8 @@ export default function DashboardPage() {
       </div>
 
       {/* LIMITES POR CATEGORIA */}
-      <div className="bg-[#111] px-8 py-10 rounded-[3rem] border border-white/5 space-y-8 w-full">
-        <h3 className="text-xl font-black italic uppercase text-white tracking-tighter px-2">Limites por Categoria</h3>
+      <div className="bg-[#111] px-12 py-10 rounded-[3rem] border border-white/5 space-y-10 w-full">
+        <h3 className="text-xl font-black italic uppercase text-white tracking-tighter">Limites por Categoria</h3>
         <div className="space-y-10">
           {metas.map(meta => {
             const gastoCat = transacoes
@@ -171,8 +172,8 @@ export default function DashboardPage() {
             };
 
             return (
-              <div key={meta.id} className="space-y-4 px-2">
-                <div className="flex justify-between items-end">
+              <div key={meta.id} className="space-y-4">
+                <div className="flex justify-between items-end px-1">
                   <div className="flex items-center gap-2">
                     <span className="text-2xl">{catInfo?.emoji}</span>
                     <span className="text-xs font-black uppercase italic text-white">{meta.category}</span>
@@ -191,8 +192,8 @@ export default function DashboardPage() {
       </div>
 
       {/* ATIVIDADE RECENTE */}
-      <div className="bg-[#111] px-8 py-10 rounded-[3rem] border border-white/5 space-y-8 w-full">
-        <div className="flex justify-between items-center px-2">
+      <div className="bg-[#111] px-12 py-10 rounded-[3rem] border border-white/5 space-y-8 w-full">
+        <div className="flex justify-between items-center">
           <h3 className="text-xl font-black italic uppercase text-white tracking-tighter">Atividade</h3>
           <span className="text-[9px] font-black text-zinc-500 uppercase tracking-widest italic">Recentes</span>
         </div>
@@ -223,7 +224,7 @@ export default function DashboardPage() {
                 onClick={() => router.push("/historico")}
                 className="w-full py-4 border border-white/5 rounded-2xl text-[9px] font-black uppercase text-zinc-500 hover:text-white transition tracking-widest"
               >
-                Ver Histórico Completo →
+                Ver Fluxo Completo →
               </button>
             </>
           ) : (
