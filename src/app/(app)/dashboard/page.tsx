@@ -124,7 +124,7 @@ export default function DashboardPage() {
         </div>
       </div>
 
-      {/* GRÁFICO DE ROSCA - Com mais margem (my-12) */}
+      {/* GRÁFICO DE ROSCA */}
       <div className="bg-[#111] px-8 py-12 rounded-[3rem] border border-white/5 flex flex-col items-center w-full my-4">
         <span className="text-zinc-500 text-[10px] font-black uppercase tracking-[0.2em] mb-10 self-start italic px-2">Uso do Orçamento</span>
         
@@ -190,7 +190,49 @@ export default function DashboardPage() {
         </div>
       </div>
 
-      {/* MODAL DE REGISTRO - CORRIGIDO */}
+      {/* ATIVIDADE RECENTE */}
+      <div className="bg-[#111] px-8 py-10 rounded-[3rem] border border-white/5 space-y-8 w-full">
+        <div className="flex justify-between items-center px-2">
+          <h3 className="text-xl font-black italic uppercase text-white tracking-tighter">Atividade</h3>
+          <span className="text-[9px] font-black text-zinc-500 uppercase tracking-widest italic">Recentes</span>
+        </div>
+
+        <div className="space-y-4">
+          {transacoes.length > 0 ? (
+            <>
+              {transacoes.slice(0, 3).map((t) => {
+                const catInfo = MASTER_CATS.find(c => c.nome.toLowerCase() === t.category?.toLowerCase());
+                return (
+                  <div key={t.id} className="flex justify-between items-center bg-black/20 p-5 rounded-2xl border border-white/5">
+                    <div className="flex items-center gap-4">
+                      <span className="text-2xl">{t.type === 'entrada' ? "💰" : (catInfo?.emoji || "💸")}</span>
+                      <div>
+                        <p className="text-white font-black italic uppercase text-[10px] leading-none">{t.category}</p>
+                        <p className="text-zinc-600 text-[8px] font-bold uppercase mt-1">
+                          {new Date(t.created_at).toLocaleDateString('pt-BR')}
+                        </p>
+                      </div>
+                    </div>
+                    <span className={`text-sm font-black italic ${t.type === 'entrada' ? 'text-green-500' : 'text-white'}`}>
+                      {t.type === 'entrada' ? '+' : '-'} R$ {Number(t.amount).toLocaleString('pt-BR')}
+                    </span>
+                  </div>
+                );
+              })}
+              <button 
+                onClick={() => router.push("/historico")}
+                className="w-full py-4 border border-white/5 rounded-2xl text-[9px] font-black uppercase text-zinc-500 hover:text-white transition tracking-widest"
+              >
+                Ver Histórico Completo →
+              </button>
+            </>
+          ) : (
+            <p className="text-zinc-600 text-center py-6 font-black uppercase text-[10px] italic">Nenhum registro ainda</p>
+          )}
+        </div>
+      </div>
+
+      {/* MODAL DE REGISTRO */}
       {showModal && (
         <div className="fixed inset-0 bg-black/95 backdrop-blur-md z-[100] flex items-center justify-center p-6">
           <div className="bg-[#111] w-full max-w-sm rounded-[2.5rem] p-8 border border-white/10 shadow-2xl">
