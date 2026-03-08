@@ -6,13 +6,14 @@ export default function AppLayout({
   children: React.ReactNode;
 }) {
   return (
-    <div className="min-h-screen bg-black text-white">
+    <div className="min-h-screen bg-black text-white overflow-x-hidden">
       <Navbar />
       
-      {/* Centraliza o conteúdo e dá o respiro lateral de 16px (px-4) */}
-      <main className="flex justify-center w-full px-4 pt-6 pb-32">
-        {/* max-w-md é o tamanho ideal para parecer um App Nativo no celular */}
-        <div className="w-full max-w-md space-y-6">
+      {/* px-6: Aumentamos o respiro lateral externo.
+        max-w-[440px]: Ajuste fino para telas mobile modernas.
+      */}
+      <main className="flex justify-center w-full px-6 pt-6 pb-32">
+        <div className="w-full max-w-[440px] flex flex-col gap-6">
           {children}
         </div>
       </main>
