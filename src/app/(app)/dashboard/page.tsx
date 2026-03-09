@@ -93,39 +93,37 @@ export default function DashboardPage() {
   if (loading) return null;
 
   return (
-    <div className="w-full space-y-6 pb-20"> {/* space-y-6 unifica todos os respiros entre cards */}
-      
-      {/* HEADER */}
-      <div className="flex flex-col gap-2 px-2">
-        <h1 className="text-5xl font-black italic uppercase tracking-tighter leading-none">DASHBOARD</h1>
+    <>
+      {/* HEADER - SOLTO */}
+      <div className="flex flex-col gap-2 px-2 w-full">
+        <h1 className="text-5xl font-black italic uppercase tracking-tighter leading-none text-white">DASHBOARD</h1>
         <p className="text-zinc-500 text-[10px] font-black tracking-[0.4em] uppercase italic">Inteligência Financeira</p>
         
         <div className="grid grid-cols-2 gap-3 mt-4">
-          <button onClick={() => router.push("/metas")} className="bg-zinc-900 border border-white/5 py-4 rounded-2xl font-black text-[10px] uppercase tracking-widest active:scale-95 transition">LIMITES 🎯</button>
+          <button onClick={() => router.push("/metas")} className="bg-zinc-900 border border-white/5 py-4 rounded-2xl font-black text-[10px] uppercase tracking-widest active:scale-95 transition text-white">LIMITES 🎯</button>
           <button onClick={() => setShowModal(true)} className="bg-yellow-400 text-black py-4 rounded-2xl font-black text-[10px] uppercase tracking-widest active:scale-95 transition">+ Transação</button>
         </div>
       </div>
 
-      {/* CARDS DE SALDO */}
-      <div className="flex flex-col gap-6 w-full">
-        {/* px-12 protege as palavras de baterem na borda redonda */}
-        <div className="bg-[#111] px-12 py-10 rounded-[2.5rem] border border-white/5 w-full">
-          <p className="text-zinc-500 text-[9px] font-black uppercase tracking-widest mb-1 italic">Saldo Disponível</p>
-          <h2 className="text-4xl font-black italic text-white break-words">R$ {saldo.toLocaleString('pt-BR')}</h2>
-        </div>
-        
-        <div className="bg-[#111] px-12 py-8 rounded-[2.5rem] border border-white/5 w-full">
-          <p className="text-red-500 text-[9px] font-black uppercase tracking-widest mb-1 italic">Total Saídas</p>
-          <h2 className="text-3xl font-black italic text-red-500 break-words">R$ {saídas.toLocaleString('pt-BR')}</h2>
-        </div>
-
-        <div className="bg-[#111] px-12 py-8 rounded-[2.5rem] border border-white/5 w-full">
-          <p className="text-green-500 text-[9px] font-black uppercase tracking-widest mb-1 italic">Total Entradas</p>
-          <h2 className="text-3xl font-black italic text-green-500 break-words">R$ {entradas.toLocaleString('pt-BR')}</h2>
-        </div>
+      {/* CARD SALDO - SOLTO */}
+      <div className="bg-[#111] px-12 py-10 rounded-[2.5rem] border border-white/5 w-full">
+        <p className="text-zinc-500 text-[9px] font-black uppercase tracking-widest mb-1 italic">Saldo Disponível</p>
+        <h2 className="text-4xl font-black italic text-white break-words">R$ {saldo.toLocaleString('pt-BR')}</h2>
+      </div>
+      
+      {/* CARD SAÍDAS - SOLTO */}
+      <div className="bg-[#111] px-12 py-8 rounded-[2.5rem] border border-white/5 w-full">
+        <p className="text-red-500 text-[9px] font-black uppercase tracking-widest mb-1 italic">Total Saídas</p>
+        <h2 className="text-3xl font-black italic text-red-500 break-words">R$ {saídas.toLocaleString('pt-BR')}</h2>
       </div>
 
-      {/* GRÁFICO DE ROSCA */}
+      {/* CARD ENTRADAS - SOLTO */}
+      <div className="bg-[#111] px-12 py-8 rounded-[2.5rem] border border-white/5 w-full">
+        <p className="text-green-500 text-[9px] font-black uppercase tracking-widest mb-1 italic">Total Entradas</p>
+        <h2 className="text-3xl font-black italic text-green-500 break-words">R$ {entradas.toLocaleString('pt-BR')}</h2>
+      </div>
+
+      {/* GRÁFICO DE ROSCA - SOLTO */}
       <div className="bg-[#111] px-12 py-12 rounded-[3rem] border border-white/5 flex flex-col items-center w-full">
         <span className="text-zinc-500 text-[10px] font-black uppercase tracking-[0.2em] mb-10 self-start italic">Uso do Orçamento</span>
         
@@ -154,7 +152,7 @@ export default function DashboardPage() {
         </p>
       </div>
 
-      {/* LIMITES POR CATEGORIA */}
+      {/* LIMITES POR CATEGORIA - SOLTO */}
       <div className="bg-[#111] px-12 py-10 rounded-[3rem] border border-white/5 space-y-10 w-full">
         <h3 className="text-xl font-black italic uppercase text-white tracking-tighter">Limites por Categoria</h3>
         <div className="space-y-10">
@@ -191,7 +189,7 @@ export default function DashboardPage() {
         </div>
       </div>
 
-      {/* ATIVIDADE RECENTE */}
+      {/* ATIVIDADE RECENTE - SOLTO */}
       <div className="bg-[#111] px-12 py-10 rounded-[3rem] border border-white/5 space-y-8 w-full">
         <div className="flex justify-between items-center">
           <h3 className="text-xl font-black italic uppercase text-white tracking-tighter">Atividade</h3>
@@ -236,7 +234,7 @@ export default function DashboardPage() {
       {/* MODAL DE REGISTRO */}
       {showModal && (
         <div className="fixed inset-0 bg-black/95 backdrop-blur-md z-[100] flex items-center justify-center p-6">
-          <div className="bg-[#111] w-full max-w-sm rounded-[2.5rem] p-8 border border-white/10 shadow-2xl">
+          <div className="bg-[#111] w-full max-w-sm rounded-[2.5rem] p-8 border border-white/10 shadow-2xl text-white">
             <h2 className="text-2xl font-black italic uppercase text-white mb-6">Novo Registro</h2>
             
             <div className="grid grid-cols-2 gap-2 bg-black p-1 rounded-2xl mb-6 border border-white/5">
@@ -285,6 +283,6 @@ export default function DashboardPage() {
           </div>
         </div>
       )}
-    </div>
+    </>
   );
 }
