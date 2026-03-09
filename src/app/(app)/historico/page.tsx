@@ -38,8 +38,6 @@ export default function HistoricoPage() {
         .eq("id", id);
 
       if (error) throw error;
-      
-      // Atualiza a lista localmente para sumir na hora
       setTransacoes(transacoes.filter(t => t.id !== id));
     } catch (e) {
       alert("Erro ao excluir transação");
@@ -50,12 +48,12 @@ export default function HistoricoPage() {
   if (loading) return null;
 
   return (
-    <div className="w-full space-y-8 pb-20">
-      {/* HEADER */}
-      <div className="flex justify-between items-end w-full px-4">
+    <>
+      {/* HEADER - AGORA SOLTO PARA O LAYOUT CONTROLAR O ESPAÇO */}
+      <div className="flex justify-between items-end w-full px-2">
         <div className="space-y-1">
-          <h1 className="text-4xl font-black italic uppercase leading-none tracking-tighter text-white">FLUXO</h1>
-          <p className="text-zinc-500 text-[9px] font-black tracking-[0.4em] uppercase italic">Linha do Tempo</p>
+          <h1 className="text-5xl font-black italic uppercase leading-none tracking-tighter text-white">FLUXO</h1>
+          <p className="text-zinc-500 text-[10px] font-black tracking-[0.4em] uppercase italic px-1">Linha do Tempo</p>
         </div>
         <button 
           onClick={() => router.push("/dashboard")} 
@@ -65,7 +63,7 @@ export default function HistoricoPage() {
         </button>
       </div>
 
-      {/* LISTA DE TRANSAÇÕES */}
+      {/* LISTA DE TRANSAÇÕES - SOLTA NO LAYOUT */}
       <div className="bg-[#111] px-12 py-10 rounded-[3rem] border border-white/5 w-full">
         <div className="space-y-8">
           {transacoes.length > 0 ? transacoes.map((t) => (
@@ -86,10 +84,9 @@ export default function HistoricoPage() {
                   </span>
                 </div>
                 
-                {/* BOTÃO DE EXCLUIR PADRONIZADO (×) */}
                 <button 
                   onClick={() => handleDelete(t.id)}
-                  className="bg-red-500/10 text-red-500 w-8 h-8 flex items-center justify-center rounded-lg text-lg font-black hover:bg-red-500/20 transition active:scale-95"
+                  className="bg-red-500/10 text-red-500 w-8 h-8 flex items-center justify-center rounded-xl text-lg font-black hover:bg-red-500/20 transition active:scale-95"
                 >
                   ×
                 </button>
@@ -100,6 +97,6 @@ export default function HistoricoPage() {
           )}
         </div>
       </div>
-    </div>
+    </>
   );
 }
