@@ -49,11 +49,11 @@ export default function HistoricoPage() {
 
   return (
     <>
-      {/* HEADER - md:col-span-2 para alinhar com o Dashboard */}
-      <div className="flex justify-between items-end w-full px-2 md:col-span-2">
+      {/* HEADER: md:col-span-2 para ocupar o topo todo no Desktop */}
+      <div className="flex justify-between items-end w-full md:col-span-2">
         <div className="space-y-1">
           <h1 className="text-5xl font-black italic uppercase leading-none tracking-tighter text-white">ATIVIDADE</h1>
-          <p className="text-zinc-500 text-[10px] font-black tracking-[0.4em] uppercase italic px-1">Log de operações</p>
+          <p className="text-zinc-500 text-[10px] font-black tracking-[0.4em] uppercase italic">Log de operações</p>
         </div>
         <button 
           onClick={() => router.push("/dashboard")} 
@@ -63,42 +63,42 @@ export default function HistoricoPage() {
         </button>
       </div>
 
-      {/* LISTA DE TRANSAÇÕES - md:col-span-2 para foco total na leitura */}
-      <div className="bg-[#111] px-12 py-10 rounded-[3rem] border border-white/5 w-full md:col-span-2">
-        {/* No Desktop, podemos usar 2 colunas para o histórico se houver muitos itens, 
-            mas o ideal para extrato é manter 1 coluna centralizada e larga para leitura clara */}
-        <div className="space-y-8 max-w-4xl mx-auto">
-          {transacoes.length > 0 ? transacoes.map((t) => (
-            <div key={t.id} className="flex justify-between items-center border-b border-white/5 pb-6 last:border-0 last:pb-0 gap-4">
-              <div className="space-y-2 flex-1">
-                <p className="text-white font-black italic uppercase text-[11px] leading-none tracking-tight">
-                  {t.category}
-                </p>
-                <p className="text-zinc-600 text-[8px] font-bold uppercase tracking-[0.2em]">
-                  {new Date(t.created_at).toLocaleDateString('pt-BR')}
-                </p>
-              </div>
+      {/* MAPEAMENTO: Cada transação agora é um "filho" direto do Grid do Layout.
+          Isso fará com que fiquem em 2 colunas no Desktop e 1 no Mobile automaticamente. */}
+      {transacoes.length > 0 ? transacoes.map((t) => (
+        <div 
+          key={t.id} 
+          className="bg-[#111] px-8 py-7 rounded-[2.5rem] border border-white/5 flex justify-between items-center gap-4 w-full"
+        >
+          <div className="space-y-2 flex-1">
+            <p className="text-white font-black italic uppercase text-[11px] leading-none tracking-tight">
+              {t.category}
+            </p>
+            <p className="text-zinc-600 text-[8px] font-bold uppercase tracking-[0.2em]">
+              {new Date(t.created_at).toLocaleDateString('pt-BR')}
+            </p>
+          </div>
 
-              <div className="flex items-center gap-4">
-                <div className="text-right">
-                  <span className={`text-sm font-black italic ${t.type === 'entrada' ? 'text-green-500' : 'text-red-500'}`}>
-                    {t.type === 'entrada' ? '+' : '-'} R$ {Number(t.amount).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
-                  </span>
-                </div>
-                
-                <button 
-                  onClick={() => handleDelete(t.id)}
-                  className="bg-red-500/10 text-red-500 w-8 h-8 flex items-center justify-center rounded-xl text-lg font-black hover:bg-red-500/20 transition active:scale-95"
-                >
-                  ×
-                </button>
-              </div>
+          <div className="flex items-center gap-4">
+            <div className="text-right">
+              <span className={`text-sm font-black italic ${t.type === 'entrada' ? 'text-green-500' : 'text-red-500'}`}>
+                {t.type === 'entrada' ? '+' : '-'} R$ {Number(t.amount).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+              </span>
             </div>
-          )) : (
-            <p className="text-zinc-600 text-center py-10 font-black uppercase text-[10px] italic tracking-widest">Vazio</p>
-          )}
+            
+            <button 
+              onClick={() => handleDelete(t.id)}
+              className="bg-red-500/10 text-red-500 w-8 h-8 flex items-center justify-center rounded-xl text-lg font-black hover:bg-red-500/20 transition active:scale-95"
+            >
+              ×
+            </button>
+          </div>
         </div>
-      </div>
+      )) : (
+        <div className="md:col-span-2 w-full text-center py-20 bg-[#111] rounded-[3rem] border border-white/5">
+          <p className="text-zinc-600 font-black uppercase text-[10px] italic tracking-widest">Vazio</p>
+        </div>
+      )}
     </>
   );
 }
