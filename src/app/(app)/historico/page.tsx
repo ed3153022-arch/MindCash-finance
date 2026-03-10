@@ -49,11 +49,11 @@ export default function HistoricoPage() {
 
   return (
     <>
-      {/* HEADER - AGORA SOLTO PARA O LAYOUT CONTROLAR O ESPAÇO */}
-      <div className="flex justify-between items-end w-full px-2">
+      {/* HEADER - md:col-span-2 para alinhar com o Dashboard */}
+      <div className="flex justify-between items-end w-full px-2 md:col-span-2">
         <div className="space-y-1">
-          <h1 className="text-5xl font-black italic uppercase leading-none tracking-tighter text-white">FLUXO</h1>
-          <p className="text-zinc-500 text-[10px] font-black tracking-[0.4em] uppercase italic px-1">Linha do Tempo</p>
+          <h1 className="text-5xl font-black italic uppercase leading-none tracking-tighter text-white">ATIVIDADE</h1>
+          <p className="text-zinc-500 text-[10px] font-black tracking-[0.4em] uppercase italic px-1">Log de operações</p>
         </div>
         <button 
           onClick={() => router.push("/dashboard")} 
@@ -63,9 +63,11 @@ export default function HistoricoPage() {
         </button>
       </div>
 
-      {/* LISTA DE TRANSAÇÕES - SOLTA NO LAYOUT */}
-      <div className="bg-[#111] px-12 py-10 rounded-[3rem] border border-white/5 w-full">
-        <div className="space-y-8">
+      {/* LISTA DE TRANSAÇÕES - md:col-span-2 para foco total na leitura */}
+      <div className="bg-[#111] px-12 py-10 rounded-[3rem] border border-white/5 w-full md:col-span-2">
+        {/* No Desktop, podemos usar 2 colunas para o histórico se houver muitos itens, 
+            mas o ideal para extrato é manter 1 coluna centralizada e larga para leitura clara */}
+        <div className="space-y-8 max-w-4xl mx-auto">
           {transacoes.length > 0 ? transacoes.map((t) => (
             <div key={t.id} className="flex justify-between items-center border-b border-white/5 pb-6 last:border-0 last:pb-0 gap-4">
               <div className="space-y-2 flex-1">
