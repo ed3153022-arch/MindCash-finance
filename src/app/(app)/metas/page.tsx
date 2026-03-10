@@ -78,8 +78,8 @@ export default function MetasPage() {
 
   return (
     <>
-      {/* HEADER - SOLTO */}
-      <div className="flex justify-between items-end w-full px-2">
+      {/* HEADER - md:col-span-2 garante que o título fique no topo no PC */}
+      <div className="flex justify-between items-end w-full px-2 md:col-span-2">
         <div className="space-y-1">
           <h1 className="text-5xl font-black italic uppercase leading-none tracking-tighter text-white">LIMITES</h1>
           <p className="text-zinc-500 text-[10px] font-black tracking-[0.4em] uppercase italic px-1">Teto de Gastos</p>
@@ -92,8 +92,8 @@ export default function MetasPage() {
         </button>
       </div>
 
-      {/* CARD PRINCIPAL DE METAS - SOLTO */}
-      <div className="bg-[#111] px-12 py-10 rounded-[3rem] border border-white/5 w-full">
+      {/* CARD PRINCIPAL DE METAS - md:col-span-2 para manter a unidade */}
+      <div className="bg-[#111] px-12 py-10 rounded-[3rem] border border-white/5 w-full md:col-span-2">
         <div className="flex justify-between items-center mb-10">
           <h3 className="text-xl font-black italic uppercase text-white tracking-tighter">Meus Limites</h3>
           <button 
@@ -104,7 +104,8 @@ export default function MetasPage() {
           </button>
         </div>
 
-        <div className="space-y-6 w-full">
+        {/* GRID DE METAS: No desktop (md:) divide as metas em 2 colunas para não ficarem tão largas */}
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 w-full">
           {metas.length > 0 ? metas.map((meta) => (
             <div key={meta.id} className="flex justify-between items-center bg-black/30 p-6 rounded-[2rem] border border-white/5 w-full">
               <div className="flex items-center gap-4">
@@ -125,12 +126,12 @@ export default function MetasPage() {
               </div>
             </div>
           )) : (
-            <p className="text-zinc-600 text-center py-12 font-black uppercase text-[10px] italic tracking-widest">Nenhuma meta definida</p>
+            <p className="text-zinc-600 text-center py-12 font-black uppercase text-[10px] italic tracking-widest md:col-span-2">Nenhuma meta definida</p>
           )}
         </div>
       </div>
 
-      {/* MODAL DE CRIAÇÃO */}
+      {/* MODAL DE CRIAÇÃO - Centralizado no desktop */}
       {showMetaModal && (
         <div className="fixed inset-0 bg-black/95 backdrop-blur-md z-[100] flex items-center justify-center p-6">
           <div className="bg-[#111] w-full max-w-sm rounded-[2.5rem] p-8 border border-white/10 max-h-[90vh] overflow-y-auto">
