@@ -94,36 +94,37 @@ export default function DashboardPage() {
 
   return (
     <>
-      {/* HEADER - SOLTO */}
-      <div className="flex flex-col gap-2 px-2 w-full">
+      {/* HEADER - Ocupa as 2 colunas no desktop */}
+      <div className="flex flex-col gap-2 px-2 w-full md:col-span-2">
         <h1 className="text-5xl font-black italic uppercase tracking-tighter leading-none text-white">DASHBOARD</h1>
         <p className="text-zinc-500 text-[10px] font-black tracking-[0.4em] uppercase italic">Inteligência Financeira</p>
         
-        <div className="grid grid-cols-2 gap-3 mt-4">
+        <div className="grid grid-cols-2 gap-3 mt-4 md:max-w-sm">
           <button onClick={() => router.push("/metas")} className="bg-zinc-900 border border-white/5 py-4 rounded-2xl font-black text-[10px] uppercase tracking-widest active:scale-95 transition text-white">LIMITES 🎯</button>
           <button onClick={() => setShowModal(true)} className="bg-yellow-400 text-black py-4 rounded-2xl font-black text-[10px] uppercase tracking-widest active:scale-95 transition">+ Transação</button>
         </div>
       </div>
 
-      {/* CARD SALDO - SOLTO */}
+      {/* CARD SALDO - No desktop fica na esquerda */}
       <div className="bg-[#111] px-12 py-10 rounded-[2.5rem] border border-white/5 w-full">
         <p className="text-zinc-500 text-[9px] font-black uppercase tracking-widest mb-1 italic">Saldo Disponível</p>
         <h2 className="text-4xl font-black italic text-white break-words">R$ {saldo.toLocaleString('pt-BR')}</h2>
       </div>
       
-      {/* CARD SAÍDAS - SOLTO */}
-      <div className="bg-[#111] px-12 py-8 rounded-[2.5rem] border border-white/5 w-full">
-        <p className="text-red-500 text-[9px] font-black uppercase tracking-widest mb-1 italic">Total Saídas</p>
-        <h2 className="text-3xl font-black italic text-red-500 break-words">R$ {saídas.toLocaleString('pt-BR')}</h2>
+      {/* CONTAINER DE ENTRADAS/SAÍDAS - No desktop ficam empilhados para equilibrar com o saldo */}
+      <div className="grid grid-cols-1 gap-6 w-full h-full">
+          <div className="bg-[#111] px-12 py-8 rounded-[2.5rem] border border-white/5 w-full">
+            <p className="text-red-500 text-[9px] font-black uppercase tracking-widest mb-1 italic">Total Saídas</p>
+            <h2 className="text-3xl font-black italic text-red-500 break-words">R$ {saídas.toLocaleString('pt-BR')}</h2>
+          </div>
+
+          <div className="bg-[#111] px-12 py-8 rounded-[2.5rem] border border-white/5 w-full">
+            <p className="text-green-500 text-[9px] font-black uppercase tracking-widest mb-1 italic">Total Entradas</p>
+            <h2 className="text-3xl font-black italic text-green-500 break-words">R$ {entradas.toLocaleString('pt-BR')}</h2>
+          </div>
       </div>
 
-      {/* CARD ENTRADAS - SOLTO */}
-      <div className="bg-[#111] px-12 py-8 rounded-[2.5rem] border border-white/5 w-full">
-        <p className="text-green-500 text-[9px] font-black uppercase tracking-widest mb-1 italic">Total Entradas</p>
-        <h2 className="text-3xl font-black italic text-green-500 break-words">R$ {entradas.toLocaleString('pt-BR')}</h2>
-      </div>
-
-      {/* GRÁFICO DE ROSCA - SOLTO */}
+      {/* GRÁFICO DE ROSCA */}
       <div className="bg-[#111] px-12 py-12 rounded-[3rem] border border-white/5 flex flex-col items-center w-full">
         <span className="text-zinc-500 text-[10px] font-black uppercase tracking-[0.2em] mb-10 self-start italic">Uso do Orçamento</span>
         
@@ -152,8 +153,8 @@ export default function DashboardPage() {
         </p>
       </div>
 
-      {/* LIMITES POR CATEGORIA - SOLTO */}
-      <div className="bg-[#111] px-12 py-10 rounded-[3rem] border border-white/5 space-y-10 w-full">
+      {/* LIMITES POR CATEGORIA */}
+      <div className="bg-[#111] px-12 py-10 rounded-[3rem] border border-white/5 space-y-10 w-full h-full">
         <h3 className="text-xl font-black italic uppercase text-white tracking-tighter">Limites por Categoria</h3>
         <div className="space-y-10">
           {metas.map(meta => {
@@ -189,8 +190,8 @@ export default function DashboardPage() {
         </div>
       </div>
 
-      {/* ATIVIDADE RECENTE - SOLTO */}
-      <div className="bg-[#111] px-12 py-10 rounded-[3rem] border border-white/5 space-y-8 w-full">
+      {/* ATIVIDADE RECENTE - Ocupa as 2 colunas no desktop para fechar o layout */}
+      <div className="bg-[#111] px-12 py-10 rounded-[3rem] border border-white/5 space-y-8 w-full md:col-span-2">
         <div className="flex justify-between items-center">
           <h3 className="text-xl font-black italic uppercase text-white tracking-tighter">Atividade</h3>
           <span className="text-[9px] font-black text-zinc-500 uppercase tracking-widest italic">Recentes</span>
@@ -199,25 +200,27 @@ export default function DashboardPage() {
         <div className="space-y-4">
           {transacoes.length > 0 ? (
             <>
-              {transacoes.slice(0, 3).map((t) => {
-                const catInfo = MASTER_CATS.find(c => c.nome.toLowerCase() === t.category?.toLowerCase());
-                return (
-                  <div key={t.id} className="flex justify-between items-center bg-black/20 p-5 rounded-2xl border border-white/5">
-                    <div className="flex items-center gap-4">
-                      <span className="text-2xl">{t.type === 'entrada' ? "💰" : (catInfo?.emoji || "💸")}</span>
-                      <div>
-                        <p className="text-white font-black italic uppercase text-[10px] leading-none">{t.category}</p>
-                        <p className="text-zinc-600 text-[8px] font-bold uppercase mt-1">
-                          {new Date(t.created_at).toLocaleDateString('pt-BR')}
-                        </p>
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                {transacoes.slice(0, 3).map((t) => {
+                  const catInfo = MASTER_CATS.find(c => c.nome.toLowerCase() === t.category?.toLowerCase());
+                  return (
+                    <div key={t.id} className="flex justify-between items-center bg-black/20 p-5 rounded-2xl border border-white/5">
+                      <div className="flex items-center gap-4">
+                        <span className="text-2xl">{t.type === 'entrada' ? "💰" : (catInfo?.emoji || "💸")}</span>
+                        <div>
+                          <p className="text-white font-black italic uppercase text-[10px] leading-none">{t.category}</p>
+                          <p className="text-zinc-600 text-[8px] font-bold uppercase mt-1">
+                            {new Date(t.created_at).toLocaleDateString('pt-BR')}
+                          </p>
+                        </div>
                       </div>
+                      <span className={`text-sm font-black italic ${t.type === 'entrada' ? 'text-green-500' : 'text-white'}`}>
+                        {t.type === 'entrada' ? '+' : '-'} R$ {Number(t.amount).toLocaleString('pt-BR')}
+                      </span>
                     </div>
-                    <span className={`text-sm font-black italic ${t.type === 'entrada' ? 'text-green-500' : 'text-white'}`}>
-                      {t.type === 'entrada' ? '+' : '-'} R$ {Number(t.amount).toLocaleString('pt-BR')}
-                    </span>
-                  </div>
-                );
-              })}
+                  );
+                })}
+              </div>
               <button 
                 onClick={() => router.push("/historico")}
                 className="w-full py-4 border border-white/5 rounded-2xl text-[9px] font-black uppercase text-zinc-500 hover:text-white transition tracking-widest"
@@ -231,7 +234,7 @@ export default function DashboardPage() {
         </div>
       </div>
 
-      {/* MODAL DE REGISTRO */}
+      {/* MODAL DE REGISTRO - Sem alterações */}
       {showModal && (
         <div className="fixed inset-0 bg-black/95 backdrop-blur-md z-[100] flex items-center justify-center p-6">
           <div className="bg-[#111] w-full max-w-sm rounded-[2.5rem] p-8 border border-white/10 shadow-2xl text-white">
