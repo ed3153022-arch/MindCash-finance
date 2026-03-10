@@ -101,7 +101,7 @@ export default function DashboardPage() {
         
         <div className="grid grid-cols-2 gap-3 mt-4 md:max-w-sm">
           <button onClick={() => router.push("/metas")} className="bg-zinc-900 border border-white/5 py-4 rounded-2xl font-black text-[10px] uppercase tracking-widest active:scale-95 transition text-white">LIMITES 🎯</button>
-          <button onClick={() => setShowModal(true)} className="bg-yellow-400 text-black py-4 rounded-2xl font-black text-[10px] uppercase tracking-widest active:scale-95 transition">+ Transação</button>
+          <button onClick={() => setShowModal(true)} className="bg-yellow-400 text-black py-4 rounded-2xl font-black text-[10px] uppercase tracking-widest active:scale-95 transition">+ Nova Transação</button>
         </div>
       </div>
 
@@ -225,7 +225,7 @@ export default function DashboardPage() {
                 onClick={() => router.push("/historico")}
                 className="w-full py-4 border border-white/5 rounded-2xl text-[9px] font-black uppercase text-zinc-500 hover:text-white transition tracking-widest"
               >
-                Ver Fluxo Completo →
+                Ver atividade Completa →
               </button>
             </>
           ) : (
