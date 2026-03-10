@@ -94,7 +94,7 @@ export default function DashboardPage() {
 
   return (
     <>
-      {/* HEADER - Ocupa as 2 colunas no desktop */}
+      {/* HEADER */}
       <div className="flex flex-col gap-2 px-2 w-full md:col-span-2">
         <h1 className="text-5xl font-black italic uppercase tracking-tighter leading-none text-white">DASHBOARD</h1>
         <p className="text-zinc-500 text-[10px] font-black tracking-[0.4em] uppercase italic">Inteligência Financeira</p>
@@ -105,22 +105,22 @@ export default function DashboardPage() {
         </div>
       </div>
 
-      {/* CARD SALDO - No desktop fica na esquerda */}
-      <div className="bg-[#111] px-12 py-10 rounded-[2.5rem] border border-white/5 w-full">
+      {/* CARD SALDO - OCUPA TUDO NO TOPO */}
+      <div className="bg-[#111] px-12 py-10 rounded-[2.5rem] border border-white/5 w-full md:col-span-2">
         <p className="text-zinc-500 text-[9px] font-black uppercase tracking-widest mb-1 italic">Saldo Disponível</p>
         <h2 className="text-4xl font-black italic text-white break-words">R$ {saldo.toLocaleString('pt-BR')}</h2>
       </div>
       
-      {/* CONTAINER DE ENTRADAS/SAÍDAS - No desktop ficam empilhados para equilibrar com o saldo */}
-      <div className="grid grid-cols-1 gap-6 w-full h-full">
-          <div className="bg-[#111] px-12 py-8 rounded-[2.5rem] border border-white/5 w-full">
-            <p className="text-red-500 text-[9px] font-black uppercase tracking-widest mb-1 italic">Total Saídas</p>
-            <h2 className="text-3xl font-black italic text-red-500 break-words">R$ {saídas.toLocaleString('pt-BR')}</h2>
-          </div>
-
+      {/* ENTRADAS E SAÍDAS LADO A LADO */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-6 md:col-span-2 w-full">
           <div className="bg-[#111] px-12 py-8 rounded-[2.5rem] border border-white/5 w-full">
             <p className="text-green-500 text-[9px] font-black uppercase tracking-widest mb-1 italic">Total Entradas</p>
             <h2 className="text-3xl font-black italic text-green-500 break-words">R$ {entradas.toLocaleString('pt-BR')}</h2>
+          </div>
+
+          <div className="bg-[#111] px-12 py-8 rounded-[2.5rem] border border-white/5 w-full">
+            <p className="text-red-500 text-[9px] font-black uppercase tracking-widest mb-1 italic">Total Saídas</p>
+            <h2 className="text-3xl font-black italic text-red-500 break-words">R$ {saídas.toLocaleString('pt-BR')}</h2>
           </div>
       </div>
 
@@ -190,7 +190,7 @@ export default function DashboardPage() {
         </div>
       </div>
 
-      {/* ATIVIDADE RECENTE - Ocupa as 2 colunas no desktop para fechar o layout */}
+      {/* ATIVIDADE RECENTE */}
       <div className="bg-[#111] px-12 py-10 rounded-[3rem] border border-white/5 space-y-8 w-full md:col-span-2">
         <div className="flex justify-between items-center">
           <h3 className="text-xl font-black italic uppercase text-white tracking-tighter">Atividade</h3>
@@ -234,7 +234,7 @@ export default function DashboardPage() {
         </div>
       </div>
 
-      {/* MODAL DE REGISTRO - Sem alterações */}
+      {/* MODAL DE REGISTRO */}
       {showModal && (
         <div className="fixed inset-0 bg-black/95 backdrop-blur-md z-[100] flex items-center justify-center p-6">
           <div className="bg-[#111] w-full max-w-sm rounded-[2.5rem] p-8 border border-white/10 shadow-2xl text-white">
