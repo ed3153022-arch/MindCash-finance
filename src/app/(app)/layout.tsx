@@ -6,21 +6,23 @@ export default function AppLayout({
   children: React.ReactNode;
 }) {
   return (
-    <div className="min-h-screen bg-black text-white overflow-x-hidden flex flex-col antialiased">
+    <div className="min-h-screen bg-black text-white overflow-x-hidden flex flex-col">
       <Navbar />
       
-      {/* Ajuste Crucial: 
-        1. Adicionamos 'w-full' e 'max-w-screen' para garantir que o container não estique além do limite.
-        2. O 'px-6' e 'lg:px-20' agora são os ÚNICOS responsáveis pelo respiro das bordas.
+      {/* CORREÇÃO: 
+        1. px-6 garante que no mobile o card NUNCA encoste no vidro.
+        2. lg:px-20 garante o respiro amplo em telas grandes.
+        3. O flex e justify-center garantem que tudo fique no meio.
       */}
-      <main className="flex-1 w-full flex justify-center pt-6 pb-32">
-        <div className="w-full px-6 lg:px-20 box-border flex justify-center">
+      <main className="flex-1 flex justify-center w-full pt-6 pb-32">
+        <div className="w-full px-6 lg:px-20 flex flex-col items-center">
           
           {/* Container de Conteúdo:
-            Limitamos o max-w em 1200px para que no Desktop ele não fique colado,
-            mas o 'gap-8' mantém o espaço entre os cards que você viu nos prints.
+            max-w-[1100px] segura a largura no desktop.
+            grid-cols-1 md:grid-cols-2 permite as 2 colunas que você quer.
+            gap-8 mantém a distância entre os cards.
           */}
-          <div className="w-full max-w-[1200px] grid grid-cols-1 md:grid-cols-2 gap-8 items-start">
+          <div className="w-full max-w-[1100px] grid grid-cols-1 md:grid-cols-2 gap-8 items-start">
             {children}
           </div>
 
@@ -29,3 +31,4 @@ export default function AppLayout({
     </div>
   );
 }
+
