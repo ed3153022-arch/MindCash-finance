@@ -40,7 +40,6 @@ export default function MetasPage() {
 
   return (
     <>
-      {/* HEADER - Sem padding lateral para o layout assumir */}
       <div className="flex flex-col gap-2 w-full md:col-span-2">
         <div className="flex justify-between items-start">
           <div>
@@ -63,7 +62,6 @@ export default function MetasPage() {
         </button>
       </div>
 
-      {/* LISTA DE METAS - Ajuste de borda e respiro superior */}
       <div className="bg-[#111] pt-12 pb-10 px-8 rounded-[1.5rem] border border-white/5 w-full md:col-span-2">
         <h3 className="text-xl font-black italic uppercase text-white tracking-tighter mb-10 px-2">Meus Limites Ativos</h3>
         
@@ -71,22 +69,23 @@ export default function MetasPage() {
           {metas.length > 0 ? metas.map((meta) => {
             const catInfo = MASTER_CATS.find(c => c.nome.toLowerCase() === meta.category?.toLowerCase());
             return (
-              <div key={meta.id} className="bg-black/40 p-6 rounded-2xl border border-white/5 flex justify-between items-center group">
+              <div key={meta.id} className="bg-black/40 p-6 rounded-2xl border border-white/5 flex justify-between items-center">
                 <div className="flex items-center gap-4">
                   <span className="text-3xl">{catInfo?.emoji}</span>
                   <div>
                     <p className="text-white font-black italic uppercase text-xs">{meta.category}</p>
-                    <p className="text-zinc-500 text-[10px] font-bold">LIMITE: R$ {Number(meta.amount).toLocaleString('pt-BR')}</p>
+                    <p className="text-zinc-500 text-[10px] font-bold tracking-tight">LIMITE: R$ {Number(meta.amount).toLocaleString('pt-BR')}</p>
                   </div>
                 </div>
+                {/* BOTÃO CORRIGIDO: Sempre visível para facilitar o toque no celular */}
                 <button 
                   onClick={async () => {
                     await supabase.from("goals").delete().eq("id", meta.id);
                     loadMetas();
                   }}
-                  className="w-8 h-8 flex items-center justify-center rounded-full bg-red-500/10 text-red-500 opacity-0 group-hover:opacity-100 transition"
+                  className="w-10 h-10 flex items-center justify-center rounded-full bg-red-500/20 text-red-500 border border-red-500/20 active:scale-90 transition"
                 >
-                  ✕
+                  <span className="text-lg font-bold">✕</span>
                 </button>
               </div>
             );
@@ -96,7 +95,6 @@ export default function MetasPage() {
         </div>
       </div>
 
-      {/* MODAL - Menos redondo e com mais respiro no topo */}
       {showModal && (
         <div className="fixed inset-0 bg-black/95 backdrop-blur-md z-[100] flex items-center justify-center p-6">
           <div className="bg-[#111] w-full max-w-sm rounded-[1.5rem] pt-12 pb-10 px-8 border border-white/10 shadow-2xl text-white">
@@ -107,6 +105,7 @@ export default function MetasPage() {
               {MASTER_CATS.map(c => (
                 <button 
                   key={c.nome} 
+                  type="button"
                   onClick={() => setCatSel(c.nome)} 
                   className={`p-3 rounded-xl border transition-all flex flex-col items-center ${catSel === c.nome ? "border-yellow-400 bg-yellow-400/10" : "border-white/5 bg-black/40"}`}
                 >
@@ -127,27 +126,38 @@ export default function MetasPage() {
             
             <div className="flex flex-col gap-3">
               <button 
+                type="button"
                 onClick={async () => {
-                  if(!valor || !catSel) return alert("Preencha tudo!");
+                  if(!valor || !catSel) return alert("Preencha categoria e valor!");
+                  
                   const valorLimpo = valor.toString().replace(/\./g, "").replace(",", ".");
                   const valorNumerico = parseFloat(valorLimpo);
                   const { data: { user } } = await supabase.auth.getUser();
-                  
-                  await supabase.from("goals").upsert({
-                    user_id: user?.id,
+
+                  if (!user) return;
+
+                  // Lógica corrigida para garantir o registro sem erros de banco
+                  await supabase.from("goals").delete().eq("user_id", user.id).eq("category", catSel);
+                  const { error } = await supabase.from("goals").insert({
+                    user_id: user.id,
                     category: catSel,
                     amount: valorNumerico
-                  }, { onConflict: 'user_id,category' });
+                  });
 
-                  setShowModal(false);
-                  setValor("");
-                  loadMetas();
+                  if (error) {
+                    alert("Erro ao salvar limite.");
+                  } else {
+                    setShowModal(false);
+                    setValor("");
+                    setCatSel("");
+                    loadMetas();
+                  }
                 }} 
                 className="w-full bg-yellow-400 text-black py-5 rounded-2xl font-black uppercase text-[10px] tracking-widest active:scale-95 transition"
               >
                 Confirmar Limite
               </button>
-              <button onClick={() => setShowModal(false)} className="w-full py-4 text-zinc-500 font-black text-[9px] uppercase tracking-widest">Cancelar</button>
+              <button onClick={() => { setShowModal(false); setCatSel(""); setValor(""); }} className="w-full py-4 text-zinc-500 font-black text-[9px] uppercase tracking-widest">Cancelar</button>
             </div>
           </div>
         </div>
@@ -155,4 +165,3 @@ export default function MetasPage() {
     </>
   );
 }
-
