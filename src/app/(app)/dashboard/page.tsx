@@ -85,7 +85,6 @@ export default function DashboardPage() {
           key={cat.nome} cx="80" cy="80" r={raio} fill="none" 
           stroke={cat.cor} strokeWidth="20" strokeDasharray={strokeDasharray} 
           strokeDashoffset={strokeDashoffset} strokeLinecap="round" className="transition-all duration-1000" 
-        />
       );
     });
   };
@@ -94,8 +93,8 @@ export default function DashboardPage() {
 
   return (
     <>
-      {/* HEADER - Removido px-2 para o layout controlar */}
-      <div className="flex flex-col gap-2 w-full md:col-span-2">
+      {/* HEADER */}
+      <div className="flex flex-col gap-2 w-full md:col-span-2 px-1">
         <h1 className="text-5xl font-black italic uppercase tracking-tighter leading-none text-white">DASHBOARD</h1>
         <p className="text-zinc-500 text-[10px] font-black tracking-[0.4em] uppercase italic">Inteligência Financeira</p>
         
@@ -105,28 +104,28 @@ export default function DashboardPage() {
         </div>
       </div>
 
-      {/* CARD SALDO - Removido px-12 */}
-      <div className="bg-[#111] p-10 rounded-[2.5rem] border border-white/5 w-full md:col-span-2">
-        <p className="text-zinc-500 text-[9px] font-black uppercase tracking-widest mb-1 italic">Saldo Disponível</p>
-        <h2 className="text-4xl font-black italic text-white break-words">R$ {saldo.toLocaleString('pt-BR')}</h2>
+      {/* CARD SALDO - Suavizado rounded e px-1 interno */}
+      <div className="bg-[#111] p-10 rounded-[2rem] border border-white/5 w-full md:col-span-2">
+        <p className="text-zinc-500 text-[9px] font-black uppercase tracking-widest mb-1 italic px-1">Saldo Disponível</p>
+        <h2 className="text-4xl font-black italic text-white break-words px-1">R$ {saldo.toLocaleString('pt-BR')}</h2>
       </div>
       
-      {/* ENTRADAS E SAÍDAS - Removido px-12 */}
+      {/* ENTRADAS E SAÍDAS */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6 md:col-span-2 w-full">
-          <div className="bg-[#111] p-8 rounded-[2.5rem] border border-white/5 w-full">
-            <p className="text-green-500 text-[9px] font-black uppercase tracking-widest mb-1 italic">Total Entradas</p>
-            <h2 className="text-3xl font-black italic text-green-500 break-words">R$ {entradas.toLocaleString('pt-BR')}</h2>
+          <div className="bg-[#111] p-8 rounded-[2rem] border border-white/5 w-full">
+            <p className="text-green-500 text-[9px] font-black uppercase tracking-widest mb-1 italic px-1">Total Entradas</p>
+            <h2 className="text-3xl font-black italic text-green-500 break-words px-1">R$ {entradas.toLocaleString('pt-BR')}</h2>
           </div>
 
-          <div className="bg-[#111] p-8 rounded-[2.5rem] border border-white/5 w-full">
-            <p className="text-red-500 text-[9px] font-black uppercase tracking-widest mb-1 italic">Total Saídas</p>
-            <h2 className="text-3xl font-black italic text-red-500 break-words">R$ {saídas.toLocaleString('pt-BR')}</h2>
+          <div className="bg-[#111] p-8 rounded-[2rem] border border-white/5 w-full">
+            <p className="text-red-500 text-[9px] font-black uppercase tracking-widest mb-1 italic px-1">Total Saídas</p>
+            <h2 className="text-3xl font-black italic text-red-500 break-words px-1">R$ {saídas.toLocaleString('pt-BR')}</h2>
           </div>
       </div>
 
-      {/* GRÁFICO DE ROSCA - Removido px-12 */}
-      <div className="bg-[#111] p-12 rounded-[3rem] border border-white/5 flex flex-col items-center w-full">
-        <span className="text-zinc-500 text-[10px] font-black uppercase tracking-[0.2em] mb-10 self-start italic">Uso do Orçamento</span>
+      {/* GRÁFICO DE ROSCA */}
+      <div className="bg-[#111] p-12 rounded-[2rem] border border-white/5 flex flex-col items-center w-full">
+        <span className="text-zinc-500 text-[10px] font-black uppercase tracking-[0.2em] mb-10 self-start italic px-1">Uso do Orçamento</span>
         
         <div className="relative w-64 h-64 flex items-center justify-center mb-10">
           <svg className="w-full h-full -rotate-90" viewBox="0 0 160 160">
@@ -153,10 +152,10 @@ export default function DashboardPage() {
         </p>
       </div>
 
-      {/* LIMITES POR CATEGORIA - Removido px-12 */}
-      <div className="bg-[#111] p-10 rounded-[3rem] border border-white/5 space-y-10 w-full h-full">
-        <h3 className="text-xl font-black italic uppercase text-white tracking-tighter">Limites por Categoria</h3>
-        <div className="space-y-10">
+      {/* LIMITES POR CATEGORIA - px-1 interno para as barras não vazarem */}
+      <div className="bg-[#111] p-10 rounded-[2rem] border border-white/5 space-y-10 w-full h-full">
+        <h3 className="text-xl font-black italic uppercase text-white tracking-tighter px-1">Limites por Categoria</h3>
+        <div className="space-y-10 px-1">
           {metas.map(meta => {
             const gastoCat = transacoes
               .filter(t => t.type === "saida" && t.category?.toLowerCase() === meta.category?.toLowerCase())
@@ -190,14 +189,14 @@ export default function DashboardPage() {
         </div>
       </div>
 
-      {/* ATIVIDADE RECENTE - Removido px-12 */}
-      <div className="bg-[#111] p-10 rounded-[3rem] border border-white/5 space-y-8 w-full md:col-span-2">
-        <div className="flex justify-between items-center">
+      {/* ATIVIDADE RECENTE - px-1 interno para alinhar textos */}
+      <div className="bg-[#111] p-10 rounded-[2rem] border border-white/5 space-y-8 w-full md:col-span-2">
+        <div className="flex justify-between items-center px-1">
           <h3 className="text-xl font-black italic uppercase text-white tracking-tighter">Atividade</h3>
           <span className="text-[9px] font-black text-zinc-500 uppercase tracking-widest italic">Recentes</span>
         </div>
 
-        <div className="space-y-4">
+        <div className="space-y-4 px-1">
           {transacoes.length > 0 ? (
             <>
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
@@ -234,11 +233,11 @@ export default function DashboardPage() {
         </div>
       </div>
 
-      {/* MODAL DE REGISTRO - Sem alterações estruturais */}
+      {/* MODAL DE REGISTRO */}
       {showModal && (
         <div className="fixed inset-0 bg-black/95 backdrop-blur-md z-[100] flex items-center justify-center p-6">
-          <div className="bg-[#111] w-full max-w-sm rounded-[2.5rem] p-8 border border-white/10 shadow-2xl text-white">
-            <h2 className="text-2xl font-black italic uppercase text-white mb-6">Novo Registro</h2>
+          <div className="bg-[#111] w-full max-w-sm rounded-[2rem] p-8 border border-white/10 shadow-2xl text-white">
+            <h2 className="text-2xl font-black italic uppercase text-white mb-6 px-1">Novo Registro</h2>
             
             <div className="grid grid-cols-2 gap-2 bg-black p-1 rounded-2xl mb-6 border border-white/5">
               <button onClick={() => setTipo("saida")} className={`py-3 rounded-xl font-black text-[10px] uppercase transition ${tipo === "saida" ? "bg-red-500 text-white" : "text-zinc-500"}`}>Saída</button>
@@ -256,7 +255,7 @@ export default function DashboardPage() {
               </div>
             )}
 
-            <div className="space-y-1 mb-8">
+            <div className="space-y-1 mb-8 px-1">
               <label className="text-[9px] font-black uppercase text-zinc-500 ml-1 italic">Valor (R$)</label>
               <input 
                 type="text" inputMode="numeric" placeholder="0,00" value={valor} 
@@ -289,4 +288,3 @@ export default function DashboardPage() {
     </>
   );
 }
-
