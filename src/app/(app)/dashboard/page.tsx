@@ -102,32 +102,31 @@ export default function DashboardPage() {
         </div>
       </div>
 
-      {/* CARD SALDO - Padding ajustado para não vasar */}
-      <div className="bg-[#111] p-8 rounded-[2rem] border border-white/5 w-full md:col-span-2">
-        <div className="px-6"> 
+      {/* CARD SALDO - Ajuste de borda e respiro superior */}
+      <div className="bg-[#111] pt-12 pb-8 px-8 rounded-[1.5rem] border border-white/5 w-full md:col-span-2">
+        <div className="px-2"> 
           <p className="text-zinc-500 text-[9px] font-black uppercase tracking-widest mb-1 italic">Saldo Disponível</p>
           <h2 className="text-4xl font-black italic text-white break-words">R$ {saldo.toLocaleString('pt-BR')}</h2>
         </div>
       </div>
       
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6 md:col-span-2 w-full">
-          <div className="bg-[#111] p-8 rounded-[2rem] border border-white/5 w-full">
-            <div className="px-4">
+          <div className="bg-[#111] pt-12 pb-8 px-8 rounded-[1.5rem] border border-white/5 w-full">
+            <div className="px-2">
               <p className="text-green-500 text-[9px] font-black uppercase tracking-widest mb-1 italic">Total Entradas</p>
               <h2 className="text-3xl font-black italic text-green-500">R$ {entradas.toLocaleString('pt-BR')}</h2>
             </div>
           </div>
-          <div className="bg-[#111] p-8 rounded-[2rem] border border-white/5 w-full">
-            <div className="px-4">
+          <div className="bg-[#111] pt-12 pb-8 px-8 rounded-[1.5rem] border border-white/5 w-full">
+            <div className="px-2">
               <p className="text-red-500 text-[9px] font-black uppercase tracking-widest mb-1 italic">Total Saídas</p>
               <h2 className="text-3xl font-black italic text-red-500">R$ {saídas.toLocaleString('pt-BR')}</h2>
             </div>
           </div>
       </div>
 
-      {/* GRÁFICO COM LEGENDA DE VOLTA */}
-      <div className="bg-[#111] p-8 rounded-[2rem] border border-white/5 flex flex-col items-center w-full">
-        <span className="text-zinc-500 text-[10px] font-black uppercase tracking-[0.2em] mb-10 self-start italic px-6">Uso do Orçamento</span>
+      <div className="bg-[#111] pt-12 pb-8 px-8 rounded-[1.5rem] border border-white/5 flex flex-col items-center w-full">
+        <span className="text-zinc-500 text-[10px] font-black uppercase tracking-[0.2em] mb-10 self-start italic px-2">Uso do Orçamento</span>
         <div className="relative w-64 h-64 flex items-center justify-center mb-10">
           <svg className="w-full h-full -rotate-90" viewBox="0 0 160 160">
             <circle cx="80" cy="80" r={70} fill="none" stroke="#1a1a1a" strokeWidth="18" />
@@ -139,8 +138,7 @@ export default function DashboardPage() {
           </div>
         </div>
         
-        {/* LEGENDA REINSERIDA */}
-        <div className="flex flex-wrap justify-center gap-6 mb-8 w-full px-6">
+        <div className="flex flex-wrap justify-center gap-6 mb-8 w-full px-2">
           {categoriasAtivas.map(c => (
             <div key={c.nome} className="flex flex-col items-center gap-1">
               <div className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: c.cor }} />
@@ -148,14 +146,14 @@ export default function DashboardPage() {
             </div>
           ))}
         </div>
-        <p className="text-zinc-500 font-black text-[11px] uppercase italic tracking-tight text-center px-6">
+        <p className="text-zinc-500 font-black text-[11px] uppercase italic tracking-tight text-center px-2">
           <span className="text-white text-base">R$ {saídas.toLocaleString('pt-BR')}</span> DE R$ {orcamentoTotal.toLocaleString('pt-BR')}
         </p>
       </div>
 
-      <div className="bg-[#111] p-8 rounded-[2rem] border border-white/5 space-y-10 w-full">
-        <h3 className="text-xl font-black italic uppercase text-white tracking-tighter px-6">Limites por Categoria</h3>
-        <div className="space-y-10 px-6">
+      <div className="bg-[#111] pt-12 pb-8 px-8 rounded-[1.5rem] border border-white/5 space-y-10 w-full">
+        <h3 className="text-xl font-black italic uppercase text-white tracking-tighter px-2">Limites por Categoria</h3>
+        <div className="space-y-10 px-2">
           {metas.map(meta => {
             const gastoCat = transacoes.filter(t => t.type === "saida" && t.category?.toLowerCase() === meta.category?.toLowerCase()).reduce((acc, t) => acc + Number(t.amount), 0);
             const progresso = Math.min((gastoCat / Number(meta.amount)) * 100, 100);
@@ -175,12 +173,12 @@ export default function DashboardPage() {
         </div>
       </div>
 
-      <div className="bg-[#111] p-8 rounded-[2rem] border border-white/5 space-y-8 w-full md:col-span-2">
-        <div className="flex justify-between items-center px-6">
+      <div className="bg-[#111] pt-12 pb-8 px-8 rounded-[1.5rem] border border-white/5 space-y-8 w-full md:col-span-2">
+        <div className="flex justify-between items-center px-2">
           <h3 className="text-xl font-black italic uppercase text-white tracking-tighter">Atividade</h3>
           <span className="text-[9px] font-black text-zinc-500 uppercase tracking-widest italic">Recentes</span>
         </div>
-        <div className="space-y-4 px-6">
+        <div className="space-y-4 px-2">
           {transacoes.length > 0 ? (
             <>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -214,14 +212,13 @@ export default function DashboardPage() {
 
       {showModal && (
         <div className="fixed inset-0 bg-black/95 backdrop-blur-md z-[100] flex items-center justify-center p-6">
-          <div className="bg-[#111] w-full max-w-sm rounded-[2.5rem] p-8 border border-white/10 shadow-2xl text-white">
-            <h2 className="text-2xl font-black italic uppercase text-white mb-6 px-4">Novo Registro</h2>
+          <div className="bg-[#111] w-full max-w-sm rounded-[1.5rem] pt-12 pb-8 px-8 border border-white/10 shadow-2xl text-white">
+            <h2 className="text-2xl font-black italic uppercase text-white mb-6 px-2">Novo Registro</h2>
             <div className="grid grid-cols-2 gap-2 bg-black p-1 rounded-2xl mb-6 border border-white/5">
               <button onClick={() => setTipo("saida")} className={`py-3 rounded-xl font-black text-[10px] uppercase transition ${tipo === "saida" ? "bg-red-500 text-white" : "text-zinc-500"}`}>Saída</button>
               <button onClick={() => setTipo("entrada")} className={`py-3 rounded-xl font-black text-[10px] uppercase transition ${tipo === "entrada" ? "bg-green-500 text-white" : "text-zinc-500"}`}>Entrada</button>
             </div>
             
-            {/* FILTRO DE CATEGORIAS CADASTRADAS VOLTOU */}
             {tipo === "saida" && (
               <div className="grid grid-cols-3 gap-2 mb-6 max-h-[200px] overflow-y-auto pr-1">
                 {MASTER_CATS.filter(c => metas.some(m => m.category.toLowerCase() === c.nome.toLowerCase())).map(c => (
@@ -233,7 +230,7 @@ export default function DashboardPage() {
               </div>
             )}
 
-            <div className="space-y-1 mb-8 px-4">
+            <div className="space-y-1 mb-8 px-2">
               <label className="text-[9px] font-black uppercase text-zinc-500 ml-1 italic">Valor (R$)</label>
               <input type="text" inputMode="numeric" placeholder="0,00" value={valor} onChange={(e) => setValor(e.target.value)} className="w-full bg-black border border-white/10 p-5 rounded-2xl text-4xl font-black italic outline-none text-white focus:border-yellow-400" />
             </div>
