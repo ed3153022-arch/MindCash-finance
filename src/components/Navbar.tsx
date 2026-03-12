@@ -30,8 +30,9 @@ const privateNavItems: NavItem[] = [
     requiresAuth: true,
   },
   {
-    href: '/dashboard/settings',
-    label: 'Configurações',
+    // 🔥 Atualizado para a nova pasta de configurações
+    href: '/configuracoes', 
+    label: 'Ajustes',
     icon: Settings,
     requiresAuth: true,
   },
@@ -50,22 +51,23 @@ export function Navbar() {
   const navItems = user ? privateNavItems : [];
 
   return (
+    // Adicionado backdrop-blur e border-neutral-800 para consistência visual
     <nav className="sticky top-0 z-50 w-full border-b border-neutral-800 bg-black/95 backdrop-blur">
-      <div className="max-w-6xl mx-auto px-4">
-        <div className="flex h-16 items-center justify-between">
+      <div className="max-w-6xl mx-auto px-6"> {/* px-6 para respiro lateral */}
+        <div className="flex h-20 items-center justify-between"> {/* h-20 para mais altura no topo */}
 
-          {/* 🔥 LOGO MINDCASH */}
-          <Link href="/" className="flex items-center space-x-2">
-            <div className="h-9 w-9 rounded-xl bg-gradient-to-br from-yellow-500 to-yellow-400 flex items-center justify-center shadow-md">
-              <span className="text-black font-bold text-sm">M</span>
+          {/* LOGO MINDCASH */}
+          <Link href="/dashboard" className="flex items-center space-x-2 active:scale-95 transition">
+            <div className="h-9 w-9 rounded-xl bg-yellow-400 flex items-center justify-center shadow-[0_0_15px_rgba(250,204,21,0.2)]">
+              <span className="text-black font-black text-sm italic">M</span>
             </div>
-            <span className="font-bold text-xl text-yellow-500 tracking-wide">
+            <span className="font-black text-xl text-white italic uppercase tracking-tighter">
               MindCash
             </span>
           </Link>
 
           {/* DESKTOP NAV */}
-          <div className="hidden md:flex items-center space-x-6">
+          <div className="hidden md:flex items-center space-x-4">
             {navItems.map((item) => {
               const Icon = item.icon;
               const isActive = pathname === item.href;
@@ -75,13 +77,13 @@ export function Navbar() {
                   key={item.href}
                   href={item.href}
                   className={cn(
-                    "flex items-center space-x-2 px-3 py-2 rounded-lg text-sm font-medium transition-all",
+                    "flex items-center space-x-2 px-4 py-2 rounded-xl text-[10px] font-black uppercase italic tracking-widest transition-all",
                     isActive
-                      ? "bg-yellow-500 text-black"
-                      : "text-gray-400 hover:text-white hover:bg-neutral-800"
+                      ? "bg-yellow-400 text-black"
+                      : "text-zinc-500 hover:text-white hover:bg-white/5"
                   )}
                 >
-                  <Icon className="h-4 w-4" />
+                  <Icon className="h-3.5 w-3.5" />
                   <span>{item.label}</span>
                 </Link>
               );
@@ -91,23 +93,14 @@ export function Navbar() {
           {/* DESKTOP USER AREA */}
           <div className="hidden md:flex items-center space-x-4">
             {loading ? (
-              <div className="h-9 w-20 bg-neutral-800 animate-pulse rounded-md" />
+              <div className="h-9 w-20 bg-neutral-900 animate-pulse rounded-xl" />
             ) : user ? (
               <div className="flex items-center space-x-4">
-                <div className="flex items-center space-x-2 bg-neutral-900 px-3 py-1.5 rounded-lg">
-                  <div className="h-8 w-8 rounded-full bg-yellow-500 flex items-center justify-center">
-                    <User className="h-4 w-4 text-black" />
-                  </div>
-                  <span className="text-sm text-gray-300 font-medium">
-                    {user.email?.split('@')[0]}
-                  </span>
-                </div>
-
                 <Button
                   variant="ghost"
                   size="sm"
                   onClick={handleSignOut}
-                  className="text-gray-400 hover:text-white"
+                  className="text-zinc-600 hover:text-red-500 font-black uppercase text-[9px] tracking-widest"
                 >
                   <LogOut className="h-4 w-4 mr-2" />
                   Sair
@@ -121,22 +114,18 @@ export function Navbar() {
             <Button
               variant="ghost"
               size="icon"
-              className="md:hidden text-gray-300"
+              className="md:hidden text-white bg-white/5 rounded-xl w-10 h-10"
               onClick={() => setIsOpen(!isOpen)}
             >
-              {isOpen ? (
-                <X className="h-5 w-5" />
-              ) : (
-                <Menu className="h-5 w-5" />
-              )}
+              {isOpen ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
             </Button>
           )}
         </div>
 
-        {/* MOBILE NAV */}
+        {/* MOBILE NAV - Com arredondamento 1.5rem para combinar com os cards */}
         {isOpen && user && (
-          <div className="md:hidden border-t border-neutral-800 py-4">
-            <div className="flex flex-col space-y-2">
+          <div className="md:hidden border-t border-white/5 py-6 animate-in slide-in-from-top-2">
+            <div className="flex flex-col space-y-3">
               {navItems.map((item) => {
                 const Icon = item.icon;
                 const isActive = pathname === item.href;
@@ -147,29 +136,29 @@ export function Navbar() {
                     href={item.href}
                     onClick={() => setIsOpen(false)}
                     className={cn(
-                      "flex items-center space-x-2 px-3 py-2 rounded-lg text-sm font-medium transition-all",
+                      "flex items-center justify-between px-5 py-4 rounded-[1.2rem] text-[11px] font-black uppercase italic tracking-widest transition-all",
                       isActive
-                        ? "bg-yellow-500 text-black"
-                        : "text-gray-400 hover:text-white hover:bg-neutral-800"
+                        ? "bg-yellow-400 text-black"
+                        : "bg-white/5 text-zinc-400"
                     )}
                   >
-                    <Icon className="h-4 w-4" />
-                    <span>{item.label}</span>
+                    <div className="flex items-center space-x-3">
+                      <Icon className="h-4 w-4" />
+                      <span>{item.label}</span>
+                    </div>
+                    {isActive && <div className="w-1.5 h-1.5 rounded-full bg-black" />}
                   </Link>
                 );
               })}
 
-              <div className="border-t border-neutral-800 pt-4 mt-4">
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={handleSignOut}
-                  className="w-full justify-start text-gray-400 hover:text-white"
-                >
-                  <LogOut className="h-4 w-4 mr-2" />
-                  Sair
-                </Button>
-              </div>
+              <Button
+                variant="ghost"
+                onClick={handleSignOut}
+                className="w-full justify-start px-5 py-6 text-zinc-600 font-black uppercase text-[10px] tracking-widest mt-4"
+              >
+                <LogOut className="h-4 w-4 mr-3" />
+                Encerrar Sessão
+              </Button>
             </div>
           </div>
         )}
