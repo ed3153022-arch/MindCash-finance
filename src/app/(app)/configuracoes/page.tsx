@@ -26,63 +26,59 @@ export default function VereditoPage() {
       try {
         setLoading(true);
         const { data: { user } } = await supabase.auth.getUser();
-        
-        if (!user) {
-          console.error("ERRO: Usuário não autenticado.");
-          return;
-        }
+        if (!user) return;
 
-        // Diagnóstico: Verificar o que está vindo do banco
-        const { data: txs, error: txError } = await supabase.from("transactions").select("*").eq("user_id", user.id);
-        const { data: limits, error: limError } = await supabase.from("limits").select("*").eq("user_id", user.id);
+        // 1. BUSCA TRANSAÇÕES E LIMITES
+        const { data: txs } = await supabase.from("transactions").select("*").eq("user_id", user.id);
+        const { data: limits } = await supabase.from("limits").select("*").eq("user_id", user.id);
 
-        if (txError) console.error("Erro na tabela transactions:", txError.message);
-        if (limError) console.error("Erro na tabela limits:", limError.message);
-        console.log("Transações encontradas:", txs);
-        console.log("Limites encontrados:", limits);
+        // 2. LÓGICA DE SOMA DOS LIMITES POR CATEGORIA [NOVO]
+        // Somamos todos os limites individuais para ter o teto mensal total
+        const totalLimiteMensal = limits?.reduce((acc, curr) => acc + Number(curr.amount), 0) || 1;
+        const limiteDiarioProporcional = totalLimiteMensal / 30;
 
-        // Processamento de dados (Garantindo números reais)
-        const totalLimiteMensal = limits?.length ? limits.reduce((acc, l) => acc + Number(l.amount), 0) : 1000;
-        const limiteDiario = totalLimiteMensal / 30;
+        // 3. PROCESSAMENTO DO GRÁFICO DE TENDÊNCIAS
         const pontosPorPeriodo = periodo === "dia" ? 1 : periodo === "semana" ? 7 : 30;
-
+        
         const gastosPorDia = txs?.reduce((acc: any, t: any) => {
-          // Correção de fuso horário manual para comparação YYYY-MM-DD
-          const dataBr = new Date(t.date).toLocaleDateString('en-CA'); // Gera YYYY-MM-DD
-          acc[dataBr] = (acc[dataBr] || 0) + Number(t.amount);
+          const d = new Date(t.date);
+          const chave = d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
+          acc[chave] = (acc[chave] || 0) + Number(t.amount);
           return acc;
         }, {}) || {};
 
         const dadosCalculados = Array.from({ length: pontosPorPeriodo }, (_, i) => {
           const d = new Date();
           d.setDate(d.getDate() - (pontosPorPeriodo - 1 - i));
-          const chaveData = d.toLocaleDateString('en-CA');
+          const chaveData = d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
+          
           const totalNoDia = gastosPorDia[chaveData] || 0;
 
           return { 
             x: i, 
-            y: Math.min(100, (totalNoDia / (limiteDiario || 1)) * 50), 
-            ultrapassou: totalNoDia > (limiteDiario > 0 ? limiteDiario : 999999)
+            // Altura da linha baseada na proporção do limite diário total
+            y: Math.min(100, (totalNoDia / (limiteDiarioProporcional || 1)) * 60), 
+            ultrapassou: totalNoDia > limiteDiarioProporcional 
           };
         });
 
         setGraphData(dadosCalculados);
 
-        // Atribuição de Scores Dinâmicos
+        // 4. ATUALIZAÇÃO DOS SCORES (BASEADO NA SOMA DOS LIMITES)
         const totalGastoMes = txs?.reduce((acc, t) => acc + Number(t.amount), 0) || 0;
-        const hasData = (txs?.length || 0) > 0;
+        const temDados = (txs?.length || 0) > 0;
 
         setStats([
-          { label: "Disciplina", value: hasData ? 85 : 0 },
-          { label: "Produtividade", value: (limits?.length || 0) > 0 ? 75 : 0 },
-          { label: "Conhecimento", value: hasData ? 90 : 0 },
-          { label: "Resiliência", value: hasData ? 65 : 0 },
-          { label: "Autocontrole", value: hasData ? Math.max(10, Math.round(100 - (totalGastoMes / totalLimiteMensal * 50))) : 0 },
-          { label: "Visão", value: totalLimiteMensal > 1 ? 80 : 0 },
+          { label: "Disciplina", value: temDados ? 85 : 0 },
+          { label: "Produtividade", value: (limits?.length || 0) > 0 ? 70 : 0 },
+          { label: "Conhecimento", value: temDados ? 90 : 0 },
+          { label: "Resiliência", value: 65 },
+          { label: "Autocontrole", value: temDados ? Math.max(10, Math.round(100 - (totalGastoMes / totalLimiteMensal * 50))) : 0 },
+          { label: "Visão", value: totalLimiteMensal > 100 ? 80 : 0 },
         ]);
 
       } catch (err) {
-        console.error("Erro fatal:", err);
+        console.error("Erro ao carregar veredito:", err);
       } finally {
         setLoading(false);
       }
@@ -91,24 +87,22 @@ export default function VereditoPage() {
     fetchVereditoData();
   }, [periodo]);
 
-  if (loading) {
-    return (
-      <div className="min-h-screen bg-black flex flex-col items-center justify-center gap-4">
-        <Loader2 className="text-yellow-400 animate-spin" size={40} />
-        <p className="text-yellow-400 font-black italic uppercase tracking-widest text-[10px]">Calculando Veredito...</p>
-      </div>
-    );
-  }
+  if (loading) return (
+    <div className="min-h-screen bg-black flex flex-col items-center justify-center gap-4">
+      <Loader2 className="text-yellow-400 animate-spin" size={40} />
+      <p className="text-yellow-400 font-black italic uppercase text-[10px]">Calculando Veredito...</p>
+    </div>
+  );
 
   return (
     <div className="min-h-screen bg-black text-white font-sans pb-20 p-6">
       <div className="max-w-2xl mx-auto space-y-8 pt-20">
         <div className="space-y-2">
           <h1 className="text-6xl font-black italic uppercase leading-none tracking-tighter">VEREDITO</h1>
-          <p className="text-zinc-500 text-[10px] font-black tracking-[0.3em] uppercase italic px-1">Análise comportamental e desempenho.</p>
+          <p className="text-zinc-500 text-[10px] font-black tracking-[0.3em] uppercase italic px-1">Análise Comportamental</p>
         </div>
 
-        {/* STATUS CARD */}
+        {/* STATUS */}
         <div className="bg-yellow-400 p-6 rounded-[1.5rem] border-2 border-black flex items-center justify-between shadow-lg">
           <h3 className="text-black text-3xl font-black italic uppercase">EM EVOLUÇÃO</h3>
           <Zap className="text-black h-8 w-8 fill-black" />
@@ -134,26 +128,26 @@ export default function VereditoPage() {
           </div>
         </div>
 
-        {/* GRÁFICO TENDÊNCIAS */}
+        {/* GRÁFICO DE TENDÊNCIAS DINÂMICO */}
         <div className="bg-[#111] p-8 rounded-[1.5rem] border border-white/5 space-y-6">
           <div className="flex justify-between items-center">
             <div className="flex items-center gap-2"><TrendingUp size={14} className="text-zinc-500"/><h4 className="text-[10px] font-black uppercase text-zinc-500 tracking-widest">Tendências</h4></div>
             <div className="flex bg-black p-1 rounded-xl border border-white/5">
               {(["dia", "semana", "mês"] as const).map((t) => (
-                <button key={t} onClick={() => setPeriodo(t)} className={`px-3 py-1 rounded-lg text-[8px] font-black uppercase italic ${periodo === t ? 'bg-yellow-400 text-black' : 'text-zinc-600'}`}>{t}</button>
+                <button key={t} onClick={() => setPeriodo(t)} className={`px-3 py-1 rounded-lg text-[8px] font-black uppercase italic transition-all ${periodo === t ? 'bg-yellow-400 text-black' : 'text-zinc-600'}`}>{t}</button>
               ))}
             </div>
           </div>
           <div className="relative h-32 w-full pt-4">
             <svg viewBox="0 0 300 100" className="w-full h-full overflow-visible">
-              {graphData.length > 1 ? graphData.map((p, i) => {
+              {graphData.map((p, i) => {
                 if (i === 0) return null;
                 const prev = graphData[i-1];
-                const spacing = 300 / (graphData.length - 1);
+                const spacing = 300 / (graphData.length - 1 || 1);
                 return (
                   <line key={i} x1={(i-1) * spacing} y1={100 - prev.y} x2={i * spacing} y2={100 - p.y} stroke={p.ultrapassou ? "#ef4444" : "#facc15"} strokeWidth="2.5" />
                 );
-              }) : <line x1="0" y1="100" x2="300" y2="100" stroke="#27272a" strokeWidth="1" strokeDasharray="4" />}
+              })}
             </svg>
             <div className="flex justify-between mt-6 px-1 border-t border-white/5 pt-2">
                 {graphData.filter((_, i) => periodo === "semana" ? true : i % 5 === 0).map((d) => (
@@ -171,7 +165,7 @@ export default function VereditoPage() {
   );
 }
 
-// Funções de desenho do SVG
+// Auxiliares SVG
 function getPoints(r: number) {
   let p = [];
   for (let i = 0; i < 6; i++) {
