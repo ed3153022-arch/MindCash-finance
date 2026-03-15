@@ -28,55 +28,60 @@ export default function VereditoPage() {
         const { data: { user } } = await supabase.auth.getUser();
         if (!user) return;
 
-        // 1. BUSCA DADOS (Transactions para a linha, Goals para a teia)
+        // 1. BUSCA TRANSAÇÕES E METAS
         const { data: txs } = await supabase.from("transactions").select("*").eq("user_id", user.id);
         const { data: goals } = await supabase.from("goals").select("*").eq("user_id", user.id);
 
-        // 2. CÁLCULO DO LIMITE DIÁRIO (Baseado nas metas da tabela goals)
+        // 2. LIMITES TOTAIS
         const totalLimiteMensal = goals?.reduce((acc, curr) => acc + Number(curr.amount || curr.target_value || 0), 0) || 1000;
         const limiteDiario = totalLimiteMensal / 30;
 
-        // 3. LÓGICA DA LINHA (Tratamento de data ISO para String pura)
+        // 3. LÓGICA DA LINHA - CORREÇÃO DEFINITIVA DE DATA
         const pontosPorPeriodo = periodo === "dia" ? 1 : periodo === "semana" ? 7 : 30;
         
         const gastosPorDia = txs?.reduce((acc: any, t: any) => {
-          if (!t.date) return acc;
-          // Força a data a ser apenas YYYY-MM-DD para ignorar fuso horário
-          const dataChave = new Date(t.date).toISOString().split('T')[0];
-          acc[dataChave] = (acc[dataChave] || 0) + Number(t.amount);
+          if (!t.date && !t.created_at) return acc;
+          
+          // Tratamos a data para garantir que seja YYYY-MM-DD independente do fuso
+          const rawDate = t.date || t.created_at;
+          const d = new Date(rawDate);
+          const chave = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+          
+          acc[chave] = (acc[chave] || 0) + Number(t.amount);
           return acc;
         }, {}) || {};
 
         const dadosCalculados = Array.from({ length: pontosPorPeriodo }, (_, i) => {
           const d = new Date();
+          // Voltamos os dias conforme o loop
           d.setDate(d.getDate() - (pontosPorPeriodo - 1 - i));
-          const chaveHoje = d.toISOString().split('T')[0];
+          const chaveHoje = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
           
           const totalNoDia = gastosPorDia[chaveHoje] || 0;
 
           return { 
             x: i, 
-            // Aumentamos a sensibilidade (y) para a linha subir visivelmente
-            y: Math.min(100, (totalNoDia / (limiteDiario || 1)) * 150), 
+            // Aumentamos a escala para que a linha suba visivelmente mesmo com gastos baixos
+            y: Math.min(100, (totalNoDia / (limiteDiario || 1)) * 180), 
             ultrapassou: totalNoDia > limiteDiario 
           };
         });
 
         setGraphData(dadosCalculados);
 
-        // 4. ATRIBUTOS DA TEIA
+        // 4. ATUALIZAÇÃO DOS SCORES
         const totalGastoMes = txs?.reduce((acc, t) => acc + Number(t.amount), 0) || 0;
         setStats([
-          { label: "Disciplina", value: txs?.length ? 85 : 0 },
-          { label: "Produtividade", value: goals?.length ? 70 : 0 },
+          { label: "Disciplina", value: txs?.length ? 85 : 10 },
+          { label: "Produtividade", value: goals?.length ? 70 : 10 },
           { label: "Conhecimento", value: 90 },
           { label: "Resiliência", value: 65 },
-          { label: "Autocontrole", value: txs?.length ? Math.max(10, Math.round(100 - (totalGastoMes / totalLimiteMensal * 50))) : 0 },
-          { label: "Visão", value: totalLimiteMensal > 1 ? 75 : 0 },
+          { label: "Autocontrole", value: txs?.length ? Math.max(10, Math.round(100 - (totalGastoMes / totalLimiteMensal * 50))) : 20 },
+          { label: "Visão", value: totalLimiteMensal > 1 ? 75 : 10 },
         ]);
 
       } catch (err) {
-        console.error("Erro:", err);
+        console.error("Erro no gráfico:", err);
       } finally {
         setLoading(false);
       }
@@ -87,13 +92,13 @@ export default function VereditoPage() {
   if (loading) return <div className="min-h-screen bg-black flex items-center justify-center"><Loader2 className="text-yellow-400 animate-spin" /></div>;
 
   return (
-    <div className="min-h-screen bg-black text-white p-6">
+    <div className="min-h-screen bg-black text-white p-6 font-sans">
       <div className="max-w-2xl mx-auto space-y-10 pt-10">
-        <h1 className="text-5xl font-black italic uppercase tracking-tighter">VEREDITO</h1>
+        <h1 className="text-6xl font-black italic uppercase leading-none tracking-tighter">VEREDITO</h1>
 
-        {/* Gráfico de Teia */}
+        {/* Radar Radar */}
         <div className="bg-[#0a0a0a] rounded-[2rem] border border-white/5 p-8 flex flex-col items-center">
-          <div className="relative w-48 h-48 mb-8">
+          <div className="relative w-56 h-56 mb-8">
             <svg viewBox="0 0 100 100" className="w-full h-full overflow-visible">
               {[20, 40, 60, 80, 100].map(r => (
                 <polygon key={r} points={getPoints(r/2)} fill="none" stroke="white" strokeWidth="0.1" opacity="0.1" />
@@ -104,26 +109,26 @@ export default function VereditoPage() {
           <div className="grid grid-cols-3 gap-6 w-full text-center">
             {stats.map(s => (
               <div key={s.label}>
-                <p className="text-[8px] font-black uppercase text-zinc-500">{s.label}</p>
+                <p className="text-[8px] font-black uppercase text-zinc-500 italic">{s.label}</p>
                 <p className="text-2xl font-black italic">{s.value}</p>
               </div>
             ))}
           </div>
         </div>
 
-        {/* Gráfico de Tendências (Linha) */}
-        <div className="bg-[#111] p-8 rounded-[1.5rem] border border-white/5">
-          <div className="flex justify-between items-center mb-6">
+        {/* Gráfico de Tendências */}
+        <div className="bg-[#111] p-8 rounded-[1.5rem] border border-white/5 space-y-6 shadow-xl">
+          <div className="flex justify-between items-center">
             <h4 className="text-[10px] font-black uppercase text-zinc-500 tracking-widest italic">Tendência {periodo}</h4>
             <div className="flex bg-black p-1 rounded-xl border border-white/5">
                 {["dia", "semana", "mês"].map(t => (
-                  <button key={t} onClick={() => setPeriodo(t as any)} className={`px-4 py-1 text-[8px] font-black uppercase rounded-lg ${periodo === t ? 'bg-yellow-400 text-black' : 'text-zinc-700'}`}>{t}</button>
+                  <button key={t} onClick={() => setPeriodo(t as any)} className={`px-4 py-1 text-[8px] font-black uppercase rounded-lg transition-all ${periodo === t ? 'bg-yellow-400 text-black' : 'text-zinc-700'}`}>{t}</button>
                 ))}
             </div>
           </div>
-          <div className="h-40 w-full relative">
+          <div className="h-40 w-full relative pt-4">
             <svg viewBox="0 0 300 100" className="w-full h-full overflow-visible">
-              {graphData.length > 1 ? graphData.map((p, i) => {
+              {graphData.length > 1 && graphData.map((p, i) => {
                 if (i === 0) return null;
                 const prev = graphData[i-1];
                 const spacing = 300 / (graphData.length - 1);
@@ -137,18 +142,25 @@ export default function VereditoPage() {
                     strokeLinecap="round" 
                   />
                 );
-              }) : null}
+              })}
             </svg>
+            <div className="flex justify-between mt-8 border-t border-white/5 pt-2">
+               {graphData.filter((_, idx) => periodo === "semana" ? true : idx % 5 === 0).map((d) => (
+                 <span key={d.x} className="text-[7px] font-black text-zinc-800 uppercase italic">{d.x + 1}</span>
+               ))}
+            </div>
           </div>
         </div>
 
-        <button onClick={() => router.push("/dashboard")} className="w-full py-4 text-zinc-800 font-black text-[10px] uppercase">[ RETORNAR AO DASHBOARD ]</button>
+        <button onClick={() => router.push("/dashboard")} className="w-full py-6 text-zinc-700 font-black text-[10px] uppercase tracking-widest hover:text-white transition-all text-center">
+            [ RETORNAR AO DASHBOARD ]
+        </button>
       </div>
     </div>
   );
 }
 
-// Auxiliares para Teia
+// Auxiliares Radar
 function getPoints(r: number) {
   let p = [];
   for (let i = 0; i < 6; i++) {
