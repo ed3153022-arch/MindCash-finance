@@ -9,6 +9,7 @@ export default function VereditoPage() {
   const router = useRouter();
   const [loading, setLoading] = useState(true);
   const [periodo, setPeriodo] = useState<"dia" | "semana" | "mês">("semana");
+  const [updateTrigger, setUpdateTrigger] = useState(0); // Gatilho para forçar atualização
   
   const [stats, setStats] = useState([
     { label: "Disciplina", value: 0 },
@@ -22,12 +23,13 @@ export default function VereditoPage() {
   const [graphData, setGraphData] = useState<{ x: number; y: number }[]>([]);
 
   useEffect(() => {
-    async function fetchPreciseData() {
+    const fetchRealtimeData = async () => {
       try {
-        setLoading(true);
+        if (updateTrigger === 0) setLoading(true);
         const { data: { user } } = await supabase.auth.getUser();
         if (!user) return;
 
+        // Buscando dados com timestamp para garantir que pegamos o que acabou de ser inserido
         const [txsRes, goalsRes] = await Promise.all([
           supabase.from("transactions").select("*").eq("user_id", user.id).order('created_at', { ascending: true }),
           supabase.from("goals").select("*").eq("user_id", user.id)
@@ -36,56 +38,50 @@ export default function VereditoPage() {
         const txs = txsRes.data || [];
         const goals = goalsRes.data || [];
 
-        // --- CÁLCULOS DE ALTA PRECISÃO (TEIA) ---
+        // --- CÁLCULO DE TEIA ---
         const totalMeta = goals.reduce((acc, g) => acc + Number(g.amount || g.target_value || 0), 0) || 1;
         const totalGasto = txs.reduce((acc, t) => acc + Number(t.amount), 0) || 0;
         const limiteDiario = totalMeta / 30;
-
-        // Função de normalização para evitar distorção visual
         const norm = (val: number) => Math.max(8, Math.min(100, Math.round(val)));
 
         setStats([
-          { label: "Disciplina", value: norm((txs.length / (new Date().getDate())) * 20) }, 
-          { label: "Produtividade", value: norm((goals.length * 15) + (txs.length > 0 ? 20 : 0)) },
-          { label: "Conhecimento", value: norm(txs.filter(t => /educa|livro|curso|invest/i.test(t.category || "")).length * 35 + 5) },
+          { label: "Disciplina", value: norm((txs.length / 30) * 100) },
+          { label: "Produtividade", value: norm((goals.length * 20)) },
+          { label: "Conhecimento", value: norm(txs.filter(t => /educa|livro|curso/i.test(t.category || "")).length * 40) },
           { label: "Resiliência", value: norm(txs.length > 0 ? (txs.filter(t => Number(t.amount) <= limiteDiario).length / txs.length) * 100 : 50) },
           { label: "Autocontrole", value: norm(100 - (totalGasto / totalMeta * 100)) },
-          { label: "Visão", value: norm(goals.some(g => Number(g.amount) > 1000) ? 95 : 40) },
+          { label: "Visão", value: norm(goals.length * 25) },
         ]);
 
-        // --- LÓGICA DE LINHA TEMPORAL (ALTA RESOLUÇÃO) ---
+        // --- LÓGICA DE GRÁFICO TEMPO REAL ---
+        const agora = new Date();
         let numPontos = periodo === "dia" ? 24 : periodo === "semana" ? 7 : 30;
         const dataPoints = new Array(numPontos).fill(0);
 
         txs.forEach(t => {
-          const dt = new Date(t.date || t.created_at);
+          const dt = new Date(t.created_at); // Usar created_at para precisão de inserção
           let index = -1;
 
           if (periodo === "dia") {
-            // Verifica se a transação é de HOJE
-            if (dt.toDateString() === new Date().toDateString()) {
-              index = dt.getHours();
-            }
+            // Se for das últimas 24h
+            const diffHoras = Math.floor((agora.getTime() - dt.getTime()) / (1000 * 3600));
+            if (diffHoras < 24) index = 23 - diffHoras;
           } else if (periodo === "semana") {
-            // Verifica se é dos últimos 7 dias
-            const diff = Math.floor((new Date().getTime() - dt.getTime()) / (1000 * 3600 * 24));
-            if (diff < 7) index = 6 - diff;
+            const diffDias = Math.floor((agora.getTime() - dt.getTime()) / (1000 * 3600 * 24));
+            if (diffDias < 7) index = 6 - diffDias;
           } else {
-            // Mês atual
-            if (dt.getMonth() === new Date().getMonth()) {
-              index = dt.getDate() - 1;
-            }
+            if (dt.getMonth() === agora.getMonth()) index = dt.getDate() - 1;
           }
 
           if (index >= 0 && index < numPontos) {
-            dataPoints[index] += Number(t.amount);
+            dataPoints[index] += Math.abs(Number(t.amount));
           }
         });
 
+        const maxGasto = Math.max(...dataPoints, limiteDiario);
         const finalGraph = dataPoints.map((val, i) => ({
           x: i,
-          // Sensibilidade aumentada: picos aparecem com qualquer gasto
-          y: 100 - Math.min(90, (val / (limiteDiario || 50)) * 70 + (val > 0 ? 10 : 5))
+          y: 100 - Math.min(90, (val / maxGasto) * 80 + (val > 0 ? 10 : 5))
         }));
 
         setGraphData(finalGraph);
@@ -94,9 +90,20 @@ export default function VereditoPage() {
       } finally {
         setLoading(false);
       }
-    }
-    fetchPreciseData();
-  }, [periodo]);
+    };
+
+    fetchRealtimeData();
+
+    // ESCUTADOR EM TEMPO REAL DO SUPABASE [NOVIDADE]
+    const channel = supabase
+      .channel('schema-db-changes')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'transactions' }, () => {
+        setUpdateTrigger(prev => prev + 1); // Força o useEffect a rodar de novo
+      })
+      .subscribe();
+
+    return () => { supabase.removeChannel(channel); };
+  }, [periodo, updateTrigger]);
 
   const getPath = () => {
     if (graphData.length < 2) return "";
@@ -112,49 +119,55 @@ export default function VereditoPage() {
   };
 
   if (loading) return (
-    <div className="min-h-screen bg-black flex flex-col items-center justify-center">
+    <div className="min-h-screen bg-black flex flex-col items-center justify-center font-sans">
       <Loader2 className="text-yellow-400 animate-spin w-8 h-8 mb-4" />
-      <p className="text-yellow-400 font-black italic text-[10px] tracking-[0.3em]">ANALISANDO CADA CENTAVO...</p>
+      <p className="text-yellow-400 font-black italic text-[10px] tracking-[0.3em]">SINC. REALTIME...</p>
     </div>
   );
 
   return (
-    <div className="min-h-screen bg-black text-white p-6 pb-24 font-sans">
+    <div className="min-h-screen bg-black text-white p-6 pb-24 font-sans uppercase">
       <div className="max-w-xl mx-auto space-y-8 pt-8">
-        <header>
-          <h1 className="text-6xl font-black italic uppercase tracking-tighter">VEREDITO</h1>
-          <div className="h-1 w-20 bg-yellow-400 mt-1"></div>
+        <header className="flex justify-between items-end">
+          <div>
+            <h1 className="text-6xl font-black italic leading-none tracking-tighter">VEREDITO</h1>
+            <p className="text-zinc-600 text-[7px] font-bold tracking-[0.5em] mt-2">Live Analysis System</p>
+          </div>
+          <div className="flex gap-1">
+            <div className="w-1 h-1 rounded-full bg-red-500 animate-ping"></div>
+            <span className="text-[6px] text-zinc-500 font-black">LIVE</span>
+          </div>
         </header>
 
-        {/* Radar Fix */}
-        <div className="bg-[#080808] rounded-[2.5rem] border border-white/5 p-10 flex flex-col items-center">
+        {/* Radar */}
+        <div className="bg-[#080808] rounded-[2.5rem] border border-white/5 p-10 flex flex-col items-center shadow-2xl">
           <div className="relative w-52 h-52 mb-10">
             <svg viewBox="0 0 100 100" className="w-full h-full">
               {[20, 40, 60, 80, 100].map(r => (
                 <polygon key={r} points={getPoints(r/2)} fill="none" stroke="white" strokeWidth="0.1" opacity="0.1" />
               ))}
-              <polygon points={getDataPoints(stats)} fill="rgba(250, 204, 21, 0.1)" stroke="#facc15" strokeWidth="2.5" strokeLinejoin="round" />
+              <polygon points={getDataPoints(stats)} fill="rgba(250, 204, 21, 0.1)" stroke="#facc15" strokeWidth="2" strokeLinejoin="round" />
             </svg>
           </div>
           <div className="grid grid-cols-3 gap-8 w-full border-t border-white/5 pt-8">
             {stats.map(s => (
               <div key={s.label} className="text-center">
-                <p className="text-[7px] font-black uppercase text-zinc-600 mb-1">{s.label}</p>
-                <p className="text-3xl font-black italic tracking-tighter">{s.value}</p>
+                <p className="text-[7px] font-black text-zinc-600 mb-1">{s.label}</p>
+                <p className="text-3xl font-black italic">{s.value}</p>
               </div>
             ))}
           </div>
         </div>
 
-        {/* Gráfico de Tendência */}
+        {/* Gráfico Tendência com Neon */}
         <div className="bg-[#080808] p-8 rounded-[2.5rem] border border-white/5">
           <div className="flex justify-between items-center mb-10">
-            <h4 className="text-[9px] font-black text-zinc-500 uppercase tracking-widest italic flex items-center gap-2">
+            <h4 className="text-[9px] font-black text-zinc-500 italic flex items-center gap-2">
               <TrendingUp size={14} className="text-yellow-400"/> Tendência {periodo}
             </h4>
             <div className="flex bg-black p-1 rounded-xl border border-white/10">
               {["dia", "semana", "mês"].map(t => (
-                <button key={t} onClick={() => setPeriodo(t as any)} className={`px-4 py-1.5 rounded-lg text-[8px] font-black uppercase transition-all ${periodo === t ? 'bg-yellow-400 text-black' : 'text-zinc-600'}`}>{t}</button>
+                <button key={t} onClick={() => setPeriodo(t as any)} className={`px-4 py-1.5 rounded-lg text-[8px] font-black ${periodo === t ? 'bg-yellow-400 text-black' : 'text-zinc-600'}`}>{t}</button>
               ))}
             </div>
           </div>
@@ -165,15 +178,15 @@ export default function VereditoPage() {
           </div>
         </div>
 
-        <button onClick={() => router.push("/dashboard")} className="w-full py-4 text-zinc-800 font-black text-[9px] uppercase tracking-[0.5em] hover:text-white transition-all text-center">
-          [ RETORNAR AO DASHBOARD ]
+        <button onClick={() => router.push("/dashboard")} className="w-full py-4 text-zinc-800 font-black text-[9px] tracking-[0.5em] hover:text-white transition-all text-center">
+          [ VOLTAR ]
         </button>
       </div>
     </div>
   );
 }
 
-// Funções Auxiliares (Não alterar)
+// Funções Auxiliares Radar (Precisão Geométrica)
 function getPoints(r: number) {
   let p = [];
   for (let i = 0; i < 6; i++) {
