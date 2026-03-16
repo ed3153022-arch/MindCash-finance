@@ -11,12 +11,12 @@ export default function VereditoPage() {
   const [periodo, setPeriodo] = useState<"dia" | "semana" | "mês">("semana");
   
   const [stats, setStats] = useState([
-    { label: "Disciplina", value: 85 },
-    { label: "Produtividade", value: 70 },
-    { label: "Conhecimento", value: 90 },
-    { label: "Resiliência", value: 65 },
-    { label: "Autocontrole", value: 82 },
-    { label: "Visão", value: 75 },
+    { label: "Disciplina", value: 0 },
+    { label: "Produtividade", value: 0 },
+    { label: "Conhecimento", value: 0 },
+    { label: "Resiliência", value: 0 },
+    { label: "Autocontrole", value: 0 },
+    { label: "Visão", value: 0 },
   ]);
 
   const [graphData, setGraphData] = useState<{ x: number; y: number; ultrapassou: boolean }[]>([]);
@@ -28,209 +28,168 @@ export default function VereditoPage() {
         const { data: { user } } = await supabase.auth.getUser();
         if (!user) return;
 
-        // 1. BUSCA DADOS
-        const { data: txs } = await supabase.from("transactions").select("*").eq("user_id", user.id).order('date', { ascending: true });
+        // 1. Busca Transações e Metas
+        const { data: txs } = await supabase.from("transactions").select("*").eq("user_id", user.id);
         const { data: goals } = await supabase.from("goals").select("*").eq("user_id", user.id);
 
-        // 2. CONFIGURAÇÃO DE LIMITES
+        // --- CÁLCULO DINÂMICO DA TEIA ---
         const totalLimiteMensal = goals?.reduce((acc, curr) => acc + Number(curr.amount || curr.target_value || 0), 0) || 1000;
-        
-        // CORREÇÃO FILTRO DIA: Define o limite baseado no período selecionado
-        let limiteReferencia = totalLimiteMensal / 30; // Padrão Diário
-        if (periodo === "semana") limiteReferencia = (totalLimiteMensal / 30) * 7;
-        if (periodo === "mês") limiteReferencia = totalLimiteMensal;
+        const totalGastoMes = txs?.reduce((acc, t) => acc + Number(t.amount), 0) || 0;
+        const limiteDiario = totalLimiteMensal / 30;
 
-        // 3. LÓGICA DO GRÁFICO (YYYY-MM-DD)
-        const pontosPorPeriodo = periodo === "dia" ? 1 : periodo === "semana" ? 7 : 30;
-        const gastosPorDia = txs?.reduce((acc: any, t: any) => {
-          if (!t.date) return acc;
-          const dataLimpa = t.date.split('T')[0]; 
-          acc[dataLimpa] = (acc[dataLimpa] || 0) + Number(t.amount);
+        // Lógica de cálculo para cada atributo
+        const disciplina = txs && txs.length > 0 ? Math.min(100, txs.length * 5) : 10;
+        const produtividade = goals && goals.length > 0 ? Math.min(100, goals.length * 20) : 10;
+        const autocontrole = totalLimiteMensal > 0 ? Math.max(10, Math.round(100 - (totalGastoMes / totalLimiteMensal * 100))) : 50;
+        const visao = totalLimiteMensal > 500 ? 85 : 40;
+
+        setStats([
+          { label: "Disciplina", value: disciplina },
+          { label: "Produtividade", value: produtividade },
+          { label: "Conhecimento", value: conhecimento },
+          { label: "Resiliência", value: resiliência },
+          { label: "Autocontrole", value: autocontrole },
+          { label: "Visão", value: visao },
+        ]);
+
+        // --- CÁLCULO DA LINHA NEON ---
+        const pontosPorPeriodo = periodo === "dia" ? 12 : periodo === "semana" ? 7 : 30;
+        
+        const gastosMapeados = txs?.reduce((acc: any, t: any) => {
+          const d = new Date(t.date || t.created_at);
+          const chave = periodo === "dia" ? d.getHours() : d.toISOString().split('T')[0];
+          acc[chave] = (acc[chave] || 0) + Number(t.amount);
           return acc;
         }, {}) || {};
 
         const dadosCalculados = Array.from({ length: pontosPorPeriodo }, (_, i) => {
-          const d = new Date();
-          d.setDate(d.getDate() - (pontosPorPeriodo - 1 - i));
-          const chaveData = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
-          const totalNoDia = gastosPorDia[chaveData] || 0;
+          let totalNoPonto = 0;
+          if (periodo === "dia") {
+            totalNoPonto = gastosMapeados[i * 2] || 0; // Blocos de 2 horas
+          } else {
+            const d = new Date();
+            d.setDate(d.getDate() - (pontosPorPeriodo - 1 - i));
+            const chave = d.toISOString().split('T')[0];
+            totalNoPonto = gastosMapeados[chave] || 0;
+          }
 
-          // y proporcional ao limite do período selecionado
           return { 
             x: i, 
-            y: Math.min(100, (totalNoDia / (limiteReferencia || 1)) * 100), 
-            ultrapassou: totalNoDia > limiteReferencia 
+            y: Math.min(95, (totalNoPonto / (limiteDiario || 1)) * 120 + 5), 
+            ultrapassou: totalNoPonto > limiteDiario 
           };
         });
 
-        // Se for filtro "DIA", precisamos de pelo menos 2 pontos para desenhar uma curva
-        if (periodo === "dia" && dadosCalculados.length === 1) {
-            setGraphData([{x: -1, y: 0, ultrapassou: false}, dadosCalculados[0]]);
-        } else {
-            setGraphData(dadosCalculados);
-        }
-
+        setGraphData(dadosCalculados);
       } catch (err) {
-        console.error("Erro crítico no Veredito:", err);
+        console.error("Erro ao calcular Veredito:", err);
       } finally {
         setLoading(false);
       }
     }
-
     fetchVereditoData();
   }, [periodo]);
 
-  // FUNÇÃO CRUCIAL: GERA CURVAS SUAVES (CUBIC BEZIER)
-  const generateSmoothPath = (data: typeof graphData) => {
-    if (data.length < 2) return "";
+  // Função para gerar curva suave do gráfico de linha
+  const getCurvePath = () => {
+    if (graphData.length < 2) return "";
     const width = 300;
     const height = 100;
-    const spacing = width / (data.length - 1);
+    const spacing = width / (graphData.length - 1);
     
-    let path = `M 0,${height - data[0].y}`;
-    
-    for (let i = 0; i < data.length - 1; i++) {
-      const x1 = i * spacing;
-      const y1 = height - data[i].y;
-      const x2 = (i + 1) * spacing;
-      const y2 = height - data[i+1].y;
-      
-      // Control points para suavizar a curva
-      const cp1x = x1 + (x2 - x1) / 2;
-      const cp2x = x1 + (x2 - x1) / 2;
-      
-      path += ` C ${cp1x},${y1} ${cp2x},${y2} ${x2},${y2}`;
-    }
-    return path;
+    return graphData.reduce((path, p, i) => {
+      const x = i * spacing;
+      const y = height - p.y;
+      if (i === 0) return `M ${x},${y}`;
+      const prevX = (i - 1) * spacing;
+      const prevY = height - graphData[i - 1].y;
+      const cp1x = prevX + (x - prevX) / 2;
+      return `${path} C ${cp1x},${prevY} ${cp1x},${y} ${x},${y}`;
+    }, "");
   };
 
   if (loading) return <div className="min-h-screen bg-black flex items-center justify-center"><Loader2 className="text-yellow-400 animate-spin" /></div>;
 
   return (
-    <div className="min-h-screen bg-black text-white font-sans pb-20 p-6">
-      <div className="max-w-2xl mx-auto space-y-10 pt-20">
+    <div className="min-h-screen bg-black text-white p-6 pb-24">
+      <div className="max-w-2xl mx-auto space-y-8 pt-12">
         
-        {/* HEADER */}
-        <header className="space-y-2">
-          <h1 className="text-6xl font-black italic uppercase leading-none tracking-tighter">VEREDITO</h1>
-          <p className="text-zinc-500 text-[10px] font-black tracking-[0.3em] uppercase italic px-1">Análise Comportamental MindCash.</p>
+        <header>
+          <h1 className="text-6xl font-black italic uppercase tracking-tighter">VEREDITO</h1>
+          <p className="text-zinc-500 text-[9px] font-bold tracking-[0.3em] uppercase italic px-1">Inteligência Financeira</p>
         </header>
 
-        {/* STATUS */}
-        <div className="bg-yellow-400 p-6 rounded-[1.5rem] border-2 border-black flex items-center justify-between shadow-lg">
-          <h3 className="text-black text-3xl font-black italic uppercase leading-none tracking-tighter">EM EVOLUÇÃO</h3>
-          <Zap className="text-black h-8 w-8 fill-black" />
+        {/* Status Bar */}
+        <div className="bg-yellow-400 p-5 rounded-2xl border-2 border-black flex items-center justify-between shadow-[0_0_20px_rgba(250,204,21,0.3)]">
+          <h3 className="text-black text-2xl font-black italic uppercase tracking-tighter">EM EVOLUÇÃO</h3>
+          <Zap className="text-black h-7 w-7 fill-black" />
         </div>
 
-        {/* TEIA (RADAR) */}
-        <div className="bg-[#0a0a0a] rounded-[2rem] border border-white/5 p-8 flex flex-col items-center shadow-2xl">
-          <div className="relative w-56 h-56 mb-8">
-            <svg viewBox="0 0 100 100" className="w-full h-full opacity-80 overflow-visible">
-              {[20, 40, 60, 80, 100].map((r) => (
-                <polygon key={r} points={getPoints(r/2)} fill="none" stroke="white" strokeWidth="0.1" opacity="0.1" />
+        {/* Radar Dinâmico (Teia) */}
+        <div className="bg-[#080808] rounded-[2.5rem] border border-white/5 p-8 flex flex-col items-center">
+          <div className="relative w-52 h-52 mb-8">
+            <svg viewBox="0 0 100 100" className="w-full h-full overflow-visible">
+              {[20, 40, 60, 80, 100].map(r => (
+                <polygon key={r} points={getPoints(r/2)} fill="none" stroke="white" strokeWidth="0.2" opacity="0.1" />
               ))}
-              <polygon points={getDataPoints(stats)} fill="rgba(250, 204, 21, 0.15)" stroke="#facc15" strokeWidth="1.5" strokeLinejoin="round" />
+              <polygon 
+                points={getDataPoints(stats)} 
+                fill="rgba(250, 204, 21, 0.15)" 
+                stroke="#facc15" 
+                strokeWidth="2" 
+                strokeLinejoin="round" 
+                className="transition-all duration-700 ease-out"
+              />
             </svg>
           </div>
-          <div className="grid grid-cols-3 gap-6 w-full border-t border-white/5 pt-8 text-center">
-            {stats.map((s) => (
-              <div key={s.label}>
-                <p className="text-[7px] font-black uppercase text-zinc-600 italic mb-1">{s.label}</p>
-                <p className="text-2xl font-black italic">{s.value}</p>
+          <div className="grid grid-cols-3 gap-8 w-full border-t border-white/5 pt-8">
+            {stats.map(s => (
+              <div key={s.label} className="text-center">
+                <p className="text-[7px] font-black uppercase text-zinc-600 mb-1">{s.label}</p>
+                <p className="text-2xl font-black italic tracking-tighter">{s.value}</p>
               </div>
             ))}
           </div>
         </div>
 
-        {/* PARTE 4: GRÁFICO DE TENDÊNCIAS (ESTILO NEON/CURVO) */}
-        <div className="bg-[#111] p-8 rounded-[1.5rem] border border-white/5 space-y-6">
-          <div className="flex justify-between items-center">
-            <div className="flex items-center gap-2">
-              <TrendingUp size={14} className="text-zinc-500"/>
-              <h4 className="text-[10px] font-black uppercase text-zinc-500 tracking-widest">Tendências {periodo}</h4>
-            </div>
-            <div className="flex bg-black p-1 rounded-xl border border-white/5 z-10">
-              {(["dia", "semana", "mês"] as const).map((t) => (
-                <button 
-                  key={t} 
-                  onClick={() => setPeriodo(t)} 
-                  className={`px-3 py-1 rounded-lg text-[8px] font-black uppercase italic transition-all ${periodo === t ? 'bg-yellow-400 text-black' : 'text-zinc-600'}`}
-                >
-                  {t}
-                </button>
+        {/* Linha Neon */}
+        <div className="bg-[#080808] p-8 rounded-[2rem] border border-white/5">
+          <div className="flex justify-between items-center mb-10">
+            <h4 className="text-[9px] font-black uppercase text-zinc-500 tracking-widest italic">Tendência {periodo}</h4>
+            <div className="flex bg-black p-1 rounded-xl border border-white/10">
+              {["dia", "semana", "mês"].map(t => (
+                <button key={t} onClick={() => setPeriodo(t as any)} className={`px-4 py-1.5 rounded-lg text-[8px] font-black uppercase transition-all ${periodo === t ? 'bg-yellow-400 text-black shadow-lg' : 'text-zinc-600'}`}>{t}</button>
               ))}
             </div>
           </div>
-          
-          <div className="relative h-40 w-full pt-4">
-            {/* Definição dos Filtros de Brilho (Neon) */}
-            <svg width="0" height="0">
+
+          <div className="h-32 w-full relative">
+            <svg viewBox="0 0 300 100" className="w-full h-full overflow-visible">
               <defs>
-                <filter id="glow">
-                  <feGaussianBlur stdDeviation="3.5" result="coloredBlur"/>
-                  <feMerge>
-                    <feMergeNode in="coloredBlur"/>
-                    <feMergeNode in="SourceGraphic"/>
-                  </feMerge>
-                </filter>
-                <filter id="red-glow">
-                  <feGaussianBlur stdDeviation="4.5" result="coloredBlur"/>
-                  <feMerge>
-                    <feMergeNode in="coloredBlur"/>
-                    <feMergeNode in="SourceGraphic"/>
-                  </feMerge>
+                <filter id="neon-glow" x="-20%" y="-20%" width="140%" height="140%">
+                  <feGaussianBlur stdDeviation="3" result="blur" />
+                  <feComposite in="SourceGraphic" in2="blur" operator="over" />
                 </filter>
               </defs>
-            </svg>
-
-            {/* Desenho do Gráfico Curvo */}
-            <svg viewBox="0 0 300 100" className="w-full h-full overflow-visible">
-              {/* Linha de Base (Sombra Projetada) */}
               <path 
-                d={generateSmoothPath(graphData)} 
+                d={getCurvePath()} 
                 fill="none" 
-                stroke="rgba(0,0,0,0.5)" 
-                strokeWidth="6" 
+                stroke={graphData.some(d => d.ultrapassou) ? "#ff4444" : "#facc15"} 
+                strokeWidth="4" 
                 strokeLinecap="round"
-                transform="translate(0, 4)"
-              />
-              {/* Linha Neon Principal (Curva Suave) */}
-              <path 
-                d={generateSmoothPath(graphData)} 
-                fill="none" 
-                // Define a cor baseada no status geral (Amarelo ou Vermelho Neon)
-                stroke={graphData.some(p => p.ultrapassou) ? "#ff4444" : "#facc15"} 
-                strokeWidth="3" 
-                strokeLinecap="round"
-                // Aplica o filtro de brilho neon
-                filter={graphData.some(p => p.ultrapassou) ? "url(#red-glow)" : "url(#glow)"}
-                className="transition-all duration-500"
+                filter="url(#neon-glow)"
               />
             </svg>
-            
-            {/* Legenda Numérica */}
-            {periodo !== "dia" && (
-              <div className="flex justify-between mt-8 px-1 border-t border-white/5 pt-2">
-                {graphData.filter((_, i) => periodo === "semana" ? true : i % 5 === 0).map((d) => (
-                  <span key={d.x} className="text-[8px] font-black text-zinc-700 italic">{d.x + 1}</span>
-                ))}
-              </div>
-            )}
           </div>
         </div>
 
-        <button 
-          onClick={() => router.push("/dashboard")} 
-          className="w-full py-6 text-zinc-800 font-black text-[9px] uppercase tracking-[0.5em] flex items-center justify-center gap-2 hover:text-white transition-all underline underline-offset-8 decoration-zinc-900"
-        >
-          <ChevronLeft size={12} /> RETORNAR AO DASHBOARD
-        </button>
+        <button onClick={() => router.push("/dashboard")} className="w-full py-4 text-zinc-800 font-black text-[9px] uppercase tracking-[0.4em]">[ Retornar ao Dashboard ]</button>
       </div>
     </div>
   );
 }
 
-// Auxiliares Radar
+// Auxiliares Teia
 function getPoints(r: number) {
   let p = [];
   for (let i = 0; i < 6; i++) {
