@@ -22,13 +22,12 @@ export default function VereditoPage() {
   const [graphData, setGraphData] = useState<{ x: number; y: number }[]>([]);
 
   useEffect(() => {
-    async function fetchVereditoData() {
+    async function fetchPreciseData() {
       try {
         setLoading(true);
         const { data: { user } } = await supabase.auth.getUser();
         if (!user) return;
 
-        // Busca transações e metas simultaneamente para precisão de cálculo
         const [txsRes, goalsRes] = await Promise.all([
           supabase.from("transactions").select("*").eq("user_id", user.id).order('created_at', { ascending: true }),
           supabase.from("goals").select("*").eq("user_id", user.id)
@@ -37,60 +36,66 @@ export default function VereditoPage() {
         const txs = txsRes.data || [];
         const goals = goalsRes.data || [];
 
-        // --- CÁLCULO DE PRECISÃO DA TEIA ---
-        const totalMeta = goals.reduce((acc, g) => acc + Number(g.amount || g.target_value || 0), 0) || 1000;
+        // --- CÁLCULOS DE ALTA PRECISÃO (TEIA) ---
+        const totalMeta = goals.reduce((acc, g) => acc + Number(g.amount || g.target_value || 0), 0) || 1;
         const totalGasto = txs.reduce((acc, t) => acc + Number(t.amount), 0) || 0;
         const limiteDiario = totalMeta / 30;
 
-        const v = (val: number) => Math.max(5, Math.min(100, Math.round(val)));
+        // Função de normalização para evitar distorção visual
+        const norm = (val: number) => Math.max(8, Math.min(100, Math.round(val)));
 
         setStats([
-          { label: "Disciplina", value: v((txs.length / 30) * 100) }, // Baseado em 1 registro por dia
-          { label: "Produtividade", value: v((goals.filter(g => g.is_completed).length / (goals.length || 1)) * 100) },
-          { label: "Conhecimento", value: v(txs.filter(t => /educa|curso|livro/i.test(t.category || "")).length * 20) },
-          { label: "Resiliência", value: v((txs.filter(t => Number(t.amount) <= limiteDiario).length / (txs.length || 1)) * 100) },
-          { label: "Autocontrole", value: v(totalGasto > totalMeta ? 10 : 100 - (totalGasto / totalMeta * 100)) },
-          { label: "Visão", value: v((goals.length / 5) * 100) }, // Visão sobe conforme você cria metas
+          { label: "Disciplina", value: norm((txs.length / (new Date().getDate())) * 20) }, 
+          { label: "Produtividade", value: norm((goals.length * 15) + (txs.length > 0 ? 20 : 0)) },
+          { label: "Conhecimento", value: norm(txs.filter(t => /educa|livro|curso|invest/i.test(t.category || "")).length * 35 + 5) },
+          { label: "Resiliência", value: norm(txs.length > 0 ? (txs.filter(t => Number(t.amount) <= limiteDiario).length / txs.length) * 100 : 50) },
+          { label: "Autocontrole", value: norm(100 - (totalGasto / totalMeta * 100)) },
+          { label: "Visão", value: norm(goals.some(g => Number(g.amount) > 1000) ? 95 : 40) },
         ]);
 
-        // --- LÓGICA DE GRÁFICO POR TEMPO REAL ---
-        let pontos = 12;
-        const agora = new Date();
-        const mapaGastos = new Map();
+        // --- LÓGICA DE LINHA TEMPORAL (ALTA RESOLUÇÃO) ---
+        let numPontos = periodo === "dia" ? 24 : periodo === "semana" ? 7 : 30;
+        const dataPoints = new Array(numPontos).fill(0);
 
         txs.forEach(t => {
-          const d = new Date(t.date || t.created_at);
-          let chave;
-          
+          const dt = new Date(t.date || t.created_at);
+          let index = -1;
+
           if (periodo === "dia") {
-            // Agrupa por blocos de 2 horas para o gráfico não ficar serrilhado
-            chave = Math.floor(d.getHours() / 2); 
-            pontos = 12;
+            // Verifica se a transação é de HOJE
+            if (dt.toDateString() === new Date().toDateString()) {
+              index = dt.getHours();
+            }
           } else if (periodo === "semana") {
-            chave = d.getDay(); 
-            pontos = 7;
+            // Verifica se é dos últimos 7 dias
+            const diff = Math.floor((new Date().getTime() - dt.getTime()) / (1000 * 3600 * 24));
+            if (diff < 7) index = 6 - diff;
           } else {
-            chave = d.getDate(); 
-            pontos = 31;
+            // Mês atual
+            if (dt.getMonth() === new Date().getMonth()) {
+              index = dt.getDate() - 1;
+            }
           }
-          mapaGastos.set(chave, (mapaGastos.get(chave) || 0) + Number(t.amount));
+
+          if (index >= 0 && index < numPontos) {
+            dataPoints[index] += Number(t.amount);
+          }
         });
 
-        const dadosCalculados = Array.from({ length: pontos }, (_, i) => {
-          const valor = mapaGastos.get(i) || 0;
-          // Normalização: 100% do gráfico é o seu limite diário para ficar visível
-          const alturaBase = (valor / (limiteDiario || 100)) * 60;
-          return { x: i, y: 100 - Math.min(90, alturaBase + 5) };
-        });
+        const finalGraph = dataPoints.map((val, i) => ({
+          x: i,
+          // Sensibilidade aumentada: picos aparecem com qualquer gasto
+          y: 100 - Math.min(90, (val / (limiteDiario || 50)) * 70 + (val > 0 ? 10 : 5))
+        }));
 
-        setGraphData(dadosCalculados);
+        setGraphData(finalGraph);
       } catch (e) {
-        console.error("Erro de sincronização:", e);
+        console.error(e);
       } finally {
         setLoading(false);
       }
     }
-    fetchVereditoData();
+    fetchPreciseData();
   }, [periodo]);
 
   const getPath = () => {
@@ -108,8 +113,8 @@ export default function VereditoPage() {
 
   if (loading) return (
     <div className="min-h-screen bg-black flex flex-col items-center justify-center">
-      <Loader2 className="text-yellow-400 animate-spin w-10 h-10 mb-4" />
-      <p className="text-yellow-400 font-black italic tracking-widest text-[10px]">RECALCULANDO PRECISÃO...</p>
+      <Loader2 className="text-yellow-400 animate-spin w-8 h-8 mb-4" />
+      <p className="text-yellow-400 font-black italic text-[10px] tracking-[0.3em]">ANALISANDO CADA CENTAVO...</p>
     </div>
   );
 
@@ -118,60 +123,57 @@ export default function VereditoPage() {
       <div className="max-w-xl mx-auto space-y-8 pt-8">
         <header>
           <h1 className="text-6xl font-black italic uppercase tracking-tighter">VEREDITO</h1>
-          <p className="text-zinc-600 text-[8px] font-bold tracking-[0.4em] uppercase">Intelligence Performance System</p>
+          <div className="h-1 w-20 bg-yellow-400 mt-1"></div>
         </header>
 
-        <div className="bg-yellow-400 p-4 rounded-2xl border-2 border-black flex items-center justify-between">
-          <h3 className="text-black text-2xl font-black italic uppercase">EM EVOLUÇÃO</h3>
-          <Zap className="text-black h-8 w-8 fill-black" />
-        </div>
-
-        {/* Radar Dinâmico Preciso */}
-        <div className="bg-[#0a0a0a] rounded-[2.5rem] border border-white/5 p-10 flex flex-col items-center shadow-2xl">
+        {/* Radar Fix */}
+        <div className="bg-[#080808] rounded-[2.5rem] border border-white/5 p-10 flex flex-col items-center">
           <div className="relative w-52 h-52 mb-10">
             <svg viewBox="0 0 100 100" className="w-full h-full">
               {[20, 40, 60, 80, 100].map(r => (
                 <polygon key={r} points={getPoints(r/2)} fill="none" stroke="white" strokeWidth="0.1" opacity="0.1" />
               ))}
-              <polygon points={getDataPoints(stats)} fill="rgba(250, 204, 21, 0.1)" stroke="#facc15" strokeWidth="2" />
+              <polygon points={getDataPoints(stats)} fill="rgba(250, 204, 21, 0.1)" stroke="#facc15" strokeWidth="2.5" strokeLinejoin="round" />
             </svg>
           </div>
           <div className="grid grid-cols-3 gap-8 w-full border-t border-white/5 pt-8">
             {stats.map(s => (
               <div key={s.label} className="text-center">
                 <p className="text-[7px] font-black uppercase text-zinc-600 mb-1">{s.label}</p>
-                <p className="text-3xl font-black italic">{s.value}</p>
+                <p className="text-3xl font-black italic tracking-tighter">{s.value}</p>
               </div>
             ))}
           </div>
         </div>
 
-        {/* Linha Neon Sensível */}
-        <div className="bg-[#0a0a0a] p-8 rounded-[2.5rem] border border-white/5">
+        {/* Gráfico de Tendência */}
+        <div className="bg-[#080808] p-8 rounded-[2.5rem] border border-white/5">
           <div className="flex justify-between items-center mb-10">
-            <div className="flex items-center gap-2">
-              <TrendingUp size={14} className="text-yellow-400 opacity-50" />
-              <h4 className="text-[9px] font-black text-zinc-500 uppercase tracking-widest italic">Tendência {periodo}</h4>
-            </div>
+            <h4 className="text-[9px] font-black text-zinc-500 uppercase tracking-widest italic flex items-center gap-2">
+              <TrendingUp size={14} className="text-yellow-400"/> Tendência {periodo}
+            </h4>
             <div className="flex bg-black p-1 rounded-xl border border-white/10">
               {["dia", "semana", "mês"].map(t => (
                 <button key={t} onClick={() => setPeriodo(t as any)} className={`px-4 py-1.5 rounded-lg text-[8px] font-black uppercase transition-all ${periodo === t ? 'bg-yellow-400 text-black' : 'text-zinc-600'}`}>{t}</button>
               ))}
             </div>
           </div>
-          <div className="h-32 w-full">
+          <div className="h-40 w-full">
             <svg viewBox="0 0 300 100" preserveAspectRatio="none" className="w-full h-full overflow-visible">
               <path d={getPath()} fill="none" stroke="#facc15" strokeWidth="4" strokeLinecap="round" style={{ filter: 'drop-shadow(0 0 8px #facc15)' }} />
             </svg>
           </div>
         </div>
 
-        <button onClick={() => router.push("/dashboard")} className="w-full py-4 text-zinc-800 font-black text-[9px] uppercase tracking-[0.4em]">[ RETORNAR AO DASHBOARD ]</button>
+        <button onClick={() => router.push("/dashboard")} className="w-full py-4 text-zinc-800 font-black text-[9px] uppercase tracking-[0.5em] hover:text-white transition-all text-center">
+          [ RETORNAR AO DASHBOARD ]
+        </button>
       </div>
     </div>
   );
 }
 
+// Funções Auxiliares (Não alterar)
 function getPoints(r: number) {
   let p = [];
   for (let i = 0; i < 6; i++) {
