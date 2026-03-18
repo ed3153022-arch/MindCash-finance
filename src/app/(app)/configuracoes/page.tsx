@@ -21,7 +21,6 @@ export default function VereditoPage() {
 
   const [trendData, setTrendData] = useState<{ x: number; y: number }[]>([]);
 
-  // Funções Auxiliares dentro do componente ou useCallback para evitar erros de referência
   const getPoints = (r: number) => {
     let p = [];
     for (let i = 0; i < 6; i++) {
@@ -46,10 +45,7 @@ export default function VereditoPage() {
       try {
         setLoading(true);
         const { data: { user } } = await supabase.auth.getUser();
-        if (!user) {
-          router.push("/login");
-          return;
-        }
+        if (!user) return;
 
         const [txsRes, goalsRes] = await Promise.all([
           supabase.from("transactions").select("*").eq("user_id", user.id),
@@ -59,7 +55,6 @@ export default function VereditoPage() {
         const txs = txsRes.data || [];
         const goals = goalsRes.data || [];
 
-        // --- LÓGICA DE PRECISÃO DA TEIA ---
         const totalLimite = goals.reduce((acc, g) => acc + Number(g.amount || 0), 0) || 1;
         const totalGasto = txs.filter(t => t.type === 'expense').reduce((acc, t) => acc + Number(t.amount), 0);
         const totalGanho = txs.filter(t => t.type === 'income').reduce((acc, t) => acc + Number(t.amount), 0);
@@ -83,30 +78,35 @@ export default function VereditoPage() {
           { label: "Visão", value: norm(totalGanho > 0 ? (totalGanho / totalLimite) * 100 : 20) },
         ]);
 
-        // --- TENDÊNCIAS COM OSCILAÇÃO DINÂMICA ---
+        // --- AJUSTE DE SENSIBILIDADE DA LINHA ---
         const numPontos = periodo === "dia" ? 24 : periodo === "semana" ? 7 : 30;
         const diasAtivos = Math.max(1, new Date().getDate());
-        const fluxoDiario = (totalGanho - totalGasto) / diasAtivos;
-
+        const fluxoLiquido = totalGanho - totalGasto;
+        
         let projection = [];
-        let saldoSimulado = totalGanho - totalGasto;
+        let acumuladoSimulado = fluxoLiquido;
 
         for (let i = 0; i < numPontos; i++) {
-          const variancia = fluxoDiario * (Math.cos(i * 0.8) * 0.5 + 1);
-          saldoSimulado += (variancia / (periodo === "dia" ? 24 : 1));
-          const yPos = 100 - norm(((saldoSimulado / totalLimite) * 40) + 50);
+          // Amplificamos o "ruído" para que a linha oscile visivelmente
+          const frequencia = periodo === "dia" ? 0.8 : 1.5;
+          const oscilacaoExtra = (totalLimite * 0.05) * Math.sin(i * frequencia); 
+          
+          acumuladoSimulado += (fluxoLiquido / (diasAtivos * numPontos)) + oscilacaoExtra;
+
+          // Normalização Y mais agressiva: Pequenas mudanças agora geram grandes movimentos na tela
+          const yPos = 100 - norm(((acumuladoSimulado / totalLimite) * 80) + 50);
           projection.push({ x: i, y: yPos });
         }
         setTrendData(projection);
 
       } catch (e) {
-        console.error("Erro crítico no Veredito:", e);
+        console.error(e);
       } finally {
         setLoading(false);
       }
     }
     calculateMindCashIntelligence();
-  }, [periodo, router, getDataPoints]);
+  }, [periodo, getDataPoints]);
 
   const getTrendPath = () => {
     if (!trendData || trendData.length < 2) return "";
@@ -120,12 +120,7 @@ export default function VereditoPage() {
     }, "");
   };
 
-  if (loading) return (
-    <div className="min-h-screen bg-black flex flex-col items-center justify-center text-yellow-400 font-black italic">
-      <Loader2 className="animate-spin mb-4" size={40} />
-      CALIBRANDO SISTEMA...
-    </div>
-  );
+  if (loading) return <div className="min-h-screen bg-black flex items-center justify-center text-yellow-400 font-black italic">PROCESSANDO...</div>;
 
   return (
     <div className="min-h-screen bg-black text-white p-6 pb-28 font-sans uppercase">
@@ -138,6 +133,7 @@ export default function VereditoPage() {
           <Zap className="text-yellow-400 fill-yellow-400" size={24} />
         </header>
 
+        {/* Gráfico de Teia */}
         <div className="bg-[#0A0A0A] rounded-[3rem] border border-white/5 p-10 flex flex-col items-center shadow-2xl">
           <div className="relative w-56 h-56 mb-12">
             <svg viewBox="0 0 100 100" className="w-full h-full overflow-visible">
@@ -150,35 +146,48 @@ export default function VereditoPage() {
           <div className="grid grid-cols-3 gap-y-10 gap-x-6 w-full border-t border-white/5 pt-10">
             {stats.map(s => (
               <div key={s.label} className="text-center">
-                <p className="text-[7px] font-black text-zinc-600 mb-2">{s.label}</p>
-                <p className="text-4xl font-black italic">{s.value}</p>
+                <p className="text-[7px] font-black text-zinc-600 mb-2 tracking-widest">{s.label}</p>
+                <p className="text-4xl font-black italic text-white">{s.value}</p>
               </div>
             ))}
           </div>
         </div>
 
+        {/* Tendências do Próximo (Linha Dinâmica) */}
         <div className="bg-[#0A0A0A] p-10 rounded-[3rem] border border-white/5">
           <div className="flex justify-between items-center mb-12">
             <h4 className="text-[10px] font-black text-zinc-500 italic flex items-center gap-3">
               <TrendingUp size={16} className="text-yellow-400"/> Tendências do próximo {periodo}
             </h4>
-            <div className="flex bg-black p-1.5 rounded-2xl border border-white/10">
+            <div className="flex bg-black p-1.5 rounded-2xl border border-white/10 shadow-inner">
               {["dia", "semana", "mês"].map(t => (
-                <button key={t} onClick={() => setPeriodo(t as any)} className={`px-5 py-2 rounded-xl text-[9px] font-black transition-all ${periodo === t ? 'bg-yellow-400 text-black shadow-lg scale-105' : 'text-zinc-600'}`}>
+                <button 
+                  key={t} 
+                  onClick={() => setPeriodo(t as any)} 
+                  className={`px-5 py-2 rounded-xl text-[9px] font-black transition-all ${periodo === t ? 'bg-yellow-400 text-black shadow-lg scale-105' : 'text-zinc-600'}`}
+                >
                   {t}
                 </button>
               ))}
             </div>
           </div>
           
-          <div className="h-44 w-full relative">
+          <div className="h-44 w-full relative px-2">
             <svg viewBox="0 0 300 100" preserveAspectRatio="none" className="w-full h-full overflow-visible">
-              <path d={getTrendPath()} fill="none" stroke="#facc15" strokeWidth="5" strokeLinecap="round" style={{ filter: 'drop-shadow(0 0 15px rgba(250, 204, 21, 0.5))' }} />
+              <path 
+                d={getTrendPath()} 
+                fill="none" 
+                stroke="#facc15" 
+                strokeWidth="5" 
+                strokeLinecap="round" 
+                style={{ filter: 'drop-shadow(0 0 15px rgba(250, 204, 21, 0.5))' }} 
+              />
               {trendData.length > 0 && (
                 <circle cx="300" cy={trendData[trendData.length-1].y} r="5" fill="#facc15" className="animate-pulse" />
               )}
             </svg>
           </div>
+          <p className="text-[7px] text-zinc-800 font-black mt-8 text-center tracking-[0.6em]">PROJEÇÃO PREDITIVA ATIVA</p>
         </div>
 
         <button onClick={() => router.push("/dashboard")} className="w-full py-6 text-zinc-800 font-black text-[10px] tracking-[0.7em] hover:text-yellow-400 transition-all border-t border-white/5">
