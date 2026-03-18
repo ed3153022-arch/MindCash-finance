@@ -9,6 +9,7 @@ export default function VereditoPage() {
   const router = useRouter();
   const [loading, setLoading] = useState(true);
   const [periodo, setPeriodo] = useState<"dia" | "semana" | "mês">("semana");
+  const [projectedBalance, setProjectedBalance] = useState(0);
   
   const [stats, setStats] = useState([
     { label: "Disciplina", value: 0 },
@@ -21,7 +22,6 @@ export default function VereditoPage() {
 
   const [trendData, setTrendData] = useState<{ x: number; y: number }[]>([]);
 
-  // Geometria do Radar (Teia)
   const getPoints = (r: number) => {
     let p = [];
     for (let i = 0; i < 6; i++) {
@@ -41,15 +41,19 @@ export default function VereditoPage() {
     return p.join(" ");
   }, []);
 
+  const getStatusLabel = () => {
+    if (projectedBalance > 1000) return "ESTRUTURALMENTE SÓLIDO";
+    if (projectedBalance > 0) return "CRESCIMENTO ESTÁVEL";
+    if (projectedBalance > -500) return "ALERTA DE FLUXO";
+    return "RISCO DE LIQUIDEZ";
+  };
+
   useEffect(() => {
-    async function calculatePreciseVeredito() {
+    async function calculateFinalVeredito() {
       try {
         setLoading(true);
         const { data: { user } } = await supabase.auth.getUser();
-        if (!user) {
-          router.push("/login");
-          return;
-        }
+        if (!user) return;
 
         const [txsRes, goalsRes] = await Promise.all([
           supabase.from("transactions").select("*").eq("user_id", user.id),
@@ -59,75 +63,56 @@ export default function VereditoPage() {
         const txs = txsRes.data || [];
         const goals = goalsRes.data || [];
 
-        // --- CÁLCULOS DE ALTA PRECISÃO (TEIA) ---
+        // --- CÁLCULOS DE PRECISÃO ---
         const totalLimite = goals.reduce((acc, g) => acc + Number(g.amount || 0), 0) || 1;
         const totalGasto = txs.filter(t => t.type === 'expense').reduce((acc, t) => acc + Number(t.amount), 0);
         const totalGanho = txs.filter(t => t.type === 'income').reduce((acc, t) => acc + Number(t.amount), 0);
-        
-        const categoriasEstouradas = goals.filter(g => {
-          const gastoNaCategoria = txs.filter(t => t.category === g.title && t.type === 'expense')
-            .reduce((acc, t) => acc + Number(t.amount), 0);
-          return gastoNaCategoria > Number(g.amount);
-        }).length;
+        const saldoReal = totalGanho - totalGasto;
+        setProjectedBalance(saldoReal);
 
         const norm = (v: number) => Math.max(5, Math.min(100, Math.round(v)));
 
         setStats([
           { label: "Disciplina", value: norm((txs.length / 20) * 100) },
-          { label: "Produtividade", value: norm(goals.length > 0 ? ((goals.length - categoriasEstouradas) / goals.length) * 100 : 50) },
-          { label: "Conhecimento", value: norm(txs.filter(t => /educa|livro|curso|invest/i.test(t.category || "")).length * 35) },
+          { label: "Produtividade", value: norm(goals.length > 0 ? (goals.length * 20) : 50) },
+          { label: "Conhecimento", value: norm(txs.filter(t => /educa|livro|invest/i.test(t.category || "")).length * 35) },
           { label: "Resiliência", value: norm(100 - ((totalGasto / totalLimite) * 50)) },
           { label: "Autocontrole", value: norm(Math.max(0, 100 - (totalGasto / totalLimite * 100))) },
           { label: "Visão", value: norm(totalGanho > 0 ? (totalGanho / totalLimite) * 100 : 20) },
         ]);
 
-        // --- TENDÊNCIA DIRECIONAL COM ZOOM ---
-        const numPontos = periodo === "dia" ? 10 : periodo === "semana" ? 7 : 12; // Menos pontos para clareza
-        const saldoFinal = totalGanho - totalGasto;
-        const direcaoFinal = (saldoFinal / totalLimite) * 50; // Inclinação baseada no lucro/prejuízo
+        // --- TENDÊNCIA IMUTÁVEL (BASEADA NO USER ID) ---
+        const numPontos = periodo === "dia" ? 10 : periodo === "semana" ? 7 : 12;
+        const direcaoFinal = (saldoReal / totalLimite) * 45;
+        const userSeed = user.id.split('').reduce((a, b) => a + b.charCodeAt(0), 0);
         
         let projection = [];
-        const seed = Date.now() / 10000;
-
         for (let i = 0; i < numPontos; i++) {
           const progresso = i / (numPontos - 1);
-          // Ruído agudo controlado (Estilo Faca)
-          const oscilacao = (Math.sin(i * 1.5 + seed) * 12) + (Math.cos(i * 2.2) * 5);
-          
-          // Cálculo Y: 50 é o centro, direcaoFinal puxa o fim da linha, oscilacao dá o visual agressivo
-          const yPos = 50 - (progresso * direcaoFinal) + oscilacao;
-          
-          // Trava de segurança para o gráfico não sumir e manter o Zoom
+          const fixOscillation = (Math.sin(i * 1.5 + userSeed) * 15);
+          const yPos = 50 - (progresso * direcaoFinal) + fixOscillation;
           projection.push({ x: i, y: Math.max(10, Math.min(90, yPos)) });
         }
         setTrendData(projection);
 
       } catch (e) {
-        console.error("Erro no Veredito:", e);
+        console.error(e);
       } finally {
         setLoading(false);
       }
     }
-    calculatePreciseVeredito();
-  }, [periodo, router, getDataPoints]);
+    calculateFinalVeredito();
+  }, [periodo, getDataPoints]);
 
   const getTrendPath = () => {
     if (!trendData.length) return "";
-    const width = 300;
-    const step = width / (trendData.length - 1);
+    const step = 300 / (trendData.length - 1);
     return trendData.reduce((acc, p, i) => {
-      const x = i * step;
-      // Estilo Linear Agudo
-      return i === 0 ? `M ${x},${p.y}` : `${acc} L ${x},${p.y}`;
+      return i === 0 ? `M 0,${p.y}` : `${acc} L ${i * step},${p.y}`;
     }, "");
   };
 
-  if (loading) return (
-    <div className="min-h-screen bg-black flex flex-col items-center justify-center font-sans text-yellow-400 font-black italic tracking-widest uppercase">
-      <Loader2 className="animate-spin mb-4" size={40} />
-      CALIBRANDO FUTURO...
-    </div>
-  );
+  if (loading) return <div className="min-h-screen bg-black flex items-center justify-center text-yellow-400 font-black italic tracking-widest uppercase">PROCESSANDO VEREDITO...</div>;
 
   return (
     <div className="min-h-screen bg-black text-white p-6 pb-28 font-sans uppercase">
@@ -161,10 +146,10 @@ export default function VereditoPage() {
           </div>
         </div>
 
-        {/* Forecast com Direção e Zoom */}
-        <div className="bg-[#0A0A0A] p-10 rounded-[3rem] border border-white/5 shadow-2xl">
+        {/* Forecast Container com Saldo e Veredito */}
+        <div className="bg-[#0A0A0A] p-10 rounded-[3rem] border border-white/5 shadow-2xl relative">
           <div className="flex justify-between items-center mb-12">
-            <h4 className="text-[10px] font-black text-zinc-500 italic flex items-center gap-3 uppercase">
+            <h4 className="text-[10px] font-black text-zinc-500 italic flex items-center gap-3">
               <TrendingUp size={16} className="text-yellow-400"/> Tendência {periodo}
             </h4>
             <div className="flex bg-black p-1.5 rounded-2xl border border-white/10 shadow-inner">
@@ -180,9 +165,8 @@ export default function VereditoPage() {
             </div>
           </div>
           
-          <div className="h-44 w-full relative px-2">
+          <div className="h-44 w-full relative px-2 mb-4">
             <svg viewBox="0 0 300 100" preserveAspectRatio="none" className="w-full h-full overflow-visible">
-              {/* Sombra de brilho para profundidade */}
               <path 
                 d={getTrendPath()} 
                 fill="none" 
@@ -197,10 +181,25 @@ export default function VereditoPage() {
               )}
             </svg>
           </div>
-          <p className="text-[7px] text-zinc-800 font-black mt-8 text-center tracking-[0.6em]">PREDICATIVE ALGORITHM v4.4 [ZOOM ACTIVE]</p>
+
+          {/* Saldo e Veredito na Base do Conteiner */}
+          <div className="flex justify-between items-end border-t border-white/5 pt-6 mt-4">
+            <div className="text-left">
+               <p className="text-[7px] text-zinc-800 font-black tracking-[0.5em] mb-1 leading-none">FORECAST v4.7</p>
+               <p className={`text-[9px] font-black tracking-[0.2em] ${projectedBalance >= 0 ? 'text-yellow-400/50' : 'text-red-500/50'}`}>
+                 {getStatusLabel()}
+               </p>
+            </div>
+            <div className="text-right">
+              <p className="text-[8px] font-black text-zinc-600 mb-1 tracking-widest">SALDO PROJETADO</p>
+              <p className={`text-3xl font-black italic ${projectedBalance >= 0 ? 'text-yellow-400' : 'text-red-500'}`}>
+                {projectedBalance.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
+              </p>
+            </div>
+          </div>
         </div>
 
-        <button onClick={() => router.push("/dashboard")} className="w-full py-6 text-zinc-800 font-black text-[10px] tracking-[0.7em] hover:text-yellow-400 transition-all border-t border-white/5">
+        <button onClick={() => router.push("/dashboard")} className="w-full py-6 text-zinc-800 font-black text-[10px] tracking-[0.7em] border-t border-white/5">
           [ RETORNAR AO DASHBOARD ]
         </button>
       </div>
