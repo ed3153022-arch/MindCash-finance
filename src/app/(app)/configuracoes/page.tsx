@@ -5,6 +5,20 @@ import { supabase } from "@/lib/supabase";
 import { TrendingUp, Loader2, Zap } from "lucide-react";
 import { useRouter } from "next/navigation";
 
+// Função de ruído suave e preciso (Perlin-like)
+const generatePolyNoise = (size: number, seed: number, amplitude: number, frequency: number) => {
+  const noise = [];
+  for (let i = 0; i < size; i++) {
+    const val = (
+      Math.sin(i * frequency * 1.0 + seed) * 1.0 +
+      Math.sin(i * frequency * 2.1 + seed * 1.5) * 0.5 +
+      Math.sin(i * frequency * 3.7 + seed * 2.0) * 0.25
+    );
+    noise.push((val / 1.75) * amplitude);
+  }
+  return noise;
+};
+
 export default function VereditoPage() {
   const router = useRouter();
   const [loading, setLoading] = useState(true);
@@ -22,6 +36,7 @@ export default function VereditoPage() {
 
   const [trendData, setTrendData] = useState<{ x: number; y: number }[]>([]);
 
+  // Funções Radar mantidas precisas
   const getPoints = (r: number) => {
     let p = [];
     for (let i = 0; i < 6; i++) {
@@ -42,87 +57,129 @@ export default function VereditoPage() {
   }, []);
 
   const getStatusLabel = () => {
-    if (projectedBalance > 2000) return "ESTRUTURALMENTE SÓLIDO";
-    if (projectedBalance > 500) return "CRESCIMENTO ESTÁVEL";
-    if (projectedBalance >= 0) return "EQUILÍBRIO CRÍTICO";
+    if (projectedBalance > 1000) return "ESTRUTURALMENTE SÓLIDO";
+    if (projectedBalance > 0) return "CRESCIMENTO ESTÁVEL";
+    if (projectedBalance > -500) return "EQUILÍBRIO CRÍTICO";
     return "RISCO DE LIQUIDEZ";
   };
 
   useEffect(() => {
-    async function calculateProjectedVeredito() {
+    async function calculatePreciseProjectedVeredito() {
       try {
         setLoading(true);
         const { data: { user } } = await supabase.auth.getUser();
         if (!user) return;
 
         const [txsRes, goalsRes] = await Promise.all([
-          supabase.from("transactions").select("*").eq("user_id", user.id),
+          supabase.from("transactions").select("*").eq("user_id", user.id).order('date', { ascending: true }),
           supabase.from("goals").select("*").eq("user_id", user.id)
         ]);
 
         const txs = txsRes.data || [];
         const goals = goalsRes.data || [];
 
-        // --- CÁLCULO DE SALDO PROJETADO (DIA/SEMANA/MÊS) ---
-        const totalGasto = txs.filter(t => t.type === 'expense').reduce((acc, t) => acc + Number(t.amount), 0);
-        const totalGanho = txs.filter(t => t.type === 'income').reduce((acc, t) => acc + Number(t.amount), 0);
-        const saldoAtual = totalGanho - totalGasto;
+        // --- CÁLCULOS DE PRECISÃO (TEIA) REFRESH ---
+        const totalLimite = goals.reduce((acc, g) => acc + Number(g.amount || g.target_value || 0), 0) || 1000;
+        const expenses = txs.filter(t => t.type === 'expense');
+        const incomes = txs.filter(t => t.type === 'income');
+        const totalGasto = expenses.reduce((acc, t) => acc + Number(t.amount), 0);
+        const totalGanho = incomes.reduce((acc, t) => acc + Number(t.amount), 0);
+        const saldoReal = totalGanho - totalGasto;
 
-        // Projeção baseada no período selecionado
-        const diasNoPeriodo = periodo === "dia" ? 1 : periodo === "semana" ? 7 : 30;
-        const mediaGastoDiario = txs.length > 0 ? totalGasto / 30 : 0; // Média baseada em 30 dias
-        const projecaoFinal = saldoAtual - (mediaGastoDiario * diasNoPeriodo);
-        
-        setProjectedBalance(projecaoFinal);
-
-        const totalLimite = goals.reduce((acc, g) => acc + Number(g.amount || 0), 0) || 1;
         const norm = (v: number) => Math.max(5, Math.min(100, Math.round(v)));
+        const percUsoTotal = (totalGasto / totalLimite) * 100;
+
+        // Produtividade: Categorias que NÃO estouraram o limite
+        const categoriasEstouradas = goals.filter(g => {
+          const gastoNaCategoria = txs
+            .filter(t => t.category === g.title && t.type === 'expense')
+            .reduce((acc, t) => acc + Number(t.amount), 0);
+          return gastoNaCategoria > Number(g.amount || g.target_value);
+        }).length;
 
         setStats([
-          { label: "Disciplina", value: norm((txs.length / 20) * 100) },
-          { label: "Produtividade", value: norm(goals.length > 0 ? (goals.length * 20) : 50) },
-          { label: "Conhecimento", value: norm(txs.filter(t => /educa|livro|invest/i.test(t.category || "")).length * 35) },
-          { label: "Resiliência", value: norm(100 - ((totalGasto / totalLimite) * 50)) },
-          { label: "Autocontrole", value: norm(Math.max(0, 100 - (totalGasto / totalLimite * 100))) },
-          { label: "Visão", value: norm(totalGanho > 0 ? (totalGanho / totalLimite) * 100 : 20) },
+          { label: "Disciplina", value: norm((txs.length / 25) * 100) },
+          { label: "Produtividade", value: norm(goals.length > 0 ? ((goals.length - categoriasEstouradas) / goals.length) * 100 : 50) },
+          { label: "Conhecimento", value: norm(txs.filter(t => t.category?.toLowerCase().includes("educa")).length * 30) },
+          { label: "Resiliência", value: norm(100 - (percUsoTotal > 100 ? (percUsoTotal - 100) : 0)) },
+          { label: "Autocontrole", value: norm(Math.max(0, 100 - percUsoTotal)) },
+          { label: "Visão", value: norm((totalGanho > 0 ? (totalGanho / totalLimite) * 100 : 20)) },
         ]);
 
-        // --- TENDÊNCIA COM ARREDONDAMENTO ---
-        const numPontos = periodo === "dia" ? 10 : periodo === "semana" ? 8 : 14;
-        const direcaoFinal = (projecaoFinal / (totalLimite || 1000)) * 40;
-        const userSeed = user.id.split('').reduce((a, b) => a + b.charCodeAt(0), 0);
+        // --- LÓGICA DE TENDÊNCIAS COM ARREDONDAMENTO E RENDA PREDITIVA ---
+        const numPontos = periodo === "dia" ? 24 : periodo === "semana" ? 7 : 30;
+        const diasAtivos = Math.max(1, new Date().getDate());
         
+        // CORREÇÃO 1: Renda Preditiva (Olha para o futuro, não para o passado)
+        const velocidadeNetDiaria = (totalGanho - totalGasto) / diasAtivos;
+        
+        // Projeção Final Baseada no Comportamento Atual
+        const projecaoFinal = saldoReal + (velocidadeNetDiaria * numPontos);
+        setProjectedBalance(projecaoFinal);
+
+        const direcaoFinalY = (projecaoFinal / totalLimite) * 50; 
+        
+        // CORREÇÃO 2: Ruído Suave (Perlin) + Amplitude Volátil (Precisão)
+        // Se o usuário gasta de forma errática, a amplitude do "serrote" agudo aumenta.
+        let desvioPadraoGastos = 0;
+        if (expenses.length > 1) {
+          const media = totalGasto / expenses.length;
+          desvioPadraoGastos = Math.sqrt(expenses.reduce((s, e) => s + Math.pow(Number(e.amount) - media, 2), 0) / expenses.length);
+        }
+        const amplitudeVolatilidade = Math.max(20, norm((desvioPadraoGastos / totalLimite) * 100));
+
+        const frequencia = periodo === "dia" ? 0.05 : 0.12;
+        const seedTime = Date.now() / 100000;
+        const noiseArray = generatePolyNoise(numPontos, seedTime, amplitudeVolatilidade, frequencia);
+
         let projection = [];
+        let saldoSimulado = saldoReal;
+
         for (let i = 0; i < numPontos; i++) {
           const progresso = i / (numPontos - 1);
-          const fixOscillation = (Math.sin(i * 1.8 + userSeed) * 12);
-          const yPos = 50 - (progresso * direcaoFinal) + fixOscillation;
-          projection.push({ x: i, y: Math.max(15, Math.min(85, yPos)) });
+          
+          // O Saldo Projetado se move em direção à meta (direcaoFinalY)
+          saldoSimulado += (velocidadeNetDiaria / (periodo === "dia" ? 24 : 1)) + noiseArray[i];
+
+          // Y Normalizado (Equilíbrio em 50, ocupação agressiva)
+          const yPos = 100 - norm(((saldoSimulado / totalLimite) * 45) + 50);
+          projection.push({ x: i, y: yPos });
         }
         setTrendData(projection);
 
       } catch (e) {
-        console.error(e);
+        console.error("Erro no Veredito:", e);
       } finally {
         setLoading(false);
       }
     }
-    calculateProjectedVeredito();
-  }, [periodo, getDataPoints]);
+    calculatePreciseProjectedVeredito();
+  }, [periodo, router, getDataPoints]);
 
   const getTrendPath = () => {
-    if (!trendData.length) return "";
-    const step = 300 / (trendData.length - 1);
+    if (!trendData || trendData.length < 2) return "";
+    const width = 300;
+    const step = width / (trendData.length - 1);
     return trendData.reduce((acc, p, i) => {
-      return i === 0 ? `M 0,${p.y}` : `${acc} L ${i * step},${p.y}`;
+      const x = i * step;
+      if (i === 0) return `M ${x},${p.y}`;
+      // Curva Bézier Suave (Resolve o arredondamento)
+      const prevX = (i - 1) * step;
+      const cpX = prevX + (x - prevX) / 2;
+      return `${acc} C ${cpX},${trendData[i-1].y} ${cpX},${p.y} ${x},${p.y}`;
     }, "");
   };
 
-  if (loading) return <div className="min-h-screen bg-black flex items-center justify-center text-yellow-400 font-black italic tracking-widest uppercase text-xs">Calculando Projeção...</div>;
+  if (loading) return (
+    <div className="min-h-screen bg-black flex flex-col items-center justify-center font-sans text-yellow-400 font-black italic tracking-widest uppercase text-xs">
+      <Loader2 className="animate-spin mb-4" size={40} />
+      Sincronizando Sistema de Tendências...
+    </div>
+  );
 
   return (
     <div className="min-h-screen bg-black text-white p-6 pb-28 font-sans uppercase">
-      <div className="max-w-xl mx-auto space-y-10 pt-8 relative">
+      <div className="max-w-xl mx-auto space-y-10 pt-8 relative overflow-hidden">
         
         <header className="flex justify-between items-start">
           <div>
@@ -132,23 +189,17 @@ export default function VereditoPage() {
           <Zap className="text-yellow-400 fill-yellow-400" size={24} />
         </header>
 
-        {/* Teia Radar */}
+        {/* Radar Performance (Teia) */}
         <div className="bg-[#0A0A0A] rounded-[3rem] border border-white/5 p-10 flex flex-col items-center shadow-2xl">
           <div className="relative w-56 h-56 mb-12">
             <svg viewBox="0 0 100 100" className="w-full h-full overflow-visible">
               {[20, 40, 60, 80, 100].map(r => (
                 <polygon key={r} points={getPoints(r/2)} fill="none" stroke="white" strokeWidth="0.1" opacity="0.15" />
               ))}
-              <polygon 
-                points={getDataPoints(stats)} 
-                fill="rgba(250, 204, 21, 0.08)" 
-                stroke="#facc15" 
-                strokeWidth="2.5" 
-                strokeLinejoin="round" // Arredondamento solicitado
-              />
+              <polygon points={getDataPoints(stats)} fill="rgba(250, 204, 21, 0.08)" stroke="#facc15" strokeWidth="2.5" strokeLinejoin="round" />
             </svg>
           </div>
-          <div className="grid grid-cols-3 gap-y-10 gap-x-6 w-full border-t border-white/5 pt-10 text-center text-zinc-400">
+          <div className="grid grid-cols-3 gap-y-10 gap-x-6 w-full border-t border-white/5 pt-10 Text-Center text-zinc-400">
             {stats.map(s => (
               <div key={s.label}>
                 <p className="text-[7px] font-black text-zinc-600 mb-2 tracking-widest">{s.label}</p>
@@ -158,13 +209,13 @@ export default function VereditoPage() {
           </div>
         </div>
 
-        {/* Forecast com Projeção Final */}
+        {/* Forecast com Projeção e Arredondamento Suave */}
         <div className="bg-[#0A0A0A] p-10 rounded-[3rem] border border-white/5 shadow-2xl relative">
           <div className="flex justify-between items-center mb-12">
             <h4 className="text-[10px] font-black text-zinc-500 italic flex items-center gap-3">
-              <TrendingUp size={16} className="text-yellow-400"/> Tendência {periodo}
+              <TrendingUp size={16} className="text-yellow-400"/> Tendências do próximo {periodo}
             </h4>
-            <div className="flex bg-black p-1.5 rounded-2xl border border-white/10">
+            <div className="flex bg-black p-1.5 rounded-2xl border border-white/10 shadow-inner">
               {["dia", "semana", "mês"].map(t => (
                 <button 
                   key={t} 
@@ -185,25 +236,26 @@ export default function VereditoPage() {
                 stroke="#facc15" 
                 strokeWidth="5" 
                 strokeLinecap="round" 
-                strokeLinejoin="round" // Arredondamento suave da linha
-                style={{ filter: 'drop-shadow(0 0 12px rgba(250, 204, 21, 0.4))' }} 
+                strokeLinejoin="round" // Arredondamento suave solicitado
+                style={{ filter: 'drop-shadow(0 0 15px rgba(250, 204, 21, 0.5))' }} 
               />
+              {/* Ponto Final pulsante de destino */}
               {trendData.length > 0 && (
                 <circle cx="300" cy={trendData[trendData.length-1].y} r="5" fill="#facc15" className="animate-pulse" />
               )}
             </svg>
           </div>
 
-          {/* Saldo de Encerramento e Aviso */}
+          {/* Saldo Preditivo e Aviso Inteligente */}
           <div className="flex justify-between items-end border-t border-white/5 pt-6 mt-4">
             <div className="text-left">
-               <p className="text-[7px] text-zinc-800 font-black tracking-[0.5em] mb-1 leading-none uppercase">Status Final</p>
+               <p className="text-[7px] text-zinc-800 font-black tracking-[0.5em] mb-1 leading-none uppercase">Projeção Término {periodo}</p>
                <p className={`text-[10px] font-black tracking-[0.1em] ${projectedBalance >= 0 ? 'text-yellow-400' : 'text-red-500'}`}>
                  {getStatusLabel()}
                </p>
             </div>
             <div className="text-right">
-              <p className="text-[8px] font-black text-zinc-600 mb-1 tracking-widest">PROJEÇÃO TÉRMINO {periodo}</p>
+              <p className="text-[8px] font-black text-zinc-600 mb-1 tracking-widest">SALDO PROJETADO</p>
               <p className={`text-3xl font-black italic ${projectedBalance >= 0 ? 'text-yellow-400' : 'text-red-500'}`}>
                 {projectedBalance.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
               </p>
@@ -211,7 +263,7 @@ export default function VereditoPage() {
           </div>
         </div>
 
-        <button onClick={() => router.push("/dashboard")} className="w-full py-6 text-zinc-800 font-black text-[10px] tracking-[0.7em] border-t border-white/5 hover:text-yellow-400 transition-colors">
+        <button onClick={() => router.push("/dashboard")} className="w-full py-6 text-zinc-800 font-black text-[10px] tracking-[0.7em] hover:text-yellow-400 transition-colors border-t border-white/5">
           [ RETORNAR AO DASHBOARD ]
         </button>
       </div>
