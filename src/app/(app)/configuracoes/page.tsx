@@ -32,7 +32,7 @@ export default function VereditoPage() {
     async function fetchSystemData() {
       try {
         setLoading(true);
-        // Resetamos o saldo para null para "destravar" a interface visual
+        // Resetamos o saldo para null para forçar a atualização visual na troca de botões
         setProjectedBalance(null); 
 
         const { data: { user } } = await supabase.auth.getUser();
@@ -51,21 +51,20 @@ export default function VereditoPage() {
 
         if (!isMounted) return;
 
-        // Cálculo do saldo real disponível (seus ~R$ 12k)
+        // Cálculo do saldo real disponível acumulado
         const currentBalance = allTxs?.reduce((acc, t) => t.type === 'income' ? acc + Number(t.amount) : acc - Number(t.amount), 0) || 0;
         
-        // Cálculo do ritmo baseado no período selecionado
-        const incomeP = txsP?.filter(t => t.type === 'income').reduce((acc, t) => acc + Number(t.amount) : acc + 0, 0) || 0;
-        const expenseP = txsP?.filter(t => t.type === 'expense').reduce((acc, t) => acc + Number(t.amount) : acc + 0, 0) || 0;
+        // CORREÇÃO APLICADA AQUI: Cálculo do ritmo sem erro de sintaxe
+        const incomeP = txsP?.filter(t => t.type === 'income').reduce((acc, t) => acc + Number(t.amount), 0) || 0;
+        const expenseP = txsP?.filter(t => t.type === 'expense').reduce((acc, t) => acc + Number(t.amount), 0) || 0;
         
         const divisor = periodo === "dia" ? 1 : periodo === "semana" ? 7 : 30;
         const mediaRitmo = (incomeP - expenseP) / divisor;
         
-        // A projeção agora é salva no estado de forma limpa
         const finalProj = currentBalance + (mediaRitmo * divisor);
         setProjectedBalance(finalProj);
 
-        // Geração do Gráfico Sincronizado
+        // Geração do Gráfico Sincronizado com a tendência real
         const pontosCount = periodo === "dia" ? 12 : periodo === "semana" ? 20 : 30;
         const newData = [];
         const scale = Math.abs(currentBalance) || 1000;
@@ -79,7 +78,7 @@ export default function VereditoPage() {
         setTrendData(newData);
 
       } catch (e) {
-        console.error(e);
+        console.error("Erro na busca de dados:", e);
       } finally {
         if (isMounted) setLoading(false);
       }
@@ -87,11 +86,13 @@ export default function VereditoPage() {
 
     fetchSystemData();
     return () => { isMounted = false; };
-  }, [periodo, router]); // Escuta a mudança de período para rodar tudo de novo
+  }, [periodo, router]);
 
   const getSmoothPath = () => {
     if (trendData.length < 2) return "";
-    const step = 300 / (trendData.length - 1);
+    const width = 300;
+    const step = width / (trendData.length - 1);
+    
     return trendData.reduce((acc, p, i) => {
       const x = i * step;
       if (i === 0) return `M ${x},${p.y}`;
@@ -107,16 +108,18 @@ export default function VereditoPage() {
         <header className="flex justify-between items-start">
           <div>
             <h1 className="text-7xl font-black italic tracking-tighter leading-[0.8]">VEREDITO</h1>
-            <p className="text-zinc-800 text-[8px] font-bold tracking-[0.7em] mt-4 uppercase">Force Sync v4.19</p>
+            <p className="text-zinc-800 text-[8px] font-bold tracking-[0.7em] mt-4 uppercase">Stability Sync v4.20</p>
           </div>
           <Zap className="text-yellow-400 fill-yellow-400" size={24} />
         </header>
 
-        {/* Radar Chart */}
+        {/* Gráfico Radar de Stats */}
         <div className="bg-[#050505] rounded-[3.5rem] border border-white/5 p-12 flex flex-col items-center">
           <div className="relative w-64 h-64 mb-14">
             <svg viewBox="0 0 100 100" className="w-full h-full">
-              {[20, 40, 60, 80, 100].map(r => ( <polygon key={r} points={getDataPoints(stats.map(s => ({...s, value: r})))} fill="none" stroke="white" strokeWidth="0.1" opacity="0.1" /> ))}
+              {[20, 40, 60, 80, 100].map(r => ( 
+                <polygon key={r} points={getDataPoints(stats.map(s => ({...s, value: r})))} fill="none" stroke="white" strokeWidth="0.1" opacity="0.1" /> 
+              ))}
               <polygon points={getDataPoints(stats)} fill="rgba(250, 204, 21, 0.05)" stroke="#facc15" strokeWidth="3" strokeLinejoin="round" />
             </svg>
           </div>
@@ -130,10 +133,10 @@ export default function VereditoPage() {
           </div>
         </div>
 
-        {/* Trend Chart e Saldo Sincronizados */}
-        <div className="bg-[#050505] p-12 rounded-[3.5rem] border border-white/5 relative">
+        {/* Gráfico de Tendência e Saldo */}
+        <div className="bg-[#050505] p-12 rounded-[3.5rem] border border-white/5 relative shadow-2xl">
           <div className="flex justify-between items-center mb-16">
-            <h4 className="text-[10px] font-black text-zinc-600 italic flex items-center gap-3 tracking-widest uppercase">
+            <h4 className="text-[10px] font-black text-zinc-600 italic flex items-center gap-3 tracking-widest uppercase leading-none">
               <TrendingUp size={14} className="text-yellow-500"/> Tendência {periodo}
             </h4>
             <div className="flex bg-black p-1.5 rounded-2xl border border-white/10">
@@ -141,7 +144,7 @@ export default function VereditoPage() {
                 <button 
                   key={t} 
                   onClick={() => setPeriodo(t)} 
-                  className={`px-6 py-2.5 rounded-xl text-[9px] font-black transition-all ${periodo === t ? 'bg-yellow-400 text-black scale-105' : 'text-zinc-700 hover:text-zinc-300'}`}
+                  className={`px-6 py-2.5 rounded-xl text-[9px] font-black transition-all duration-300 ${periodo === t ? 'bg-yellow-400 text-black scale-105 shadow-lg' : 'text-zinc-700 hover:text-white'}`}
                 >
                   {t}
                 </button>
@@ -152,17 +155,19 @@ export default function VereditoPage() {
           <div className="h-48 w-full relative mb-6">
             <svg viewBox="0 0 300 100" preserveAspectRatio="none" className="w-full h-full overflow-visible">
               <path d={getSmoothPath()} fill="none" stroke="#facc15" strokeWidth="6" strokeLinecap="round" strokeLinejoin="round" />
-              {trendData.length > 0 && <circle cx="300" cy={trendData[trendData.length-1].y} r="6" fill="#facc15" className="animate-pulse" />}
+              {trendData.length > 0 && (
+                <circle cx="300" cy={trendData[trendData.length-1].y} r="6" fill="#facc15" className="animate-pulse" />
+              )}
             </svg>
           </div>
 
           <div className="flex justify-between items-end border-t border-white/5 pt-8 mt-6">
             <div className="text-left">
-               <p className="text-[8px] text-zinc-800 font-black tracking-[0.6em] mb-2 uppercase">Forecast Actived</p>
+               <p className="text-[8px] text-zinc-800 font-black tracking-[0.6em] mb-2 uppercase tracking-widest leading-none">Forecast Engine Ready</p>
                <p className="text-xs font-black text-yellow-500 italic tracking-widest uppercase">Sistema Operacional</p>
             </div>
             <div className="text-right">
-              <p className="text-[9px] font-black text-zinc-600 mb-2 tracking-[0.2em] uppercase">Saldo Projetado ({periodo})</p>
+              <p className="text-[9px] font-black text-zinc-600 mb-2 tracking-[0.2em] uppercase tracking-widest">Saldo Projetado</p>
               <p className="text-5xl font-black italic text-yellow-400 leading-none tracking-tighter">
                 {projectedBalance !== null ? projectedBalance.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' }) : "---"}
               </p>
