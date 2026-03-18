@@ -5,16 +5,12 @@ import { supabase } from "@/lib/supabase";
 import { TrendingUp, Loader2, Zap } from "lucide-react";
 import { useRouter } from "next/navigation";
 
-// Função de ruído orgânico para oscilação
-const generateSmoothNoise = (size: number, seed: number, amplitude: number, frequency: number) => {
+// Função de oscilação aprimorada para garantir movimento
+const generateVibrantNoise = (size: number, seed: number) => {
   const noise = [];
   for (let i = 0; i < size; i++) {
-    const val = (
-      Math.sin(i * frequency * 1.0 + seed) * 1.0 +
-      Math.sin(i * frequency * 2.1 + seed * 1.5) * 0.5 +
-      Math.sin(i * frequency * 3.7 + seed * 2.0) * 0.25
-    );
-    noise.push((val / 1.75) * amplitude);
+    const val = Math.sin(i * 0.5 + seed) * 8 + Math.cos(i * 0.8 + seed) * 5;
+    noise.push(val);
   }
   return noise;
 };
@@ -24,14 +20,12 @@ export default function VereditoPage() {
   const [loading, setLoading] = useState(true);
   const [periodo, setPeriodo] = useState<"dia" | "semana" | "mês">("semana");
   const [projectedBalance, setProjectedBalance] = useState(0);
-  
+  const [trendData, setTrendData] = useState<{ x: number; y: number }[]>([]);
   const [stats, setStats] = useState([
     { label: "Disciplina", value: 0 }, { label: "Produtividade", value: 0 },
     { label: "Conhecimento", value: 0 }, { label: "Resiliência", value: 0 },
     { label: "Autocontrole", value: 0 }, { label: "Visão", value: 0 },
   ]);
-
-  const [trendData, setTrendData] = useState<{ x: number; y: number }[]>([]);
 
   const getPoints = (r: number) => {
     let p = [];
@@ -53,70 +47,69 @@ export default function VereditoPage() {
   }, []);
 
   useEffect(() => {
-    // FUNÇÃO CORRIGIDA PARA EVITAR O CLIENT-SIDE EXCEPTION
-    async function calculateProjectedSystem() {
+    async function fetchSystemData() {
       try {
         setLoading(true);
         const { data: { user } } = await supabase.auth.getUser();
         if (!user) { router.push("/login"); return; }
 
-        const [txsRes, goalsRes] = await Promise.all([
-          supabase.from("transactions").select("*").eq("user_id", user.id),
-          supabase.from("goals").select("*").eq("user_id", user.id)
-        ]);
+        const { data: txs } = await supabase.from("transactions").select("*").eq("user_id", user.id);
+        const { data: goals } = await supabase.from("goals").select("*").eq("user_id", user.id);
 
-        const txs = txsRes.data || [];
-        const goals = goalsRes.data || [];
+        const income = txs?.filter(t => t.type === 'income').reduce((acc, t) => acc + Number(t.amount), 0) || 0;
+        const expense = txs?.filter(t => t.type === 'expense').reduce((acc, t) => acc + Number(t.amount), 0) || 0;
+        const currentBalance = income - expense;
 
-        const totalLimite = goals.reduce((acc, g) => acc + Number(g.amount || 0), 0) || 1000;
-        const totalGasto = txs.filter(t => t.type === 'expense').reduce((acc, t) => acc + Number(t.amount), 0);
-        const totalGanho = txs.filter(t => t.type === 'income').reduce((acc, t) => acc + Number(t.amount), 0);
-        const saldoReal = totalGanho - totalGasto;
+        // CÁLCULO DE PROJEÇÃO REAL
+        const multiplier = periodo === "dia" ? 1 : periodo === "semana" ? 7 : 30;
+        const dailyAvg = txs && txs.length > 0 ? currentBalance / 30 : 0;
+        const finalProjection = currentBalance + (dailyAvg * multiplier);
+        setProjectedBalance(finalProjection);
 
-        const norm = (v: number) => Math.max(5, Math.min(100, Math.round(v)));
+        // ATUALIZAÇÃO DOS STATS (TEIA)
         setStats([
-          { label: "Disciplina", value: norm((txs.length / 20) * 100) },
-          { label: "Produtividade", value: 85 }, 
+          { label: "Disciplina", value: txs ? Math.min(100, txs.length * 5) : 10 },
+          { label: "Produtividade", value: 85 },
           { label: "Conhecimento", value: 15 },
-          { label: "Resiliência", value: norm(100 - ((totalGasto/totalLimite)*100)) },
+          { label: "Resiliência", value: 100 },
           { label: "Autocontrole", value: 90 },
-          { label: "Visão", value: norm((totalGanho/totalLimite)*100) },
+          { label: "Visão", value: income > 0 ? 70 : 10 },
         ]);
 
-        // LOGICA DE OSCILAÇÃO E PROJEÇÃO
-        const numPontos = periodo === "dia" ? 24 : periodo === "semana" ? 7 : 30;
-        const diasProjetados = periodo === "dia" ? 1 : periodo === "semana" ? 7 : 30;
+        // GERAÇÃO DO GRÁFICO COM OSCILAÇÃO E ARREDONDAMENTO
+        const pontos = periodo === "dia" ? 12 : periodo === "semana" ? 7 : 15;
+        const noise = generateVibrantNoise(pontos, Date.now());
+        const data = [];
         
-        // Ajuste de valor projetado dinâmico
-        const projecaoFinal = saldoReal + ((totalGanho - totalGasto) / 30 * diasProjetados);
-        setProjectedBalance(projecaoFinal);
-
-        const noise = generateSmoothNoise(numPontos, Date.now(), 20, 0.15);
-        let projection = [];
-        for (let i = 0; i < numPontos; i++) {
-          const yPos = 70 - (norm((saldoReal / totalLimite) * 50)) + noise[i];
-          projection.push({ x: i, y: yPos });
+        for (let i = 0; i < pontos; i++) {
+          // O Y baseia-se no saldo, mas o noise garante a oscilação visual
+          const baseY = 50 - (currentBalance / 100); 
+          const ySafe = Math.max(10, Math.min(90, baseY + noise[i]));
+          data.push({ x: i, y: ySafe });
         }
-        setTrendData(projection);
+        setTrendData(data);
 
       } catch (e) { console.error(e); } finally { setLoading(false); }
     }
-    calculateProjectedSystem(); 
+    fetchSystemData();
   }, [periodo, router, getDataPoints]);
 
-  const getTrendPath = () => {
-    if (!trendData.length) return "";
-    const step = 300 / (trendData.length - 1);
+  const getCurvePath = () => {
+    if (trendData.length < 2) return "";
+    const width = 300;
+    const step = width / (trendData.length - 1);
+    
     return trendData.reduce((acc, p, i) => {
       const x = i * step;
       if (i === 0) return `M ${x},${p.y}`;
       const prevX = (i - 1) * step;
       const cpX = prevX + (x - prevX) / 2;
+      // Comando 'C' para arredondamento suave
       return `${acc} C ${cpX},${trendData[i-1].y} ${cpX},${p.y} ${x},${p.y}`;
     }, "");
   };
 
-  if (loading) return <div className="min-h-screen bg-black flex items-center justify-center text-yellow-400 font-black italic uppercase text-xs">Carregando Veredito...</div>;
+  if (loading) return <div className="min-h-screen bg-black flex items-center justify-center text-yellow-400 font-black italic uppercase text-xs">Ajustando Frequência...</div>;
 
   return (
     <div className="min-h-screen bg-black text-white p-6 pb-28 font-sans uppercase">
@@ -129,6 +122,7 @@ export default function VereditoPage() {
           <Zap className="text-yellow-400 fill-yellow-400" size={24} />
         </header>
 
+        {/* Gráfico Radar */}
         <div className="bg-[#0A0A0A] rounded-[3rem] border border-white/5 p-10 flex flex-col items-center">
           <div className="relative w-56 h-56 mb-12">
             <svg viewBox="0 0 100 100" className="w-full h-full overflow-visible">
@@ -146,7 +140,8 @@ export default function VereditoPage() {
           </div>
         </div>
 
-        <div className="bg-[#0A0A0A] p-10 rounded-[3rem] border border-white/5 shadow-2xl">
+        {/* Gráfico de Tendência com Oscilação e Arredondamento */}
+        <div className="bg-[#0A0A0A] p-10 rounded-[3rem] border border-white/5">
           <div className="flex justify-between items-center mb-12">
             <h4 className="text-[10px] font-black text-zinc-500 italic flex items-center gap-3">
               <TrendingUp size={16} className="text-yellow-400"/> Tendência {periodo}
@@ -160,18 +155,18 @@ export default function VereditoPage() {
           
           <div className="h-44 w-full relative mb-4">
             <svg viewBox="0 0 300 100" preserveAspectRatio="none" className="w-full h-full overflow-visible">
-              <path d={getTrendPath()} fill="none" stroke="#facc15" strokeWidth="5" strokeLinecap="round" strokeLinejoin="round" />
+              <path d={getCurvePath()} fill="none" stroke="#facc15" strokeWidth="5" strokeLinecap="round" strokeLinejoin="round" />
               {trendData.length > 0 && <circle cx="300" cy={trendData[trendData.length-1].y} r="5" fill="#facc15" className="animate-pulse" />}
             </svg>
           </div>
 
           <div className="flex justify-between items-end border-t border-white/5 pt-6 mt-4">
             <div className="text-left">
-               <p className="text-[7px] text-zinc-800 font-black tracking-[0.5em] mb-1">Projeção {periodo}</p>
-               <p className="text-[10px] font-black text-yellow-400">SISTEMA ATIVO</p>
+               <p className="text-[7px] text-zinc-800 font-black tracking-[0.5em] mb-1">PROJEÇÃO ATIVA</p>
+               <p className="text-[10px] font-black text-yellow-400 uppercase">Sistema Operacional</p>
             </div>
             <div className="text-right">
-              <p className="text-[8px] font-black text-zinc-600 mb-1">SALDO PROJETADO</p>
+              <p className="text-[8px] font-black text-zinc-600 mb-1 leading-none uppercase tracking-widest">Saldo Projetado</p>
               <p className="text-3xl font-black italic text-yellow-400">
                 {projectedBalance.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
               </p>
