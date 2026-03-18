@@ -2,7 +2,7 @@
 
 import React, { useEffect, useState } from "react";
 import { supabase } from "@/lib/supabase";
-import { Zap, TrendingUp, Loader2, Target } from "lucide-react";
+import { TrendingUp, Loader2 } from "lucide-react";
 import { useRouter } from "next/navigation";
 
 export default function VereditoPage() {
@@ -19,165 +19,148 @@ export default function VereditoPage() {
     { label: "Visão", value: 0 },
   ]);
 
-  const [graphData, setGraphData] = useState<{ x: number; y: number; isFuture: boolean }[]>([]);
+  const [trendData, setTrendData] = useState<{ x: number; y: number }[]>([]);
 
   useEffect(() => {
-    async function fetchVereditoSystem() {
+    async function calculatePredictiveVeredito() {
       try {
         setLoading(true);
         const { data: { user } } = await supabase.auth.getUser();
         if (!user) return;
 
         const [txsRes, goalsRes] = await Promise.all([
-          supabase.from("transactions").select("*").eq("user_id", user.id).order('created_at', { ascending: true }),
+          supabase.from("transactions").select("*").eq("user_id", user.id),
           supabase.from("goals").select("*").eq("user_id", user.id)
         ]);
 
         const txs = txsRes.data || [];
         const goals = goalsRes.data || [];
 
-        // --- CÁLCULO DE PERFORMANCE REAL (TEIA) ---
-        const totalMeta = goals.reduce((acc, g) => acc + Number(g.amount || g.target_value || 0), 0) || 1000;
-        const totalGasto = txs.reduce((acc, t) => acc + (t.type === 'expense' ? Number(t.amount) : 0), 0);
-        const totalGanho = txs.reduce((acc, t) => acc + (t.type === 'income' ? Number(t.amount) : 0), 0);
-        const limiteDiario = totalMeta / 30;
-
+        // --- CÁLCULO DE PRECISÃO DA TEIA (VEREDITO REAL) ---
+        const totalMeta = goals.reduce((acc, g) => acc + Number(g.amount || 0), 0) || 1000;
+        const totalGasto = txs.filter(t => t.type === 'expense').reduce((acc, t) => acc + Number(t.amount), 0);
+        const totalGanho = txs.filter(t => t.type === 'income').reduce((acc, t) => acc + Number(t.amount), 0);
+        const saldoReal = totalGanho - totalGasto;
         const norm = (val: number) => Math.max(5, Math.min(100, Math.round(val)));
 
         setStats([
-          { label: "Disciplina", value: norm((txs.length / 30) * 100) },
-          { label: "Produtividade", value: norm((goals.filter(g => g.is_completed).length / (goals.length || 1)) * 100 + 20) },
-          { label: "Conhecimento", value: norm(txs.filter(t => /educa|livro|curso/i.test(t.category || "")).length * 50) },
-          { label: "Resiliência", value: norm(txs.length > 0 ? (txs.filter(t => Number(t.amount) <= limiteDiario).length / txs.length) * 100 : 50) },
-          { label: "Autocontrole", value: norm(100 - (totalGasto / totalMeta * 100)) },
+          { label: "Disciplina", value: norm((txs.length / 25) * 100) },
+          { label: "Produtividade", value: norm(goals.length > 0 ? (goals.filter(g => g.is_completed).length / goals.length) * 100 : 15) },
+          { label: "Conhecimento", value: norm(txs.filter(t => /educa|livro|invest/i.test(t.category || "")).length * 40) },
+          { label: "Resiliência", value: norm(100 - (txs.filter(t => t.amount > (totalMeta/30)).length * 20)) },
+          { label: "Autocontrole", value: norm(saldoReal > 0 ? (saldoReal / totalMeta) * 100 : 10) },
           { label: "Visão", value: norm(goals.length * 30) },
         ]);
 
-        // --- CÁLCULO DE TENDÊNCIA FUTURA (LINHA) ---
-        const pontosTotais = periodo === "dia" ? 24 : periodo === "semana" ? 7 : 30;
-        const agora = new Date();
-        let momentoIndice = periodo === "dia" ? agora.getHours() : periodo === "semana" ? agora.getDay() : agora.getDate();
+        // --- LÓGICA DE TENDÊNCIAS DO PRÓXIMO (PROJEÇÃO) ---
+        const numPontos = periodo === "dia" ? 24 : periodo === "semana" ? 7 : 30;
+        const diasPassados = Math.max(1, new Date().getDate());
+        
+        // Velocidade baseada no histórico real para projetar o futuro
+        const velGasto = totalGasto / diasPassados;
+        const velGanho = totalGanho / diasPassados;
+        const fluxoDiario = velGanho - velGasto;
 
+        let saldoProjetado = saldoReal;
         const projection = [];
-        const mediaGastoReal = totalGasto / Math.max(1, agora.getDate());
-        const saldoAtual = totalGanho - totalGasto;
 
-        for (let i = 0; i < pontosTotais; i++) {
-          const isFuture = i > momentoIndice;
-          let saldoPonto;
+        for (let i = 0; i < numPontos; i++) {
+          const incremento = periodo === "dia" ? (fluxoDiario / 24) : fluxoDiario;
+          saldoProjetado += incremento;
 
-          if (!isFuture) {
-            // Histórico: Saldo que foi se construindo
-            saldoPonto = (totalGanho / pontosTotais * i) - (totalGasto / pontosTotais * i);
-          } else {
-            // Tendência: Projeta o saldo baseado na média de gastos
-            const diasAFrente = i - momentoIndice;
-            saldoPonto = saldoAtual - (mediaGastoReal * diasAFrente);
-          }
-
-          // Invertemos para o SVG: 100% de saldo é Y=10 (topo), 0% de saldo é Y=90 (base)
-          const yPos = 100 - Math.min(95, Math.max(5, (saldoPonto / totalMeta) * 80 + 50));
-          projection.push({ x: i, y: yPos, isFuture });
+          // Mapeamento visual: Saldo positivo sobe, negativo desce
+          const yPos = 100 - norm((saldoProjetado / totalMeta) * 60 + 40);
+          projection.push({ x: i, y: yPos });
         }
 
-        setGraphData(projection);
+        setTrendData(projection);
       } catch (e) {
         console.error(e);
       } finally {
         setLoading(false);
       }
     }
-    fetchVereditoSystem();
+    calculatePredictiveVeredito();
   }, [periodo]);
 
-  const getPath = (isFuturePath: boolean) => {
-    const points = graphData.filter(p => p.isFuture === isFuturePath || (isFuturePath && p.x === Math.max(...graphData.filter(d => !d.isFuture).map(d => d.x))));
-    if (points.length < 2) return "";
-    const step = 300 / (graphData.length - 1);
-    
-    return points.reduce((acc, p, i) => {
-      const x = p.x * step;
+  const getTrendPath = () => {
+    if (trendData.length < 2) return "";
+    const step = 300 / (trendData.length - 1);
+    return trendData.reduce((acc, p, i) => {
+      const x = i * step;
       if (i === 0) return `M ${x},${p.y}`;
-      return `${acc} L ${x},${p.y}`;
+      // Curva suave para manter o aspecto estético
+      const prevX = (i - 1) * step;
+      const cpX = prevX + (x - prevX) / 2;
+      return `${acc} C ${cpX},${trendData[i-1].y} ${cpX},${p.y} ${x},${p.y}`;
     }, "");
   };
-
-  if (loading) return <div className="min-h-screen bg-black flex items-center justify-center text-yellow-400 font-black">CALIBRANDO TENDÊNCIAS...</div>;
 
   return (
     <div className="min-h-screen bg-black text-white p-6 pb-24 font-sans uppercase">
       <div className="max-w-xl mx-auto space-y-8 pt-8">
         <header>
           <h1 className="text-6xl font-black italic tracking-tighter leading-none">VEREDITO</h1>
-          <p className="text-zinc-600 text-[7px] font-bold tracking-[0.5em] mt-2">Intelligence & Forecasting</p>
+          <p className="text-zinc-600 text-[7px] font-bold tracking-[0.5em] mt-2">Future Intelligence System</p>
         </header>
 
-        {/* Radar (Performance Real) */}
-        <div className="bg-[#080808] rounded-[2.5rem] border border-white/5 p-10 flex flex-col items-center">
+        {/* Veredito Real (Teia) */}
+        <div className="bg-[#080808] rounded-[2.5rem] border border-white/5 p-10 flex flex-col items-center shadow-2xl">
           <div className="relative w-52 h-52 mb-10">
-            <svg viewBox="0 0 100 100" className="w-full h-full">
+            <svg viewBox="0 0 100 100" className="w-full h-full overflow-visible">
               {[20, 40, 60, 80, 100].map(r => (
                 <polygon key={r} points={getPoints(r/2)} fill="none" stroke="white" strokeWidth="0.1" opacity="0.1" />
               ))}
-              <polygon points={getDataPoints(stats)} fill="rgba(250, 204, 21, 0.1)" stroke="#facc15" strokeWidth="2.5" />
+              <polygon points={getDataPoints(stats)} fill="rgba(250, 204, 21, 0.1)" stroke="#facc15" strokeWidth="2.5" strokeLinejoin="round" />
             </svg>
           </div>
-          <div className="grid grid-cols-3 gap-8 w-full border-t border-white/5 pt-8">
+          <div className="grid grid-cols-3 gap-y-8 gap-x-4 w-full border-t border-white/5 pt-8">
             {stats.map(s => (
               <div key={s.label} className="text-center">
                 <p className="text-[7px] font-black text-zinc-600 mb-1">{s.label}</p>
-                <p className="text-3xl font-black italic">{s.value}</p>
+                <p className="text-3xl font-black italic tracking-tighter">{s.value}</p>
               </div>
             ))}
           </div>
         </div>
 
-        {/* Linha (Tendência Futura) */}
-        <div className="bg-[#080808] p-8 rounded-[2.5rem] border border-white/5 relative overflow-hidden">
+        {/* Tendências do Próximo (Linha Sólida) */}
+        <div className="bg-[#080808] p-8 rounded-[2.5rem] border border-white/5">
           <div className="flex justify-between items-center mb-10">
             <h4 className="text-[9px] font-black text-zinc-500 italic flex items-center gap-2">
-              <TrendingUp size={14} className="text-yellow-400"/> Forecast {periodo}
+              <TrendingUp size={14} className="text-yellow-400"/> Tendências do próximo {periodo}
             </h4>
-            <div className="flex bg-black p-1 rounded-xl border border-white/10 z-10">
+            <div className="flex bg-black p-1 rounded-xl border border-white/10">
               {["dia", "semana", "mês"].map(t => (
-                <button key={t} onClick={() => setPeriodo(t as any)} className={`px-4 py-1.5 rounded-lg text-[8px] font-black ${periodo === t ? 'bg-yellow-400 text-black' : 'text-zinc-600'}`}>{t}</button>
+                <button key={t} onClick={() => setPeriodo(t as any)} className={`px-4 py-1.5 rounded-lg text-[8px] font-black transition-all ${periodo === t ? 'bg-yellow-400 text-black shadow-lg' : 'text-zinc-600'}`}>{t}</button>
               ))}
             </div>
           </div>
           
           <div className="h-40 w-full relative">
-            <svg viewBox="0 0 300 100" preserveAspectRatio="none" className="w-full h-full overflow-visible">
-              {/* Linha do Passado: Sólida e Forte */}
-              <path d={getPath(false)} fill="none" stroke="#facc15" strokeWidth="4" strokeLinecap="round" />
-              
-              {/* Linha do Futuro: Tracejada (Tendência) */}
-              <path d={getPath(true)} fill="none" stroke="#facc15" strokeWidth="2" strokeDasharray="6 6" opacity="0.4" />
-              
-              {/* Indicador de "Ponto Atual" */}
-              {graphData.length > 0 && (
-                <circle 
-                  cx={(graphData.filter(p => !p.isFuture).length - 1) * (300 / (graphData.length - 1))} 
-                  cy={graphData.find(p => p.isFuture)?.y || 50} 
-                  r="5" fill="#facc15" className="animate-pulse"
-                />
-              )}
-            </svg>
+            {loading ? (
+              <div className="absolute inset-0 flex items-center justify-center">
+                <Loader2 className="animate-spin text-zinc-800" />
+              </div>
+            ) : (
+              <svg viewBox="0 0 300 100" preserveAspectRatio="none" className="w-full h-full overflow-visible">
+                <path d={getTrendPath()} fill="none" stroke="#facc15" strokeWidth="4" strokeLinecap="round" style={{ filter: 'drop-shadow(0 0 12px rgba(250, 204, 21, 0.3))' }} />
+                <circle cx="300" cy={trendData[trendData.length-1]?.y} r="4" fill="#facc15" className="animate-pulse" />
+              </svg>
+            )}
           </div>
-          <div className="mt-4 flex justify-between text-[6px] font-black text-zinc-700 tracking-[0.3em]">
-            <span>HISTÓRICO REAL</span>
-            <span>TENDÊNCIA PRÓX. {periodo.toUpperCase()}</span>
-          </div>
+          <p className="text-[6px] text-zinc-800 font-black mt-6 text-center tracking-[0.5em]">ALGORITMO DE PROJEÇÃO FINANCEIRA ATIVO</p>
         </div>
 
         <button onClick={() => router.push("/dashboard")} className="w-full py-4 text-zinc-800 font-black text-[9px] tracking-[0.5em] hover:text-white transition-all text-center">
-          [ RETORNAR ]
+          [ VOLTAR AO DASHBOARD ]
         </button>
       </div>
     </div>
   );
 }
 
-// Funções Auxiliares Radar
+// Funções Geométricas Radar
 function getPoints(r: number) {
   let p = [];
   for (let i = 0; i < 6; i++) {
