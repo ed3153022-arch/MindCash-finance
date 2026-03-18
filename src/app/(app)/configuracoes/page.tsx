@@ -5,8 +5,8 @@ import { supabase } from "@/lib/supabase";
 import { TrendingUp, Loader2, Zap } from "lucide-react";
 import { useRouter } from "next/navigation";
 
-// Função de ruído suave e preciso (Perlin-like)
-const generatePolyNoise = (size: number, seed: number, amplitude: number, frequency: number) => {
+// Função de ruído orgânico para suavidade e picos suaves
+const generateSmoothNoise = (size: number, seed: number, amplitude: number, frequency: number) => {
   const noise = [];
   for (let i = 0; i < size; i++) {
     const val = (
@@ -64,11 +64,14 @@ export default function VereditoPage() {
   };
 
   useEffect(() => {
-    async function calculatePreciseProjectedVeredito() {
+    async function calculateHighPrecisionSystem() {
       try {
         setLoading(true);
         const { data: { user } } = await supabase.auth.getUser();
-        if (!user) return;
+        if (!user) {
+          router.push("/login");
+          return;
+        }
 
         const [txsRes, goalsRes] = await Promise.all([
           supabase.from("transactions").select("*").eq("user_id", user.id).order('date', { ascending: true }),
@@ -78,16 +81,11 @@ export default function VereditoPage() {
         const txs = txsRes.data || [];
         const goals = goalsRes.data || [];
 
-        // --- CÁLCULOS DE PRECISÃO (TEIA) REFRESH ---
+        // --- CÁLCULOS DE PERFORMANCE (TEIA) REFRESH ---
         const totalLimite = goals.reduce((acc, g) => acc + Number(g.amount || g.target_value || 0), 0) || 1000;
-        const expenses = txs.filter(t => t.type === 'expense');
-        const incomes = txs.filter(t => t.type === 'income');
-        const totalGasto = expenses.reduce((acc, t) => acc + Number(t.amount), 0);
-        const totalGanho = incomes.reduce((acc, t) => acc + Number(t.amount), 0);
+        const totalGasto = txs.filter(t => t.type === 'expense').reduce((acc, t) => acc + Number(t.amount), 0);
+        const totalGanho = txs.filter(t => t.type === 'income').reduce((acc, t) => acc + Number(t.amount), 0);
         const saldoReal = totalGanho - totalGasto;
-
-        const norm = (v: number) => Math.max(5, Math.min(100, Math.round(v)));
-        const percUsoTotal = (totalGasto / totalLimite) * 100;
 
         // Produtividade: Categorias que NÃO estouraram o limite
         const categoriasEstouradas = goals.filter(g => {
@@ -96,6 +94,9 @@ export default function VereditoPage() {
             .reduce((acc, t) => acc + Number(t.amount), 0);
           return gastoNaCategoria > Number(g.amount || g.target_value);
         }).length;
+
+        const norm = (v: number) => Math.max(5, Math.min(100, Math.round(v)));
+        const percUsoTotal = (totalGasto / totalLimite) * 100;
 
         setStats([
           { label: "Disciplina", value: norm((txs.length / 25) * 100) },
@@ -106,43 +107,42 @@ export default function VereditoPage() {
           { label: "Visão", value: norm((totalGanho > 0 ? (totalGanho / totalLimite) * 100 : 20)) },
         ]);
 
-        // --- LÓGICA DE TENDÊNCIAS COM ARREDONDAMENTO E RENDA PREDITIVA ---
+        // --- TENDÊNCIAS COM OSCILAÇÃO, ARREDONDAMENTO E SALDO REAL ---
         const numPontos = periodo === "dia" ? 24 : periodo === "semana" ? 7 : 30;
         const diasAtivos = Math.max(1, new Date().getDate());
         
-        // CORREÇÃO 1: Renda Preditiva (Olha para o futuro, não para o passado)
-        const velocidadeNetDiaria = (totalGanho - totalGasto) / diasAtivos;
+        // 1. CÁLCULO DE SALDO PREDITIVO REAL (PRECISÃO)
+        const velocidadeLiquidaDiaria = (totalGanho - totalGasto) / diasAtivos;
         
         // Projeção Final Baseada no Comportamento Atual
-        const projecaoFinal = saldoReal + (velocidadeNetDiaria * numPontos);
+        const diasProjetados = periodo === "dia" ? 1 : periodo === "semana" ? 7 : 30;
+        const projecaoFinal = saldoReal + (velocidadeLiquidaDiaria * diasProjetados);
         setProjectedBalance(projecaoFinal);
 
-        const direcaoFinalY = (projecaoFinal / totalLimite) * 50; 
+        const direcaoFinalY = (projecaoFinal / totalLimite) * 45; 
         
-        // CORREÇÃO 2: Ruído Suave (Perlin) + Amplitude Volátil (Precisão)
-        // Se o usuário gasta de forma errática, a amplitude do "serrote" agudo aumenta.
-        let desvioPadraoGastos = 0;
-        if (expenses.length > 1) {
-          const media = totalGasto / expenses.length;
-          desvioPadraoGastos = Math.sqrt(expenses.reduce((s, e) => s + Math.pow(Number(e.amount) - media, 2), 0) / expenses.length);
-        }
-        const amplitudeVolatilidade = Math.max(20, norm((desvioPadraoGastos / totalLimite) * 100));
-
-        const frequencia = periodo === "dia" ? 0.05 : 0.12;
-        const seedTime = Date.now() / 100000;
-        const noiseArray = generatePolyNoise(numPontos, seedTime, amplitudeVolatilidade, frequencia);
+        // 2. Ruído Suave (Perlin) + Amplitude Orgânica (Oscilação e Arredondamento)
+        const amplitude = Math.max(25, norm((saldoReal / totalLimite) * 50)); 
+        const frequenciaSuave = periodo === "dia" ? 0.05 : 0.15; 
+        
+        // CORREÇÃO: Variável 'agora' definida corretamente para evitar crash
+        const agora = new Date();
+        const noiseArray = generateSmoothNoise(
+          numPontos, 
+          agora.getTime(), // Semente baseada no tempo
+          amplitude, 
+          frequenciaSuave
+        );
 
         let projection = [];
         let saldoSimulado = saldoReal;
 
         for (let i = 0; i < numPontos; i++) {
-          const progresso = i / (numPontos - 1);
-          
           // O Saldo Projetado se move em direção à meta (direcaoFinalY)
-          saldoSimulado += (velocidadeNetDiaria / (periodo === "dia" ? 24 : 1)) + noiseArray[i];
+          saldoSimulado += (velocidadeLiquidaDiaria / (periodo === "dia" ? 24 : 1)) + noiseArray[i];
 
           // Y Normalizado (Equilíbrio em 50, ocupação agressiva)
-          const yPos = 100 - norm(((saldoSimulado / totalLimite) * 45) + 50);
+          const yPos = 100 - norm(((saldoSimulado / totalLimite) * 40) + 50);
           projection.push({ x: i, y: yPos });
         }
         setTrendData(projection);
@@ -189,7 +189,7 @@ export default function VereditoPage() {
           <Zap className="text-yellow-400 fill-yellow-400" size={24} />
         </header>
 
-        {/* Radar Performance (Teia) */}
+        {/* Radar Performance */}
         <div className="bg-[#0A0A0A] rounded-[3rem] border border-white/5 p-10 flex flex-col items-center shadow-2xl">
           <div className="relative w-56 h-56 mb-12">
             <svg viewBox="0 0 100 100" className="w-full h-full overflow-visible">
@@ -209,7 +209,7 @@ export default function VereditoPage() {
           </div>
         </div>
 
-        {/* Forecast com Projeção e Arredondamento Suave */}
+        {/* Forecast Container com Oscilação e Arredondamento Suave */}
         <div className="bg-[#0A0A0A] p-10 rounded-[3rem] border border-white/5 shadow-2xl relative">
           <div className="flex justify-between items-center mb-12">
             <h4 className="text-[10px] font-black text-zinc-500 italic flex items-center gap-3">
@@ -236,17 +236,17 @@ export default function VereditoPage() {
                 stroke="#facc15" 
                 strokeWidth="5" 
                 strokeLinecap="round" 
-                strokeLinejoin="round" // Arredondamento suave solicitado
-                style={{ filter: 'drop-shadow(0 0 15px rgba(250, 204, 21, 0.5))' }} 
+                strokeLinejoin="round" // Arredondamento suave da linha
+                style={{ filter: 'drop-shadow(0 0 12px rgba(250, 204, 21, 0.4))' }} 
               />
-              {/* Ponto Final pulsante de destino */}
+              {/* Ponto Final pulsante */}
               {trendData.length > 0 && (
                 <circle cx="300" cy={trendData[trendData.length-1].y} r="5" fill="#facc15" className="animate-pulse" />
               )}
             </svg>
           </div>
 
-          {/* Saldo Preditivo e Aviso Inteligente */}
+          {/* Saldo de Encerramento e Aviso Inteligente */}
           <div className="flex justify-between items-end border-t border-white/5 pt-6 mt-4">
             <div className="text-left">
                <p className="text-[7px] text-zinc-800 font-black tracking-[0.5em] mb-1 leading-none uppercase">Projeção Término {periodo}</p>
