@@ -32,7 +32,6 @@ export default function VereditoPage() {
     async function fetchSystemData() {
       try {
         setLoading(true);
-        setProjectedBalance(0);
 
         const { data: { user } } = await supabase.auth.getUser();
         if (!user) { router.push("/login"); return; }
@@ -45,51 +44,46 @@ export default function VereditoPage() {
         if (error || !rawData) throw error;
         if (!isMounted) return;
 
-        // --- MOTOR MATEMÁTICO DE TENDÊNCIA ---
+        // --- CORREÇÃO DE POLARIDADE (ENTRADA VS SAÍDA) ---
         const agora = new Date().getTime();
         const umDia = 24 * 60 * 60 * 1000;
         const limites = { dia: agora - umDia, semana: agora - (umDia * 7), mês: agora - (umDia * 30) };
-        const multiplicadorProjecao = { dia: 1, semana: 1, mês: 1 }; // Projeta o próximo período igual
 
         let saldoRealHoje = 0;
-        let entradasPeriodo = 0;
-        let saidasPeriodo = 0;
+        let lucroNoPeriodo = 0;
 
         rawData.forEach(t => {
-          const valor = Number(t.amount); //
+          const valor = Math.abs(Number(t.amount)); // Garante valor positivo para somar/subtrair
+          const isEntrada = String(t.type).trim().toLowerCase() === 'income'; // Checagem rigorosa
           const dataMs = new Date(t.created_at).getTime();
           
-          // 1. Saldo que você tem na conta AGORA
-          if (t.type === 'income') saldoRealHoje += valor;
+          // 1. Cálculo do Saldo Total
+          if (isEntrada) saldoRealHoje += valor;
           else saldoRealHoje -= valor;
 
-          // 2. O que aconteceu no período selecionado
+          // 2. Cálculo da Performance do Botão
           if (dataMs >= limites[periodo]) {
-            if (t.type === 'income') entradasPeriodo += valor;
-            else saidasPeriodo += valor;
+            if (isEntrada) lucroNoPeriodo += valor;
+            else lucroNoPeriodo -= valor;
           }
         });
 
-        // 3. CÁLCULO DO VEREDITO:
-        // Saldo Atual + (Ritmo de Ganhos - Ritmo de Gastos)
-        const ritmoLiquido = entradasPeriodo - saidasPeriodo;
-        const projecaoFinal = saldoRealHoje + ritmoLiquido;
+        // Veredito: Onde você vai estar se esse lucro/prejuízo se repetir no próximo período
+        const vereditoFinal = saldoRealHoje + lucroNoPeriodo;
+        setProjectedBalance(vereditoFinal);
 
-        setProjectedBalance(projecaoFinal);
-
-        // --- GRÁFICO DINÂMICO ---
-        const pontos = 20;
+        // --- CORREÇÃO DO GRÁFICO (PARA CIMA = LUCRO) ---
+        const pontos = 25;
         const tempTrend = [];
-        // Se o ritmo for negativo, a linha cai. Se positivo, sobe.
-        const inclinacao = (ritmoLiquido / (Math.abs(saldoRealHoje) || 500)) * 50;
+        // Se lucroNoPeriodo for POSITIVO, a linha deve SUBIR (diminuir o Y no SVG)
+        const intensidade = (lucroNoPeriodo / (Math.abs(saldoRealHoje) || 1000)) * 40;
 
         for (let i = 0; i < pontos; i++) {
           const p = i / (pontos - 1);
-          const noise = Math.sin(i * 1.5) * 4;
-          tempTrend.push({ 
-            x: i, 
-            y: 50 - (inclinacao * p) - noise 
-          });
+          const noise = Math.sin(i * 1.8) * 5;
+          // No SVG, Y=10 é o topo e Y=90 é a base. Subtrair 'intensidade' faz a linha subir.
+          const yCalculado = 60 - (intensidade * p) + noise;
+          tempTrend.push({ x: i, y: Math.max(15, Math.min(85, yCalculado)) });
         }
         setTrendData(tempTrend);
 
@@ -122,12 +116,12 @@ export default function VereditoPage() {
         <header className="flex justify-between items-start">
           <div>
             <h1 className="text-7xl font-black italic tracking-tighter leading-[0.8]">VEREDITO</h1>
-            <p className="text-zinc-800 text-[8px] font-bold tracking-[0.7em] mt-4 uppercase">Forecast Engine v4.28</p>
+            <p className="text-zinc-800 text-[8px] font-bold tracking-[0.7em] mt-4 uppercase">Polarity Fixed v4.29</p>
           </div>
           <Zap className="text-yellow-400 fill-yellow-400" size={24} />
         </header>
 
-        {/* Radar Chart (Visual de Identidade) */}
+        {/* Radar Chart */}
         <div className="bg-[#050505] rounded-[3.5rem] border border-white/5 p-12 flex flex-col items-center">
           <div className="relative w-64 h-64 mb-14">
             <svg viewBox="0 0 100 100" className="w-full h-full">
@@ -147,11 +141,11 @@ export default function VereditoPage() {
           </div>
         </div>
 
-        {/* Dashboard de Projeção */}
+        {/* Dashboard de Projeção Corrigido */}
         <div className="bg-[#050505] p-12 rounded-[3.5rem] border border-white/5 relative">
           <div className="flex justify-between items-center mb-16">
             <h4 className="text-[10px] font-black text-zinc-600 italic flex items-center gap-3 tracking-widest uppercase">
-              <TrendingUp size={14} className="text-yellow-500"/> Análise de {periodo}
+              <TrendingUp size={14} className="text-yellow-500"/> Tendência {periodo}
             </h4>
             <div className="flex bg-black p-1.5 rounded-2xl border border-white/10">
               {(["dia", "semana", "mês"] as const).map(t => (
@@ -169,17 +163,18 @@ export default function VereditoPage() {
           <div className="h-48 w-full relative mb-6">
             <svg viewBox="0 0 300 100" preserveAspectRatio="none" className="w-full h-full overflow-visible">
               <path d={getSmoothPath()} fill="none" stroke="#facc15" strokeWidth="6" strokeLinecap="round" strokeLinejoin="round" />
+              {trendData.length > 0 && <circle cx="300" cy={trendData[trendData.length-1].y} r="6" fill="#facc15" className="animate-pulse" />}
             </svg>
           </div>
 
           <div className="flex justify-between items-end border-t border-white/5 pt-8 mt-6">
             <div className="text-left">
-               <p className="text-[8px] text-zinc-800 font-black tracking-[0.6em] mb-2 uppercase tracking-widest">Ritmo Financeiro</p>
-               <p className="text-xs font-black text-yellow-500 italic tracking-widest uppercase leading-none">Cálculo em Tempo Real</p>
+               <p className="text-[8px] text-zinc-800 font-black tracking-[0.6em] mb-2 uppercase tracking-widest leading-none">Análise de Fluxo</p>
+               <p className="text-xs font-black text-yellow-500 italic tracking-widest uppercase leading-none">Calculado</p>
             </div>
             <div className="text-right">
-              <p className="text-[9px] font-black text-zinc-600 mb-2 tracking-[0.2em] uppercase tracking-widest">Próximo {periodo}</p>
-              <p className={`text-5xl font-black italic leading-none tracking-tighter ${projectedBalance < 0 ? 'text-red-500' : 'text-yellow-400'}`}>
+              <p className="text-[9px] font-black text-zinc-600 mb-2 tracking-[0.2em] uppercase tracking-widest">Saldo Projetado</p>
+              <p className={`text-5xl font-black italic leading-none tracking-tighter ${projectedBalance >= 0 ? 'text-yellow-400' : 'text-red-500'}`}>
                 {projectedBalance.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
               </p>
             </div>
