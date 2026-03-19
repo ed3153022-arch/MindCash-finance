@@ -32,72 +32,43 @@ export default function VereditoPage() {
     async function fetchSystemData() {
       try {
         setLoading(true);
-        // Importante: Resetar para null força a interface a "esquecer" o número antigo (-37k)
-        setProjectedBalance(null); 
+        setProjectedBalance(null); // Limpa para garantir a troca visual
 
         const { data: { user } } = await supabase.auth.getUser();
         if (!user) { router.push("/login"); return; }
 
-        // --- LÓGICA DE DATA PRECISA ---
-        const agora = new Date();
-        const inicioBusca = new Date();
+        // --- TESTE DE INTERFACE (DEBUG) ---
+        // Se a renderização estiver OK, os números 1, 2 ou 3 DEVEM aparecer.
+        let valorTeste = 0;
+        if (periodo === "dia") valorTeste = 1;
+        else if (periodo === "semana") valorTeste = 2;
+        else if (periodo === "mês") valorTeste = 3;
 
-        if (periodo === "dia") inicioBusca.setHours(agora.getHours() - 24);
-        else if (periodo === "semana") inicioBusca.setDate(agora.getDate() - 7);
-        else inicioBusca.setDate(agora.getDate() - 30);
-
-        // Buscamos todas as transações para o saldo atual e filtramos localmente para precisão total
-        const { data: allTxs, error } = await supabase
+        // Simulando busca de dados para manter o comportamento real
+        const { data: allTxs } = await supabase
           .from("transactions")
-          .select("amount, type, created_at")
+          .select("amount, type")
           .eq("user_id", user.id);
 
-        if (error || !allTxs) throw error;
         if (!isMounted) return;
 
-        // 1. Saldo Real de HOJE (Soma de tudo o que já aconteceu)
-        const saldoAtualReal = allTxs.reduce((acc, t) => 
-          t.type === 'income' ? acc + Number(t.amount) : acc - Number(t.amount), 0);
-
-        // 2. Filtro do Período (Apenas o que aconteceu no range do botão)
-        const timestampInicio = inicioBusca.getTime();
-        const txsNoPeriodo = allTxs.filter(t => new Date(t.created_at).getTime() >= timestampInicio);
-
-        const ganhosNoPeriodo = txsNoPeriodo
-          .filter(t => t.type === 'income')
-          .reduce((acc, t) => acc + Number(t.amount), 0);
+        // LOG PARA VOCÊ VER NO CONSOLE DO NAVEGADOR (F12)
+        console.log(`Período alterado para: ${periodo}. Valor esperado: ${valorTeste}`);
         
-        const gastosNoPeriodo = txsNoPeriodo
-          .filter(t => t.type === 'expense')
-          .reduce((acc, t) => acc + Number(t.amount), 0);
+        // Aplicando o valor de teste 1, 2 ou 3
+        setProjectedBalance(valorTeste);
 
-        // 3. CÁLCULO DA PROJEÇÃO (O "Veredito")
-        // O lucro/prejuízo gerado APENAS no tempo selecionado
-        const performance = ganhosNoPeriodo - gastosNoPeriodo;
-        
-        // A projeção é: O que eu tenho HOJE + O que eu costumo fazer nesse período
-        const resultadoProjetado = saldoAtualReal + performance;
-
-        setProjectedBalance(resultadoProjetado);
-
-        // 4. Gráfico Dinâmico (Sincronizado com a performance)
-        const pontos = periodo === "dia" ? 12 : periodo === "semana" ? 20 : 30;
+        // Gráfico variando conforme o teste para conferência visual
+        const pontos = 20;
         const tempTrend = [];
-        const fatorEscala = Math.abs(saldoAtualReal) || 1000;
-        const forcaTendencia = (performance / fatorEscala) * 50;
-
         for (let i = 0; i < pontos; i++) {
-          const prog = i / (pontos - 1);
-          const noise = Math.sin(i * 0.8) * 10 + (Math.random() * 5);
-          tempTrend.push({ 
-            x: i, 
-            y: Math.max(10, Math.min(90, 50 - (forcaTendencia * prog) - noise)) 
-          });
+          const noise = Math.sin(i * 0.5 + valorTeste) * 10;
+          tempTrend.push({ x: i, y: 50 - (valorTeste * 5) - noise });
         }
         setTrendData(tempTrend);
 
       } catch (e) {
-        console.error("Erro no cálculo:", e);
+        console.error("Erro no Debug:", e);
       } finally {
         if (isMounted) setLoading(false);
       }
@@ -105,7 +76,7 @@ export default function VereditoPage() {
 
     fetchSystemData();
     return () => { isMounted = false; };
-  }, [periodo, router]); // 'periodo' aqui garante o recálculo ao clicar
+  }, [periodo, router]);
 
   const getSmoothPath = () => {
     if (trendData.length < 2) return "";
@@ -126,36 +97,16 @@ export default function VereditoPage() {
         <header className="flex justify-between items-start">
           <div>
             <h1 className="text-7xl font-black italic tracking-tighter leading-[0.8]">VEREDITO</h1>
-            <p className="text-zinc-800 text-[8px] font-bold tracking-[0.7em] mt-4 uppercase">Ultra Precision v4.22</p>
+            <p className="text-zinc-800 text-[8px] font-bold tracking-[0.7em] mt-4 uppercase">DEBUG MODE v1.0</p>
           </div>
           <Zap className="text-yellow-400 fill-yellow-400" size={24} />
         </header>
-
-        {/* Radar Chart */}
-        <div className="bg-[#050505] rounded-[3.5rem] border border-white/5 p-12 flex flex-col items-center">
-          <div className="relative w-64 h-64 mb-14">
-            <svg viewBox="0 0 100 100" className="w-full h-full">
-              {[20, 40, 60, 80, 100].map(r => ( 
-                <polygon key={r} points={getDataPoints(stats.map(s => ({...s, value: r})))} fill="none" stroke="white" strokeWidth="0.1" opacity="0.1" /> 
-              ))}
-              <polygon points={getDataPoints(stats)} fill="rgba(250, 204, 21, 0.05)" stroke="#facc15" strokeWidth="3" strokeLinejoin="round" />
-            </svg>
-          </div>
-          <div className="grid grid-cols-3 gap-y-12 gap-x-8 w-full text-center">
-            {stats.map(s => (
-              <div key={s.label}>
-                <p className="text-[8px] font-black text-zinc-700 mb-2 tracking-widest">{s.label}</p>
-                <p className="text-4xl font-black italic text-white tracking-tighter leading-none">{s.value}</p>
-              </div>
-            ))}
-          </div>
-        </div>
 
         {/* Dashboard de Projeção */}
         <div className="bg-[#050505] p-12 rounded-[3.5rem] border border-white/5 relative shadow-2xl">
           <div className="flex justify-between items-center mb-16">
             <h4 className="text-[10px] font-black text-zinc-600 italic flex items-center gap-3 tracking-widest uppercase">
-              <TrendingUp size={14} className="text-yellow-500"/> Performance {periodo}
+              <TrendingUp size={14} className="text-yellow-500"/> Teste de Alternância
             </h4>
             <div className="flex bg-black p-1.5 rounded-2xl border border-white/10">
               {(["dia", "semana", "mês"] as const).map(t => (
@@ -173,21 +124,18 @@ export default function VereditoPage() {
           <div className="h-48 w-full relative mb-6">
             <svg viewBox="0 0 300 100" preserveAspectRatio="none" className="w-full h-full overflow-visible">
               <path d={getSmoothPath()} fill="none" stroke="#facc15" strokeWidth="6" strokeLinecap="round" strokeLinejoin="round" />
-              {trendData.length > 0 && (
-                <circle cx="300" cy={trendData[trendData.length-1].y} r="6" fill="#facc15" className="animate-pulse" />
-              )}
             </svg>
           </div>
 
           <div className="flex justify-between items-end border-t border-white/5 pt-8 mt-6">
             <div className="text-left">
-               <p className="text-[8px] text-zinc-800 font-black tracking-[0.6em] mb-2 uppercase tracking-widest leading-none">Status: Sincronizado</p>
-               <p className="text-xs font-black text-yellow-500 italic tracking-widest uppercase">Cálculo Ativo</p>
+               <p className="text-[8px] text-zinc-800 font-black tracking-[0.6em] mb-2 uppercase">Modo de Diagnóstico</p>
+               <p className="text-xs font-black text-yellow-500 italic tracking-widest">VERIFICANDO RENDER...</p>
             </div>
             <div className="text-right">
-              <p className="text-[9px] font-black text-zinc-600 mb-2 tracking-[0.2em] uppercase tracking-widest">Saldo Projetado</p>
-              <p className="text-5xl font-black italic text-yellow-400 leading-none tracking-tighter">
-                {projectedBalance !== null ? projectedBalance.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' }) : "..."}
+              <p className="text-[9px] font-black text-zinc-600 mb-2 tracking-[0.2em] uppercase">Valor de Teste ({periodo})</p>
+              <p className="text-7xl font-black italic text-yellow-400 leading-none tracking-tighter">
+                {projectedBalance !== null ? projectedBalance : "..."}
               </p>
             </div>
           </div>
