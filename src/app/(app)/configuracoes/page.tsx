@@ -32,13 +32,11 @@ export default function VereditoPage() {
     async function fetchSystemData() {
       try {
         setLoading(true);
-        // RESET TOTAL: Garante que o número anterior suma da tela imediatamente
-        setProjectedBalance(0); 
+        setProjectedBalance(0);
 
         const { data: { user } } = await supabase.auth.getUser();
         if (!user) { router.push("/login"); return; }
 
-        // Busca todas as transações sem filtros de data no banco para evitar erro de timezone
         const { data: rawData, error } = await supabase
           .from("transactions")
           .select("amount, type, created_at")
@@ -47,52 +45,56 @@ export default function VereditoPage() {
         if (error || !rawData) throw error;
         if (!isMounted) return;
 
-        // --- LÓGICA MATEMÁTICA PURA ---
+        // --- MOTOR MATEMÁTICO DE TENDÊNCIA ---
         const agora = new Date().getTime();
-        const ranges = { dia: 24 * 60 * 60 * 1000, semana: 7 * 24 * 60 * 60 * 1000, mês: 30 * 24 * 60 * 60 * 1000 };
-        const limite = agora - ranges[periodo];
+        const umDia = 24 * 60 * 60 * 1000;
+        const limites = { dia: agora - umDia, semana: agora - (umDia * 7), mês: agora - (umDia * 30) };
+        const multiplicadorProjecao = { dia: 1, semana: 1, mês: 1 }; // Projeta o próximo período igual
 
-        let saldoTotalGeral = 0;
-        let lucroNoPeriodo = 0;
+        let saldoRealHoje = 0;
+        let entradasPeriodo = 0;
+        let saidasPeriodo = 0;
 
         rawData.forEach(t => {
-          const valor = Number(parseFloat(t.amount as any).toFixed(2));
-          const isEntrada = t.type === 'income';
+          const valor = Number(t.amount); //
           const dataMs = new Date(t.created_at).getTime();
+          
+          // 1. Saldo que você tem na conta AGORA
+          if (t.type === 'income') saldoRealHoje += valor;
+          else saldoRealHoje -= valor;
 
-          // Calcula Saldo Atual (Tudo)
-          if (isEntrada) saldoTotalGeral += valor;
-          else saldoTotalGeral -= valor;
-
-          // Calcula Performance (Apenas o range do botão)
-          if (dataMs >= limite) {
-            if (isEntrada) lucroNoPeriodo += valor;
-            else lucroNoPeriodo -= valor;
+          // 2. O que aconteceu no período selecionado
+          if (dataMs >= limites[periodo]) {
+            if (t.type === 'income') entradasPeriodo += valor;
+            else saidasPeriodo += valor;
           }
         });
 
-        // O VEREDITO: Saldo que você tem + Tendência do que aconteceu no período
-        const calculoFinal = saldoTotalGeral + lucroNoPeriodo;
-        setProjectedBalance(calculoFinal);
+        // 3. CÁLCULO DO VEREDITO:
+        // Saldo Atual + (Ritmo de Ganhos - Ritmo de Gastos)
+        const ritmoLiquido = entradasPeriodo - saidasPeriodo;
+        const projecaoFinal = saldoRealHoje + ritmoLiquido;
 
-        // --- RESTAURAÇÃO DO GRÁFICO ---
-        const pontos = periodo === "dia" ? 15 : 30;
-        const novoGrafico = [];
-        const baseLine = 50;
-        const variacaoTendencia = (lucroNoPeriodo / (Math.abs(saldoTotalGeral) || 1)) * 30;
+        setProjectedBalance(projecaoFinal);
+
+        // --- GRÁFICO DINÂMICO ---
+        const pontos = 20;
+        const tempTrend = [];
+        // Se o ritmo for negativo, a linha cai. Se positivo, sobe.
+        const inclinacao = (ritmoLiquido / (Math.abs(saldoRealHoje) || 500)) * 50;
 
         for (let i = 0; i < pontos; i++) {
-          const prog = i / (pontos - 1);
-          const oscilacao = Math.sin(i * 1.2) * 8;
-          novoGrafico.push({ 
+          const p = i / (pontos - 1);
+          const noise = Math.sin(i * 1.5) * 4;
+          tempTrend.push({ 
             x: i, 
-            y: baseLine - (variacaoTendencia * prog) - oscilacao 
+            y: 50 - (inclinacao * p) - noise 
           });
         }
-        setTrendData(novoGrafico);
+        setTrendData(tempTrend);
 
       } catch (e) {
-        console.error("Erro MindCash:", e);
+        console.error("Erro Crítico:", e);
       } finally {
         if (isMounted) setLoading(false);
       }
@@ -120,12 +122,12 @@ export default function VereditoPage() {
         <header className="flex justify-between items-start">
           <div>
             <h1 className="text-7xl font-black italic tracking-tighter leading-[0.8]">VEREDITO</h1>
-            <p className="text-zinc-800 text-[8px] font-bold tracking-[0.7em] mt-4 uppercase">Dynamic Sync v4.27</p>
+            <p className="text-zinc-800 text-[8px] font-bold tracking-[0.7em] mt-4 uppercase">Forecast Engine v4.28</p>
           </div>
           <Zap className="text-yellow-400 fill-yellow-400" size={24} />
         </header>
 
-        {/* Radar Chart (Visual Fixo) */}
+        {/* Radar Chart (Visual de Identidade) */}
         <div className="bg-[#050505] rounded-[3.5rem] border border-white/5 p-12 flex flex-col items-center">
           <div className="relative w-64 h-64 mb-14">
             <svg viewBox="0 0 100 100" className="w-full h-full">
@@ -145,18 +147,18 @@ export default function VereditoPage() {
           </div>
         </div>
 
-        {/* Dashboard de Tendência */}
-        <div className="bg-[#050505] p-12 rounded-[3.5rem] border border-white/5 relative shadow-2xl">
+        {/* Dashboard de Projeção */}
+        <div className="bg-[#050505] p-12 rounded-[3.5rem] border border-white/5 relative">
           <div className="flex justify-between items-center mb-16">
             <h4 className="text-[10px] font-black text-zinc-600 italic flex items-center gap-3 tracking-widest uppercase">
-              <TrendingUp size={14} className="text-yellow-500"/> Tendência {periodo}
+              <TrendingUp size={14} className="text-yellow-500"/> Análise de {periodo}
             </h4>
             <div className="flex bg-black p-1.5 rounded-2xl border border-white/10">
               {(["dia", "semana", "mês"] as const).map(t => (
                 <button 
                   key={t} 
                   onClick={() => setPeriodo(t)} 
-                  className={`px-6 py-2.5 rounded-xl text-[9px] font-black transition-all ${periodo === t ? 'bg-yellow-400 text-black scale-105 shadow-xl' : 'text-zinc-700 hover:text-white'}`}
+                  className={`px-6 py-2.5 rounded-xl text-[9px] font-black transition-all ${periodo === t ? 'bg-yellow-400 text-black scale-105' : 'text-zinc-700 hover:text-white'}`}
                 >
                   {t}
                 </button>
@@ -167,18 +169,17 @@ export default function VereditoPage() {
           <div className="h-48 w-full relative mb-6">
             <svg viewBox="0 0 300 100" preserveAspectRatio="none" className="w-full h-full overflow-visible">
               <path d={getSmoothPath()} fill="none" stroke="#facc15" strokeWidth="6" strokeLinecap="round" strokeLinejoin="round" />
-              {trendData.length > 0 && <circle cx="300" cy={trendData[trendData.length-1].y} r="6" fill="#facc15" className="animate-pulse" />}
             </svg>
           </div>
 
           <div className="flex justify-between items-end border-t border-white/5 pt-8 mt-6">
             <div className="text-left">
-               <p className="text-[8px] text-zinc-800 font-black tracking-[0.6em] mb-2 uppercase">Status Online</p>
-               <p className="text-xs font-black text-yellow-500 italic tracking-widest uppercase leading-none">Sistema Ativo</p>
+               <p className="text-[8px] text-zinc-800 font-black tracking-[0.6em] mb-2 uppercase tracking-widest">Ritmo Financeiro</p>
+               <p className="text-xs font-black text-yellow-500 italic tracking-widest uppercase leading-none">Cálculo em Tempo Real</p>
             </div>
             <div className="text-right">
-              <p className="text-[9px] font-black text-zinc-600 mb-2 tracking-[0.2em] uppercase">Saldo Projetado ({periodo})</p>
-              <p className="text-5xl font-black italic text-yellow-400 leading-none tracking-tighter">
+              <p className="text-[9px] font-black text-zinc-600 mb-2 tracking-[0.2em] uppercase tracking-widest">Próximo {periodo}</p>
+              <p className={`text-5xl font-black italic leading-none tracking-tighter ${projectedBalance < 0 ? 'text-red-500' : 'text-yellow-400'}`}>
                 {projectedBalance.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
               </p>
             </div>
