@@ -9,7 +9,7 @@ export default function VereditoPage() {
   const router = useRouter();
   const [loading, setLoading] = useState(true);
   const [periodo, setPeriodo] = useState<"dia" | "semana" | "mês">("semana");
-  const [projectedBalance, setProjectedBalance] = useState<number | null>(null);
+  const [projectedBalance, setProjectedBalance] = useState<number>(0);
   const [trendData, setTrendData] = useState<{ x: number; y: number }[]>([]);
   
   const stats = useMemo(() => [
@@ -32,64 +32,67 @@ export default function VereditoPage() {
     async function fetchSystemData() {
       try {
         setLoading(true);
-        setProjectedBalance(null); 
+        // RESET TOTAL: Garante que o número anterior suma da tela imediatamente
+        setProjectedBalance(0); 
 
         const { data: { user } } = await supabase.auth.getUser();
         if (!user) { router.push("/login"); return; }
 
-        // 1. BUSCA TOTAL: Pegamos tudo para garantir que o saldo atual seja real
-        const { data: allTxs, error } = await supabase
+        // Busca todas as transações sem filtros de data no banco para evitar erro de timezone
+        const { data: rawData, error } = await supabase
           .from("transactions")
           .select("amount, type, created_at")
           .eq("user_id", user.id);
 
-        if (error || !allTxs) throw error;
+        if (error || !rawData) throw error;
         if (!isMounted) return;
 
-        // 2. SALDO ATUAL (O que você tem na conta agora)
-        const saldoAgora = allTxs.reduce((acc, t) => 
-          t.type === 'income' ? acc + Number(t.amount) : acc - Number(t.amount), 0);
+        // --- LÓGICA MATEMÁTICA PURA ---
+        const agora = new Date().getTime();
+        const ranges = { dia: 24 * 60 * 60 * 1000, semana: 7 * 24 * 60 * 60 * 1000, mês: 30 * 24 * 60 * 60 * 1000 };
+        const limite = agora - ranges[periodo];
 
-        // 3. FILTRO MATEMÁTICO RÍGIDO (Isolando o período)
-        const agoraMs = new Date().getTime();
-        const umDiaMs = 24 * 60 * 60 * 1000;
-        let limiteMs = 0;
+        let saldoTotalGeral = 0;
+        let lucroNoPeriodo = 0;
 
-        if (periodo === "dia") limiteMs = agoraMs - umDiaMs;
-        else if (periodo === "semana") limiteMs = agoraMs - (umDiaMs * 7);
-        else limiteMs = agoraMs - (umDiaMs * 30);
+        rawData.forEach(t => {
+          const valor = Number(parseFloat(t.amount as any).toFixed(2));
+          const isEntrada = t.type === 'income';
+          const dataMs = new Date(t.created_at).getTime();
 
-        // Filtramos apenas transações DENTRO do tempo do botão
-        const txsPeriodo = allTxs.filter(t => new Date(t.created_at).getTime() >= limiteMs);
+          // Calcula Saldo Atual (Tudo)
+          if (isEntrada) saldoTotalGeral += valor;
+          else saldoTotalGeral -= valor;
 
-        const ganhoPeriodo = txsPeriodo.filter(t => t.type === 'income').reduce((acc, t) => acc + Number(t.amount), 0);
-        const gastoPeriodo = txsPeriodo.filter(t => t.type === 'expense').reduce((acc, t) => acc + Number(t.amount), 0);
+          // Calcula Performance (Apenas o range do botão)
+          if (dataMs >= limite) {
+            if (isEntrada) lucroNoPeriodo += valor;
+            else lucroNoPeriodo -= valor;
+          }
+        });
 
-        // 4. A FÓRMULA DE PROJEÇÃO (Performance Líquida)
-        const performanceLiquida = ganhoPeriodo - gastoPeriodo;
-        
-        // FORÇA BRUTA: Saldo Atual + Apenas o que mudou no período selecionado
-        // Isso garante que o valor MUDE entre Dia, Semana e Mês
-        const calculoFinal = saldoAgora + performanceLiquida;
-
+        // O VEREDITO: Saldo que você tem + Tendência do que aconteceu no período
+        const calculoFinal = saldoTotalGeral + lucroNoPeriodo;
         setProjectedBalance(calculoFinal);
 
-        // 5. GRÁFICO DE TENDÊNCIA REAL
-        const pontos = periodo === "dia" ? 12 : 24;
-        const tempTrend = [];
-        // A "força" da linha depende da performance: se gastou muito, ela cai drasticamente
-        const fatorMovimento = (performanceLiquida / (Math.abs(saldoAgora) || 1000)) * 60;
+        // --- RESTAURAÇÃO DO GRÁFICO ---
+        const pontos = periodo === "dia" ? 15 : 30;
+        const novoGrafico = [];
+        const baseLine = 50;
+        const variacaoTendencia = (lucroNoPeriodo / (Math.abs(saldoTotalGeral) || 1)) * 30;
 
         for (let i = 0; i < pontos; i++) {
-          const p = i / (pontos - 1);
-          const yBase = 50 - (fatorMovimento * p);
-          const variacaoX = Math.sin(i * 1.5) * 5; 
-          tempTrend.push({ x: i, y: Math.max(10, Math.min(90, yBase + variacaoX)) });
+          const prog = i / (pontos - 1);
+          const oscilacao = Math.sin(i * 1.2) * 8;
+          novoGrafico.push({ 
+            x: i, 
+            y: baseLine - (variacaoTendencia * prog) - oscilacao 
+          });
         }
-        setTrendData(tempTrend);
+        setTrendData(novoGrafico);
 
       } catch (e) {
-        console.error("Erro Crítico:", e);
+        console.error("Erro MindCash:", e);
       } finally {
         if (isMounted) setLoading(false);
       }
@@ -117,13 +120,13 @@ export default function VereditoPage() {
         <header className="flex justify-between items-start">
           <div>
             <h1 className="text-7xl font-black italic tracking-tighter leading-[0.8]">VEREDITO</h1>
-            <p className="text-zinc-800 text-[8px] font-bold tracking-[0.7em] mt-4 uppercase tracking-[0.8em]">High Precision Prediction</p>
+            <p className="text-zinc-800 text-[8px] font-bold tracking-[0.7em] mt-4 uppercase">Dynamic Sync v4.27</p>
           </div>
           <Zap className="text-yellow-400 fill-yellow-400" size={24} />
         </header>
 
-        {/* Radar Chart */}
-        <div className="bg-[#050505] rounded-[3.5rem] border border-white/5 p-12 flex flex-col items-center shadow-inner">
+        {/* Radar Chart (Visual Fixo) */}
+        <div className="bg-[#050505] rounded-[3.5rem] border border-white/5 p-12 flex flex-col items-center">
           <div className="relative w-64 h-64 mb-14">
             <svg viewBox="0 0 100 100" className="w-full h-full">
               {[20, 40, 60, 80, 100].map(r => ( 
@@ -142,8 +145,8 @@ export default function VereditoPage() {
           </div>
         </div>
 
-        {/* Dashboard de Tendência Corrigido */}
-        <div className="bg-[#050505] p-12 rounded-[3.5rem] border border-white/5 relative">
+        {/* Dashboard de Tendência */}
+        <div className="bg-[#050505] p-12 rounded-[3.5rem] border border-white/5 relative shadow-2xl">
           <div className="flex justify-between items-center mb-16">
             <h4 className="text-[10px] font-black text-zinc-600 italic flex items-center gap-3 tracking-widest uppercase">
               <TrendingUp size={14} className="text-yellow-500"/> Tendência {periodo}
@@ -170,13 +173,13 @@ export default function VereditoPage() {
 
           <div className="flex justify-between items-end border-t border-white/5 pt-8 mt-6">
             <div className="text-left">
-               <p className="text-[8px] text-zinc-800 font-black tracking-[0.6em] mb-2 uppercase">Status de Análise</p>
-               <p className="text-xs font-black text-yellow-500 italic tracking-widest uppercase leading-none">Sistema Operacional</p>
+               <p className="text-[8px] text-zinc-800 font-black tracking-[0.6em] mb-2 uppercase">Status Online</p>
+               <p className="text-xs font-black text-yellow-500 italic tracking-widest uppercase leading-none">Sistema Ativo</p>
             </div>
             <div className="text-right">
               <p className="text-[9px] font-black text-zinc-600 mb-2 tracking-[0.2em] uppercase">Saldo Projetado ({periodo})</p>
               <p className="text-5xl font-black italic text-yellow-400 leading-none tracking-tighter">
-                {projectedBalance !== null ? projectedBalance.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' }) : "---"}
+                {projectedBalance.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
               </p>
             </div>
           </div>
