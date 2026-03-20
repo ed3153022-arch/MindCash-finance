@@ -44,51 +44,61 @@ export default function VereditoPage() {
         if (error || !rawData) throw error;
         if (!isMounted) return;
 
-        // --- CORREÇÃO DE POLARIDADE (ENTRADA VS SAÍDA) ---
+        // --- MOTOR DE PROJEÇÃO TEMPORAL ---
         const agora = new Date().getTime();
-        const umDia = 24 * 60 * 60 * 1000;
-        const limites = { dia: agora - umDia, semana: agora - (umDia * 7), mês: agora - (umDia * 30) };
+        const umDiaMs = 24 * 60 * 60 * 1000;
+        
+        // Definimos os dias para a projeção futura
+        const diasFuturos = periodo === "dia" ? 1 : periodo === "semana" ? 7 : 30;
+        
+        let saldoAtualReal = 0;
+        let ganhoDiarioMedio = 0;
+        let gastoDiarioMedio = 0;
 
-        let saldoRealHoje = 0;
-        let lucroNoPeriodo = 0;
+        // Calculamos o saldo total e o ritmo dos últimos 30 dias para ter uma média estável
+        const limiteMediaMs = agora - (30 * umDiaMs);
 
         rawData.forEach(t => {
-          const valor = Math.abs(Number(t.amount)); // Garante valor positivo para somar/subtrair
-          const isEntrada = String(t.type).trim().toLowerCase() === 'income'; // Checagem rigorosa
+          const valor = Math.abs(Number(t.amount));
+          const isEntrada = t.type.toLowerCase().trim() === 'income';
           const dataMs = new Date(t.created_at).getTime();
-          
-          // 1. Cálculo do Saldo Total
-          if (isEntrada) saldoRealHoje += valor;
-          else saldoRealHoje -= valor;
 
-          // 2. Cálculo da Performance do Botão
-          if (dataMs >= limites[periodo]) {
-            if (isEntrada) lucroNoPeriodo += valor;
-            else lucroNoPeriodo -= valor;
+          // Saldo hoje
+          if (isEntrada) saldoAtualReal += valor;
+          else saldoAtualReal -= valor;
+
+          // Ritmo diário (baseado nos últimos 30 dias para precisão)
+          if (dataMs >= limiteMediaMs) {
+            if (isEntrada) ganhoDiarioMedio += (valor / 30);
+            else gastoDiarioMedio += (valor / 30);
           }
         });
 
-        // Veredito: Onde você vai estar se esse lucro/prejuízo se repetir no próximo período
-        const vereditoFinal = saldoRealHoje + lucroNoPeriodo;
-        setProjectedBalance(vereditoFinal);
+        // CÁLCULO FINAL: Saldo Atual + (Ritmo Líquido Diário * Dias que faltam)
+        const ritmoLiquidoDiario = ganhoDiarioMedio - gastoDiarioMedio;
+        const estimativaFinal = saldoAtualReal + (ritmoLiquidoDiario * diasFuturos);
 
-        // --- CORREÇÃO DO GRÁFICO (PARA CIMA = LUCRO) ---
-        const pontos = 25;
+        setProjectedBalance(estimativaFinal);
+
+        // --- GRÁFICO TÉCNICO DE ALTA PRECISÃO ---
+        const pontos = 40; // Mais pontos = linha mais detalhada
         const tempTrend = [];
-        // Se lucroNoPeriodo for POSITIVO, a linha deve SUBIR (diminuir o Y no SVG)
-        const intensidade = (lucroNoPeriodo / (Math.abs(saldoRealHoje) || 1000)) * 40;
+        
+        // A inclinação reflete se você está acumulando ou perdendo dinheiro no tempo
+        const inclinacao = (ritmoLiquidoDiario * diasFuturos / (Math.abs(saldoAtualReal) || 1000)) * 60;
 
         for (let i = 0; i < pontos; i++) {
           const p = i / (pontos - 1);
-          const noise = Math.sin(i * 1.8) * 5;
-          // No SVG, Y=10 é o topo e Y=90 é a base. Subtrair 'intensidade' faz a linha subir.
-          const yCalculado = 60 - (intensidade * p) + noise;
-          tempTrend.push({ x: i, y: Math.max(15, Math.min(85, yCalculado)) });
+          // Complexidade visual: soma de ondas para parecer um gráfico de trading real
+          const noise = Math.sin(i * 0.9) * 5 + Math.cos(i * 0.4) * 3 + (Math.random() * 2);
+          const yPos = 60 - (inclinacao * p) - noise;
+          
+          tempTrend.push({ x: i, y: Math.max(15, Math.min(85, yPos)) });
         }
         setTrendData(tempTrend);
 
       } catch (e) {
-        console.error("Erro Crítico:", e);
+        console.error("Erro na Projeção:", e);
       } finally {
         if (isMounted) setLoading(false);
       }
@@ -116,43 +126,23 @@ export default function VereditoPage() {
         <header className="flex justify-between items-start">
           <div>
             <h1 className="text-7xl font-black italic tracking-tighter leading-[0.8]">VEREDITO</h1>
-            <p className="text-zinc-800 text-[8px] font-bold tracking-[0.7em] mt-4 uppercase">Polarity Fixed v4.29</p>
+            <p className="text-zinc-800 text-[8px] font-bold tracking-[0.7em] mt-4 uppercase">Continuity Forecast v4.31</p>
           </div>
           <Zap className="text-yellow-400 fill-yellow-400" size={24} />
         </header>
 
-        {/* Radar Chart */}
-        <div className="bg-[#050505] rounded-[3.5rem] border border-white/5 p-12 flex flex-col items-center">
-          <div className="relative w-64 h-64 mb-14">
-            <svg viewBox="0 0 100 100" className="w-full h-full">
-              {[20, 40, 60, 80, 100].map(r => ( 
-                <polygon key={r} points={getDataPoints(stats.map(s => ({...s, value: r})))} fill="none" stroke="white" strokeWidth="0.1" opacity="0.1" /> 
-              ))}
-              <polygon points={getDataPoints(stats)} fill="rgba(250, 204, 21, 0.05)" stroke="#facc15" strokeWidth="3" strokeLinejoin="round" />
-            </svg>
-          </div>
-          <div className="grid grid-cols-3 gap-y-12 gap-x-8 w-full text-center">
-            {stats.map(s => (
-              <div key={s.label}>
-                <p className="text-[8px] font-black text-zinc-700 mb-2 tracking-widest">{s.label}</p>
-                <p className="text-4xl font-black italic text-white tracking-tighter leading-none">{s.value}</p>
-              </div>
-            ))}
-          </div>
-        </div>
-
-        {/* Dashboard de Projeção Corrigido */}
-        <div className="bg-[#050505] p-12 rounded-[3.5rem] border border-white/5 relative">
+        {/* Dashboard de Projeção Temporal */}
+        <div className="bg-[#050505] p-12 rounded-[3.5rem] border border-white/5 relative shadow-2xl">
           <div className="flex justify-between items-center mb-16">
             <h4 className="text-[10px] font-black text-zinc-600 italic flex items-center gap-3 tracking-widest uppercase">
-              <TrendingUp size={14} className="text-yellow-500"/> Tendência {periodo}
+              <TrendingUp size={14} className="text-yellow-500"/> Projeção para {periodo}
             </h4>
             <div className="flex bg-black p-1.5 rounded-2xl border border-white/10">
               {(["dia", "semana", "mês"] as const).map(t => (
                 <button 
                   key={t} 
                   onClick={() => setPeriodo(t)} 
-                  className={`px-6 py-2.5 rounded-xl text-[9px] font-black transition-all ${periodo === t ? 'bg-yellow-400 text-black scale-105' : 'text-zinc-700 hover:text-white'}`}
+                  className={`px-6 py-2.5 rounded-xl text-[9px] font-black transition-all ${periodo === t ? 'bg-yellow-400 text-black scale-105 shadow-xl' : 'text-zinc-700 hover:text-white'}`}
                 >
                   {t}
                 </button>
@@ -162,18 +152,18 @@ export default function VereditoPage() {
           
           <div className="h-48 w-full relative mb-6">
             <svg viewBox="0 0 300 100" preserveAspectRatio="none" className="w-full h-full overflow-visible">
-              <path d={getSmoothPath()} fill="none" stroke="#facc15" strokeWidth="6" strokeLinecap="round" strokeLinejoin="round" />
+              <path d={getSmoothPath()} fill="none" stroke="#facc15" strokeWidth="7" strokeLinecap="round" strokeLinejoin="round" />
               {trendData.length > 0 && <circle cx="300" cy={trendData[trendData.length-1].y} r="6" fill="#facc15" className="animate-pulse" />}
             </svg>
           </div>
 
           <div className="flex justify-between items-end border-t border-white/5 pt-8 mt-6">
             <div className="text-left">
-               <p className="text-[8px] text-zinc-800 font-black tracking-[0.6em] mb-2 uppercase tracking-widest leading-none">Análise de Fluxo</p>
-               <p className="text-xs font-black text-yellow-500 italic tracking-widest uppercase leading-none">Calculado</p>
+               <p className="text-[8px] text-zinc-800 font-black tracking-[0.6em] mb-2 uppercase leading-none">Veredito Final</p>
+               <p className="text-xs font-black text-yellow-500 italic tracking-widest uppercase leading-none">Análise de Ritmo</p>
             </div>
             <div className="text-right">
-              <p className="text-[9px] font-black text-zinc-600 mb-2 tracking-[0.2em] uppercase tracking-widest">Saldo Projetado</p>
+              <p className="text-[9px] font-black text-zinc-600 mb-2 tracking-[0.2em] uppercase tracking-widest">Saldo Final Estimado</p>
               <p className={`text-5xl font-black italic leading-none tracking-tighter ${projectedBalance >= 0 ? 'text-yellow-400' : 'text-red-500'}`}>
                 {projectedBalance.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
               </p>
