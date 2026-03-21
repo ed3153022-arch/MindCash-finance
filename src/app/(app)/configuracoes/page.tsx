@@ -38,25 +38,19 @@ export default function VereditoPage() {
           dRef.setDate(agora.getDate() - i);
           const volume = rawData
             .filter(t => new Date(t.created_at).toDateString() === dRef.toDateString())
-            .reduce((acc, t) => {
-                // Ajuste para refletir o impacto real: saídas puxam a onda para baixo
-                const valor = Math.abs(Number(t.amount));
-                return t.type === 'withdrawal' ? acc - valor : acc + valor;
-            }, 0);
+            .reduce((acc, t) => acc + Math.abs(Number(t.amount)), 0);
           volumesHistoricos.push(volume);
         }
 
-        // AJUSTE 1: pontosPorDia agora é 8 fixo para o mês ir até o fim e ter a mesma lógica
-        const pontosPorDia = 8; 
+        const pontosPorDia = periodo === "mês" ? 4 : 8; 
         const totalPontos = numDiasProjecao * pontosPorDia;
         const tempPoints = [];
 
         for (let i = 0; i <= totalPontos; i++) {
-          // AJUSTE 2: Mapeamento para ler o histórico corretamente na projeção
-          const diaSimulado = Math.floor(i / pontosPorDia) % 30;
-          const volBase = volumesHistoricos[29 - diaSimulado] || 0;
+          const diaSimulado = Math.floor(i / pontosPorDia) % volumesHistoricos.length;
+          const volBase = volumesHistoricos[diaSimulado] || 100;
           
-          const amplitude = Math.min(Math.max(Math.abs(volBase) / 60, 15), 55);
+          const amplitude = Math.min(Math.max(volBase / 70, 15), 55);
           const wave = Math.sin(i * 0.9) * amplitude + Math.cos(i * 0.4) * (amplitude / 1.2);
           
           tempPoints.push({ 
@@ -101,11 +95,13 @@ export default function VereditoPage() {
     const intervalLabel = periodo === "mês" ? 5 : 1;
     const lines = [];
 
+    // Desenha uma linha tracejada para CADA dia individual
     for (let i = 0; i <= numDias; i++) {
       const x = (300 / numDias) * i;
       lines.push(
         <g key={i}>
           <line x1={x} y1="0" x2={x} y2="130" stroke="#FFFFFF" strokeWidth="0.4" strokeDasharray="3 3" opacity="0.1" />
+          {/* Exibe o número (+D) apenas nos intervalos corretos */}
           {(i % intervalLabel === 0) && (
             <text x={x} y="150" fontSize="6" fill="#FFFFFF" fontWeight="900" textAnchor="middle" opacity="0.4">+{i}D</text>
           )}
@@ -132,7 +128,7 @@ export default function VereditoPage() {
           <div className="flex justify-between items-center mb-16">
             <h4 className="text-[9px] font-black text-zinc-600 tracking-[0.3em] flex items-center gap-2">
               <TrendingUp size={12} className="text-yellow-500"/> 
-              TENDÊNCIA DO PRÓXIMO {periodo === "dia" ? "DIA" : periodo === "semana" ? "SEMANA" : "MÊS"}
+              TENDÊNCIA DA PRÓXIMA {periodo === "dia" ? "DIA" : periodo === "semana" ? "SEMANA" : "MÊS"}
             </h4>
             <div className="flex bg-black p-1 rounded-xl border border-white/10">
               {["dia", "semana", "mês"].map((t: any) => (
