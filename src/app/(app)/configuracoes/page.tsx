@@ -42,7 +42,8 @@ export default function VereditoPage() {
           volumesHistoricos.push(volume);
         }
 
-        const pontosPorDia = periodo === "mês" ? 4 : 8; 
+        // AJUSTE: Aumentada a resolução do mês para detectar saídas altas
+        const pontosPorDia = 8; 
         const totalPontos = numDiasProjecao * pontosPorDia;
         const tempPoints = [];
 
@@ -61,12 +62,16 @@ export default function VereditoPage() {
         setTrendData(tempPoints);
 
         const ultimoPontoY = tempPoints[tempPoints.length - 1].y;
+        
+        // AJUSTE: Texto da projeção agora indica o que ocorrerá no próximo período
+        const labelPeriodo = periodo === "dia" ? "PRÓXIMO DIA" : periodo === "semana" ? "PRÓXIMA SEMANA" : "PRÓXIMO MÊS";
+        
         if (ultimoPontoY < 45) {
-          setStatusFeedback({ label: `PROJEÇÃO: ENTRADAS ELEVADAS (+${numDiasProjecao}D)`, color: "text-green-400", icon: <CheckCircle2 className="text-green-400" size={16}/> });
+          setStatusFeedback({ label: `PROJEÇÃO: ENTRADAS ELEVADAS NO ${labelPeriodo}`, color: "text-green-400", icon: <CheckCircle2 className="text-green-400" size={16}/> });
         } else if (ultimoPontoY > 85) {
-          setStatusFeedback({ label: `PROJEÇÃO: SAÍDAS CRÍTICAS (+${numDiasProjecao}D)`, color: "text-red-500", icon: <AlertCircle className="text-red-500" size={16}/> });
+          setStatusFeedback({ label: `PROJEÇÃO: SAÍDAS CRÍTICAS NO ${labelPeriodo}`, color: "text-red-500", icon: <AlertCircle className="text-red-500" size={16}/> });
         } else {
-          setStatusFeedback({ label: `PROJEÇÃO: FLUXO MODERADO (+${numDiasProjecao}D)`, color: "text-yellow-400", icon: <TrendingUp className="text-yellow-400" size={16}/> });
+          setStatusFeedback({ label: `PROJEÇÃO: FLUXO MODERADO NO ${labelPeriodo}`, color: "text-yellow-400", icon: <TrendingUp className="text-yellow-400" size={16}/> });
         }
 
       } catch (e) { console.error(e); } finally { if (isMounted) setLoading(false); }
@@ -95,13 +100,11 @@ export default function VereditoPage() {
     const intervalLabel = periodo === "mês" ? 5 : 1;
     const lines = [];
 
-    // Desenha uma linha tracejada para CADA dia individual
     for (let i = 0; i <= numDias; i++) {
       const x = (300 / numDias) * i;
       lines.push(
         <g key={i}>
           <line x1={x} y1="0" x2={x} y2="130" stroke="#FFFFFF" strokeWidth="0.4" strokeDasharray="3 3" opacity="0.1" />
-          {/* Exibe o número (+D) apenas nos intervalos corretos */}
           {(i % intervalLabel === 0) && (
             <text x={x} y="150" fontSize="6" fill="#FFFFFF" fontWeight="900" textAnchor="middle" opacity="0.4">+{i}D</text>
           )}
