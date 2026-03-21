@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useEffect, useState, useMemo } from "react";
+import React, { useEffect, useState } from "react";
 import { supabase } from "@/lib/supabase";
 import { TrendingUp, Zap, CheckCircle2, AlertCircle, Info } from "lucide-react";
 import { useRouter } from "next/navigation";
@@ -10,7 +10,7 @@ export default function VereditoPage() {
   const [loading, setLoading] = useState(true);
   const [periodo, setPeriodo] = useState<"dia" | "semana" | "mês">("semana");
   const [trendData, setTrendData] = useState<{ x: number; y: number }[]>([]);
-  const [statusFeedback, setStatusFeedback] = useState({ label: "Analisando Projeção...", color: "text-zinc-500", icon: <Info size={16}/> });
+  const [statusFeedback, setStatusFeedback] = useState({ label: "Analisando...", color: "text-zinc-500", icon: <Info size={16}/> });
 
   useEffect(() => {
     let isMounted = true;
@@ -29,50 +29,50 @@ export default function VereditoPage() {
         if (error || !rawData) throw error;
         if (!isMounted) return;
 
+        // Define o número de dias e pontos fixos para garantir que o gráfico vá até o fim
         const numDiasProjecao = periodo === "dia" ? 1 : periodo === "semana" ? 7 : 30;
+        const totalPontos = 150; // Aumentado para suavidade total
         const agora = new Date();
         const volumesHistoricos: number[] = [];
 
+        // Pega os últimos 30 dias de dados reais
         for (let i = 0; i < 30; i++) {
           const dRef = new Date();
           dRef.setDate(agora.getDate() - i);
           const volume = rawData
             .filter(t => new Date(t.created_at).toDateString() === dRef.toDateString())
-            .reduce((acc, t) => acc + Math.abs(Number(t.amount)), 0);
+            .reduce((acc, t) => acc + (t.type === 'withdrawal' ? -Math.abs(Number(t.amount)) : Math.abs(Number(t.amount))), 0);
           volumesHistoricos.push(volume);
         }
 
-        // AJUSTE: Normalização dos pontos para o gráfico sempre ir até o final (300px)
-        const pontosPorDia = 8; 
-        const totalPontos = numDiasProjecao * pontosPorDia;
         const tempPoints = [];
-
         for (let i = 0; i <= totalPontos; i++) {
-          // Garante que o índice do dia circule corretamente pelos dados históricos
-          const diaSimulado = Math.floor(i / pontosPorDia) % volumesHistoricos.length;
-          const volBase = volumesHistoricos[diaSimulado] || 100;
+          // Mapeia o ponto atual (0 a 150) proporcionalmente ao período selecionado (1, 7 ou 30 dias)
+          const progresso = i / totalPontos;
+          const diaRelativo = Math.floor(progresso * (numDiasProjecao - 1));
+          const volBase = volumesHistoricos[diaRelativo % 30] || 0;
           
-          const amplitude = Math.min(Math.max(volBase / 70, 15), 55);
-          const wave = Math.sin(i * 0.9) * amplitude + Math.cos(i * 0.4) * (amplitude / 1.2);
+          // Lógica de onda que reage ao volume real
+          const amplitude = Math.min(Math.max(Math.abs(volBase) / 50, 10), 50);
+          const wave = Math.sin(i * 0.5) * amplitude + (volBase / 100);
           
           tempPoints.push({ 
-            x: (i / totalPontos) * 300, // Ajuste para ocupar sempre os 300px de largura
-            y: Math.max(8, Math.min(122, 65 - wave)) 
+            x: progresso * 300, // Força o preenchimento de 0 a 300px exatos
+            y: Math.max(10, Math.min(120, 65 - wave)) 
           });
         }
         setTrendData(tempPoints);
 
         const ultimoPontoY = tempPoints[tempPoints.length - 1].y;
-        
-        // Texto dinâmico para a projeção do mês
-        const labelTempo = periodo === "dia" ? "PRÓXIMO DIA" : periodo === "semana" ? "PRÓXIMA SEMANA" : "PRÓXIMO MÊS";
+        const labelTempo = periodo === "dia" ? "NO PRÓXIMO DIA" : periodo === "semana" ? "NA PRÓXIMA SEMANA" : "NO PRÓXIMO MÊS";
 
+        // Projeção baseada na tendência final do gráfico
         if (ultimoPontoY < 45) {
-          setStatusFeedback({ label: `PROJEÇÃO: ENTRADAS ELEVADAS NO ${labelTempo}`, color: "text-green-400", icon: <CheckCircle2 className="text-green-400" size={16}/> });
+          setStatusFeedback({ label: `PROJEÇÃO: ENTRADAS ELEVADAS ${labelTempo}`, color: "text-green-400", icon: <CheckCircle2 className="text-green-400" size={16}/> });
         } else if (ultimoPontoY > 85) {
-          setStatusFeedback({ label: `PROJEÇÃO: SAÍDAS CRÍTICAS NO ${labelTempo}`, color: "text-red-500", icon: <AlertCircle className="text-red-500" size={16}/> });
+          setStatusFeedback({ label: `PROJEÇÃO: SAÍDAS CRÍTICAS ${labelTempo}`, color: "text-red-500", icon: <AlertCircle className="text-red-500" size={16}/> });
         } else {
-          setStatusFeedback({ label: `PROJEÇÃO: FLUXO MODERADO NO ${labelTempo}`, color: "text-yellow-400", icon: <TrendingUp className="text-yellow-400" size={16}/> });
+          setStatusFeedback({ label: `PROJEÇÃO: FLUXO MODERADO ${labelTempo}`, color: "text-yellow-400", icon: <TrendingUp className="text-yellow-400" size={16}/> });
         }
 
       } catch (e) { console.error(e); } finally { if (isMounted) setLoading(false); }
@@ -92,7 +92,7 @@ export default function VereditoPage() {
       const my = (curr.y + next.y) / 2;
       d += ` Q ${curr.x},${curr.y} ${mx},${my}`;
     }
-    d += ` L ${trendData[trendData.length - 1].x},${trendData[trendData.length - 1].y}`;
+    d += ` L 300,${trendData[trendData.length - 1].y}`; // Força o final da linha no pixel 300
     return d;
   };
 
@@ -102,7 +102,7 @@ export default function VereditoPage() {
     const lines = [];
 
     for (let i = 0; i <= numDias; i++) {
-      const x = (300 / numDias) * i;
+      const x = (i / numDias) * 300; // Grid também normalizado para 300px
       lines.push(
         <g key={i}>
           <line x1={x} y1="0" x2={x} y2="130" stroke="#FFFFFF" strokeWidth="0.4" strokeDasharray="3 3" opacity="0.1" />
@@ -157,7 +157,7 @@ export default function VereditoPage() {
                 strokeLinecap="round" 
                 className="path-anim"
               />
-              <circle cx={trendData[trendData.length-1]?.x} cy={trendData[trendData.length-1]?.y} r="4" fill="#facc15" className="animate-pulse" />
+              <circle cx="300" cy={trendData[trendData.length-1]?.y} r="4" fill="#facc15" className="animate-pulse" />
             </svg>
           </div>
 
