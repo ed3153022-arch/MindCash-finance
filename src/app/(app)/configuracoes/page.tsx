@@ -29,7 +29,6 @@ export default function VereditoPage() {
         if (error || !rawData) throw error;
         if (!isMounted) return;
 
-        // 1. CONFIGURAÇÃO DO PERÍODO
         const numDiasProjecao = periodo === "dia" ? 1 : periodo === "semana" ? 7 : 30;
         const agora = new Date();
         const volumesHistoricos: number[] = [];
@@ -43,7 +42,6 @@ export default function VereditoPage() {
           volumesHistoricos.push(volume);
         }
 
-        // 2. GERAÇÃO DA PROJEÇÃO
         const pontosPorDia = periodo === "mês" ? 4 : 8; 
         const totalPontos = numDiasProjecao * pontosPorDia;
         const tempPoints = [];
@@ -57,33 +55,19 @@ export default function VereditoPage() {
           
           tempPoints.push({ 
             x: i * (300 / totalPontos), 
-            // AJUSTE: Limitamos o Y entre 5 e 125 para não vazar do viewBox de 130
-            y: Math.max(5, Math.min(125, 65 - wave)) 
+            // TRAVA DE SEGURANÇA: Impede o vazamento vertical
+            y: Math.max(8, Math.min(122, 65 - wave)) 
           });
         }
         setTrendData(tempPoints);
 
-        // 3. LÓGICA DE ALERTA
         const ultimoPontoY = tempPoints[tempPoints.length - 1].y;
-        
         if (ultimoPontoY < 45) {
-          setStatusFeedback({ 
-            label: `PROJEÇÃO: ENTRADAS ELEVADAS (+${numDiasProjecao}D)`, 
-            color: "text-green-400",
-            icon: <CheckCircle2 className="text-green-400" size={16}/> 
-          });
+          setStatusFeedback({ label: `PROJEÇÃO: ENTRADAS ELEVADAS (+${numDiasProjecao}D)`, color: "text-green-400", icon: <CheckCircle2 className="text-green-400" size={16}/> });
         } else if (ultimoPontoY > 85) {
-          setStatusFeedback({ 
-            label: `PROJEÇÃO: SAÍDAS CRÍTICAS (+${numDiasProjecao}D)`, 
-            color: "text-red-500",
-            icon: <AlertCircle className="text-red-500" size={16}/> 
-          });
+          setStatusFeedback({ label: `PROJEÇÃO: SAÍDAS CRÍTICAS (+${numDiasProjecao}D)`, color: "text-red-500", icon: <AlertCircle className="text-red-500" size={16}/> });
         } else {
-          setStatusFeedback({ 
-            label: `PROJEÇÃO: FLUXO MODERADO (+${numDiasProjecao}D)`, 
-            color: "text-yellow-400",
-            icon: <TrendingUp className="text-yellow-400" size={16}/> 
-          });
+          setStatusFeedback({ label: `PROJEÇÃO: FLUXO MODERADO (+${numDiasProjecao}D)`, color: "text-yellow-400", icon: <TrendingUp className="text-yellow-400" size={16}/> });
         }
 
       } catch (e) { console.error(e); } finally { if (isMounted) setLoading(false); }
@@ -107,6 +91,7 @@ export default function VereditoPage() {
     return d;
   };
 
+  // RESTAURAÇÃO DAS LINHAS TRACEJADAS E DIAS
   const renderGrid = () => {
     if (periodo === "dia") return null;
     const numDias = periodo === "semana" ? 7 : 30;
@@ -116,6 +101,7 @@ export default function VereditoPage() {
       const x = (300 / numDias) * i;
       lines.push(
         <g key={i}>
+          {/* Linha tracejada branca fina */}
           <line x1={x} y1="0" x2={x} y2="130" stroke="white" strokeWidth="0.2" strokeDasharray="2 4" opacity="0.1" />
           {(i % interval === 0) && (
             <text x={x} y="145" fontSize="5" fill="#52525b" fontWeight="900" textAnchor="middle">+{i}D</text>
