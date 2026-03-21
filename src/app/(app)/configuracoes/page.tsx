@@ -55,7 +55,6 @@ export default function VereditoPage() {
           
           tempPoints.push({ 
             x: i * (300 / totalPontos), 
-            // TRAVA DE SEGURANÇA: Impede o vazamento vertical
             y: Math.max(8, Math.min(122, 65 - wave)) 
           });
         }
@@ -91,7 +90,6 @@ export default function VereditoPage() {
     return d;
   };
 
-  // RESTAURAÇÃO DAS LINHAS TRACEJADAS E DIAS
   const renderGrid = () => {
     if (periodo === "dia") return null;
     const numDias = periodo === "semana" ? 7 : 30;
@@ -101,10 +99,10 @@ export default function VereditoPage() {
       const x = (300 / numDias) * i;
       lines.push(
         <g key={i}>
-          {/* Linha tracejada branca fina */}
-          <line x1={x} y1="0" x2={x} y2="130" stroke="white" strokeWidth="0.2" strokeDasharray="2 4" opacity="0.1" />
+          {/* Linha tracejada branca ajustada para visibilidade */}
+          <line x1={x} y1="0" x2={x} y2="130" stroke="#FFFFFF" strokeWidth="0.5" strokeDasharray="3 3" opacity="0.2" />
           {(i % interval === 0) && (
-            <text x={x} y="145" fontSize="5" fill="#52525b" fontWeight="900" textAnchor="middle">+{i}D</text>
+            <text x={x} y="150" fontSize="7" fill="#FFFFFF" fontWeight="900" textAnchor="middle" opacity="0.4">+{i}D</text>
           )}
         </g>
       );
@@ -128,7 +126,7 @@ export default function VereditoPage() {
         <div className="bg-[#050505] p-10 rounded-[4rem] border border-white/5 relative overflow-hidden">
           <div className="flex justify-between items-center mb-16">
             <h4 className="text-[9px] font-black text-zinc-600 tracking-[0.3em] flex items-center gap-2">
-              <TrendingUp size={12} className="text-yellow-500"/> NEXT_MONTH_WAVE
+              <TrendingUp size={12} className="text-yellow-500"/> TENDÊNCIA DO PRÓXIMO...
             </h4>
             <div className="flex bg-black p-1 rounded-xl border border-white/10">
               {["dia", "semana", "mês"].map((t: any) => (
@@ -142,7 +140,7 @@ export default function VereditoPage() {
           </div>
           
           <div className="h-64 w-full mb-12 relative px-2">
-            <svg viewBox="0 0 300 130" preserveAspectRatio="none" className="w-full h-full overflow-visible">
+            <svg viewBox="0 -10 300 170" preserveAspectRatio="none" className="w-full h-full overflow-visible">
               {renderGrid()}
               <path 
                 key={periodo}
