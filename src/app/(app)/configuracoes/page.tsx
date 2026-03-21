@@ -42,12 +42,13 @@ export default function VereditoPage() {
           volumesHistoricos.push(volume);
         }
 
-        // AJUSTE 1: Resolução de 8 pontos por dia para o mês não "ignorar" transações altas
+        // AJUSTE: Normalização dos pontos para o gráfico sempre ir até o final (300px)
         const pontosPorDia = 8; 
         const totalPontos = numDiasProjecao * pontosPorDia;
         const tempPoints = [];
 
         for (let i = 0; i <= totalPontos; i++) {
+          // Garante que o índice do dia circule corretamente pelos dados históricos
           const diaSimulado = Math.floor(i / pontosPorDia) % volumesHistoricos.length;
           const volBase = volumesHistoricos[diaSimulado] || 100;
           
@@ -55,7 +56,7 @@ export default function VereditoPage() {
           const wave = Math.sin(i * 0.9) * amplitude + Math.cos(i * 0.4) * (amplitude / 1.2);
           
           tempPoints.push({ 
-            x: i * (300 / totalPontos), 
+            x: (i / totalPontos) * 300, // Ajuste para ocupar sempre os 300px de largura
             y: Math.max(8, Math.min(122, 65 - wave)) 
           });
         }
@@ -63,15 +64,15 @@ export default function VereditoPage() {
 
         const ultimoPontoY = tempPoints[tempPoints.length - 1].y;
         
-        // AJUSTE 2: Projeção dinâmica com os textos corretos para cada período
-        const txtPeriodo = periodo === "dia" ? "NO PRÓXIMO DIA" : periodo === "semana" ? "NA PRÓXIMA SEMANA" : "NO PRÓXIMO MÊS";
+        // Texto dinâmico para a projeção do mês
+        const labelTempo = periodo === "dia" ? "PRÓXIMO DIA" : periodo === "semana" ? "PRÓXIMA SEMANA" : "PRÓXIMO MÊS";
 
         if (ultimoPontoY < 45) {
-          setStatusFeedback({ label: `PROJEÇÃO: ENTRADAS ELEVADAS ${txtPeriodo}`, color: "text-green-400", icon: <CheckCircle2 className="text-green-400" size={16}/> });
+          setStatusFeedback({ label: `PROJEÇÃO: ENTRADAS ELEVADAS NO ${labelTempo}`, color: "text-green-400", icon: <CheckCircle2 className="text-green-400" size={16}/> });
         } else if (ultimoPontoY > 85) {
-          setStatusFeedback({ label: `PROJEÇÃO: SAÍDAS CRÍTICAS ${txtPeriodo}`, color: "text-red-500", icon: <AlertCircle className="text-red-500" size={16}/> });
+          setStatusFeedback({ label: `PROJEÇÃO: SAÍDAS CRÍTICAS NO ${labelTempo}`, color: "text-red-500", icon: <AlertCircle className="text-red-500" size={16}/> });
         } else {
-          setStatusFeedback({ label: `PROJEÇÃO: FLUXO MODERADO ${txtPeriodo}`, color: "text-yellow-400", icon: <TrendingUp className="text-yellow-400" size={16}/> });
+          setStatusFeedback({ label: `PROJEÇÃO: FLUXO MODERADO NO ${labelTempo}`, color: "text-yellow-400", icon: <TrendingUp className="text-yellow-400" size={16}/> });
         }
 
       } catch (e) { console.error(e); } finally { if (isMounted) setLoading(false); }
@@ -131,7 +132,7 @@ export default function VereditoPage() {
           <div className="flex justify-between items-center mb-16">
             <h4 className="text-[9px] font-black text-zinc-600 tracking-[0.3em] flex items-center gap-2">
               <TrendingUp size={12} className="text-yellow-500"/> 
-              TENDÊNCIA DA PRÓXIMA {periodo === "dia" ? "DIA" : periodo === "semana" ? "SEMANA" : "MÊS"}
+              TENDÊNCIA DO PRÓXIMO {periodo === "dia" ? "DIA" : periodo === "semana" ? "SEMANA" : "MÊS"}
             </h4>
             <div className="flex bg-black p-1 rounded-xl border border-white/10">
               {["dia", "semana", "mês"].map((t: any) => (
