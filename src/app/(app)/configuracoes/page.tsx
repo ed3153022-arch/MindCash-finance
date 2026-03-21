@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useEffect, useState, useMemo } from "react";
+import React, { useEffect, useState } from "react";
 import { supabase } from "@/lib/supabase";
 import { TrendingUp, Zap, CheckCircle2, AlertCircle, Info } from "lucide-react";
 import { useRouter } from "next/navigation";
@@ -10,7 +10,7 @@ export default function VereditoPage() {
   const [loading, setLoading] = useState(true);
   const [periodo, setPeriodo] = useState<"dia" | "semana" | "mês">("semana");
   const [trendData, setTrendData] = useState<{ x: number; y: number }[]>([]);
-  const [statusFeedback, setStatusFeedback] = useState({ label: "Analisando Projeção...", color: "text-zinc-500", icon: <Info size={16}/> });
+  const [statusFeedback, setStatusFeedback] = useState({ label: "Analisando...", color: "text-zinc-500", icon: <Info size={16}/> });
 
   useEffect(() => {
     let isMounted = true;
@@ -32,46 +32,62 @@ export default function VereditoPage() {
         const numDiasProjecao = periodo === "dia" ? 1 : periodo === "semana" ? 7 : 30;
         const agora = new Date();
         const volumesHistoricos: number[] = [];
+        const tiposHistoricos: string[] = [];
 
+        // Coleta dados reais
         for (let i = 0; i < 30; i++) {
           const dRef = new Date();
           dRef.setDate(agora.getDate() - i);
-          const volume = rawData
-            .filter(t => new Date(t.created_at).toDateString() === dRef.toDateString())
-            .reduce((acc, t) => acc + Math.abs(Number(t.amount)), 0);
+          const transacoesDoDia = rawData.filter(t => new Date(t.created_at).toDateString() === dRef.toDateString());
+          
+          const volume = transacoesDoDia.reduce((acc, t) => acc + Math.abs(Number(t.amount)), 0);
+          const predominante = transacoesDoDia.sort((a, b) => Math.abs(Number(b.amount)) - Math.abs(Number(a.amount)))[0]?.type || "none";
+          
           volumesHistoricos.push(volume);
+          tiposHistoricos.push(predominante);
         }
 
-        // AJUSTE: Aumentada a resolução para o mês (8 pontos por dia) para detectar picos de transações
-        const pontosPorDia = 8; 
-        const totalPontos = numDiasProjecao * pontosPorDia;
+        const totalPontos = 120; // Resolução fixa para todos os períodos preencherem o gráfico
         const tempPoints = [];
+        let maiorVolumeDetectado = 0;
+        let tipoMaiorVolume = "none";
 
         for (let i = 0; i <= totalPontos; i++) {
-          const diaSimulado = Math.floor(i / pontosPorDia) % volumesHistoricos.length;
-          const volBase = volumesHistoricos[diaSimulado] || 100;
-          
-          const amplitude = Math.min(Math.max(volBase / 70, 15), 55);
-          const wave = Math.sin(i * 0.9) * amplitude + Math.cos(i * 0.4) * (amplitude / 1.2);
+          const diaIndex = Math.floor((i / totalPontos) * (numDiasProjecao - 1));
+          const vol = volumesHistoricos[diaIndex] || 0;
+          const tipo = tiposHistoricos[diaIndex];
+
+          if (vol > maiorVolumeDetectado) {
+            maiorVolumeDetectado = vol;
+            tipoMaiorVolume = tipo;
+          }
+
+          // Lógica visual: Se for saída (negative), o gráfico desce. Se for entrada, sobe.
+          // Se o volume for alto, a oscilação é agressiva.
+          const baseLine = 65;
+          const sensibilidade = Math.min(vol / 50, 50); 
+          const direcao = tipo === "withdrawal" ? 1 : -1;
+          const noise = Math.sin(i * 0.5) * 5; // Pequena oscilação natural
           
           tempPoints.push({ 
             x: i * (300 / totalPontos), 
-            y: Math.max(8, Math.min(122, 65 - wave)) 
+            y: Math.max(10, Math.min(120, baseLine + (direcao * sensibilidade) + noise)) 
           });
         }
         setTrendData(tempPoints);
 
-        const ultimoPontoY = tempPoints[tempPoints.length - 1].y;
+        // Lógica de Projeção Realista
+        const labelPeriodo = periodo === "dia" ? "PRÓXIMO DIA" : periodo === "semana" ? "PRÓXIMA SEMANA" : "PRÓXIMO MÊS";
         
-        // AJUSTE: Projeção mais precisa indicando o próximo período baseado nas transações
-        const textoPeriodo = periodo === "dia" ? "PRÓXIMO DIA" : periodo === "semana" ? "PRÓXIMA SEMANA" : "PRÓXIMO MÊS";
-        
-        if (ultimoPontoY < 45) {
-          setStatusFeedback({ label: `PROJEÇÃO: ENTRADAS ELEVADAS NO ${textoPeriodo}`, color: "text-green-400", icon: <CheckCircle2 className="text-green-400" size={16}/> });
-        } else if (ultimoPontoY > 85) {
-          setStatusFeedback({ label: `PROJEÇÃO: SAÍDAS CRÍTICAS NO ${textoPeriodo}`, color: "text-red-500", icon: <AlertCircle className="text-red-500" size={16}/> });
+        // Define o que é "Alto" (ex: acima de 500 reais/unidades, ajuste conforme sua realidade)
+        const LIMITE_ALTO = 500; 
+
+        if (maiorVolumeDetectado > LIMITE_ALTO && tipoMaiorVolume === "withdrawal") {
+          setStatusFeedback({ label: `PROJEÇÃO: SAÍDA ALTA NO ${labelPeriodo}`, color: "text-red-500", icon: <AlertCircle className="text-red-500" size={16}/> });
+        } else if (maiorVolumeDetectado > LIMITE_ALTO && tipoMaiorVolume === "deposit") {
+          setStatusFeedback({ label: `PROJEÇÃO: ENTRADA ALTA NO ${labelPeriodo}`, color: "text-green-400", icon: <CheckCircle2 className="text-green-400" size={16}/> });
         } else {
-          setStatusFeedback({ label: `PROJEÇÃO: FLUXO MODERADO NO ${textoPeriodo}`, color: "text-yellow-400", icon: <TrendingUp className="text-yellow-400" size={16}/> });
+          setStatusFeedback({ label: `PROJEÇÃO: FLUXO MODERADO NO ${labelPeriodo}`, color: "text-yellow-400", icon: <TrendingUp className="text-yellow-400" size={16}/> });
         }
 
       } catch (e) { console.error(e); } finally { if (isMounted) setLoading(false); }
@@ -131,7 +147,7 @@ export default function VereditoPage() {
           <div className="flex justify-between items-center mb-16">
             <h4 className="text-[9px] font-black text-zinc-600 tracking-[0.3em] flex items-center gap-2">
               <TrendingUp size={12} className="text-yellow-500"/> 
-              TENDÊNCIA DA PRÓXIMA {periodo === "dia" ? "DIA" : periodo === "semana" ? "SEMANA" : "MÊS"}
+              TENDÊNCIA DO PRÓXIMO {periodo === "dia" ? "DIA" : periodo === "semana" ? "SEMANA" : "MÊS"}
             </h4>
             <div className="flex bg-black p-1 rounded-xl border border-white/10">
               {["dia", "semana", "mês"].map((t: any) => (
