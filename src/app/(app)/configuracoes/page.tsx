@@ -42,7 +42,7 @@ export default function VereditoPage() {
           volumesHistoricos.push(volume);
         }
 
-        const pontosPorDia = periodo === "mês" ? 8; 
+        const pontosPorDia = "mês" 8; 
         const totalPontos = numDiasProjecao * pontosPorDia;
         const tempPoints = [];
 
