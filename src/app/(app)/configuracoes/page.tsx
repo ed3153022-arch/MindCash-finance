@@ -42,7 +42,7 @@ export default function VereditoPage() {
           volumesHistoricos.push(volume);
         }
 
-        // AJUSTE: Aumentada a resolução do mês para detectar saídas altas
+        // AJUSTE: Aumentada a resolução para o mês (8 pontos por dia) para detectar picos de transações
         const pontosPorDia = 8; 
         const totalPontos = numDiasProjecao * pontosPorDia;
         const tempPoints = [];
@@ -63,15 +63,15 @@ export default function VereditoPage() {
 
         const ultimoPontoY = tempPoints[tempPoints.length - 1].y;
         
-        // AJUSTE: Texto da projeção agora indica o que ocorrerá no próximo período
-        const labelPeriodo = periodo === "dia" ? "PRÓXIMO DIA" : periodo === "semana" ? "PRÓXIMA SEMANA" : "PRÓXIMO MÊS";
+        // AJUSTE: Projeção mais precisa indicando o próximo período baseado nas transações
+        const textoPeriodo = periodo === "dia" ? "PRÓXIMO DIA" : periodo === "semana" ? "PRÓXIMA SEMANA" : "PRÓXIMO MÊS";
         
         if (ultimoPontoY < 45) {
-          setStatusFeedback({ label: `PROJEÇÃO: ENTRADAS ELEVADAS NO ${labelPeriodo}`, color: "text-green-400", icon: <CheckCircle2 className="text-green-400" size={16}/> });
+          setStatusFeedback({ label: `PROJEÇÃO: ENTRADAS ELEVADAS NO ${textoPeriodo}`, color: "text-green-400", icon: <CheckCircle2 className="text-green-400" size={16}/> });
         } else if (ultimoPontoY > 85) {
-          setStatusFeedback({ label: `PROJEÇÃO: SAÍDAS CRÍTICAS NO ${labelPeriodo}`, color: "text-red-500", icon: <AlertCircle className="text-red-500" size={16}/> });
+          setStatusFeedback({ label: `PROJEÇÃO: SAÍDAS CRÍTICAS NO ${textoPeriodo}`, color: "text-red-500", icon: <AlertCircle className="text-red-500" size={16}/> });
         } else {
-          setStatusFeedback({ label: `PROJEÇÃO: FLUXO MODERADO NO ${labelPeriodo}`, color: "text-yellow-400", icon: <TrendingUp className="text-yellow-400" size={16}/> });
+          setStatusFeedback({ label: `PROJEÇÃO: FLUXO MODERADO NO ${textoPeriodo}`, color: "text-yellow-400", icon: <TrendingUp className="text-yellow-400" size={16}/> });
         }
 
       } catch (e) { console.error(e); } finally { if (isMounted) setLoading(false); }
