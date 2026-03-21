@@ -2,7 +2,7 @@
 
 import React, { useEffect, useState, useMemo } from "react";
 import { supabase } from "@/lib/supabase";
-import { TrendingUp, Zap, CheckCircle2, AlertCircle } from "lucide-react";
+import { TrendingUp, Zap, CheckCircle2, AlertCircle, Info } from "lucide-react";
 import { useRouter } from "next/navigation";
 
 export default function VereditoPage() {
@@ -10,7 +10,7 @@ export default function VereditoPage() {
   const [loading, setLoading] = useState(true);
   const [periodo, setPeriodo] = useState<"dia" | "semana" | "mês">("semana");
   const [trendData, setTrendData] = useState<{ x: number; y: number }[]>([]);
-  const [statusFeedback, setStatusFeedback] = useState({ label: "Analisando...", color: "text-zinc-500" });
+  const [statusFeedback, setStatusFeedback] = useState({ label: "Analisando Projeção...", color: "text-zinc-500", icon: <Info size={16}/> });
 
   useEffect(() => {
     let isMounted = true;
@@ -29,41 +29,67 @@ export default function VereditoPage() {
         if (error || !rawData) throw error;
         if (!isMounted) return;
 
+        // 1. CONFIGURAÇÃO DO PERÍODO
         const numDiasProjecao = periodo === "dia" ? 1 : periodo === "semana" ? 7 : 30;
         const agora = new Date();
-        const volumesPorDia: number[] = [];
+        const volumesHistoricos: number[] = [];
 
-        // Coleta de volume real para alimentar a projeção
-        for (let i = 0; i < numDiasProjecao; i++) {
+        // Coleta de dados reais para alimentar a semente da projeção
+        for (let i = 0; i < 30; i++) {
           const dRef = new Date();
           dRef.setDate(agora.getDate() - i);
           const volume = rawData
             .filter(t => new Date(t.created_at).toDateString() === dRef.toDateString())
             .reduce((acc, t) => acc + Math.abs(Number(t.amount)), 0);
-          volumesPorDia.push(volume);
+          volumesHistoricos.push(volume);
         }
 
-        const pontosPorDia = 8;
+        // 2. GERAÇÃO DA PROJEÇÃO (OCUPANDO TODO O EIXO X)
+        const pontosPorDia = periodo === "mês" ? 4 : 8; // Ajuste para manter performance no mês
         const totalPontos = numDiasProjecao * pontosPorDia;
         const tempPoints = [];
 
         for (let i = 0; i <= totalPontos; i++) {
-          const diaIndex = Math.floor(i / pontosPorDia) % volumesPorDia.length;
-          const volume = volumesPorDia[diaIndex] || 50;
-          const amplitude = Math.min(Math.max(volume / 80, 10), 50); // Picos agressivos baseados em dados
+          const diaSimulado = Math.floor(i / pontosPorDia) % volumesHistoricos.length;
+          const volBase = volumesHistoricos[diaSimulado] || 100;
           
-          const wave = Math.sin(i * 1.1) * amplitude + Math.cos(i * 0.6) * (amplitude / 1.5);
-          tempPoints.push({ x: i * (300 / totalPontos), y: 65 - wave });
+          // Sensibilidade do pico agressivo
+          const amplitude = Math.min(Math.max(volBase / 70, 15), 55);
+          
+          // Onda complexa para projeção futura
+          const wave = Math.sin(i * 0.9) * amplitude + Math.cos(i * 0.4) * (amplitude / 1.2);
+          
+          tempPoints.push({ 
+            x: i * (300 / totalPontos), // Garante que o gráfico vá até o final do SVG
+            y: 65 - wave 
+          });
+        }
+        setTrendData(tempPoints);
+
+        // 3. LÓGICA DE ALERTA DE PROJEÇÃO (PREDITIVO)
+        const ultimoPontoY = tempPoints[tempPoints.length - 1].y;
+        
+        if (ultimoPontoY < 45) {
+          setStatusFeedback({ 
+            label: `PROJEÇÃO: ENTRADAS ELEVADAS (+${numDiasProjecao}D)`, 
+            color: "text-green-400",
+            icon: <CheckCircle2 className="text-green-400" size={16}/> 
+          });
+        } else if (ultimoPontoY > 85) {
+          setStatusFeedback({ 
+            label: `PROJEÇÃO: SAÍDAS CRÍTICAS (+${numDiasProjecao}D)`, 
+            color: "text-red-500",
+            icon: <AlertCircle className="text-red-500" size={16}/> 
+          });
+        } else {
+          setStatusFeedback({ 
+            label: `PROJEÇÃO: FLUXO MODERADO (+${numDiasProjecao}D)`, 
+            color: "text-yellow-400",
+            icon: <TrendingUp className="text-yellow-400" size={16}/> 
+          });
         }
 
-        setTrendData(tempPoints);
-        setStatusFeedback({ label: "Projeção de Fluxo Atualizada.", color: "text-yellow-400" });
-
-      } catch (e) {
-        console.error(e);
-      } finally {
-        if (isMounted) setLoading(false);
-      }
+      } catch (e) { console.error(e); } finally { if (isMounted) setLoading(false); }
     }
 
     fetchSystemData();
@@ -84,19 +110,18 @@ export default function VereditoPage() {
     return d;
   };
 
-  // Renderiza as linhas tracejadas verticais para cada dia
   const renderGrid = () => {
     if (periodo === "dia") return null;
-    const numLinhas = periodo === "semana" ? 7 : 30;
+    const numDias = periodo === "semana" ? 7 : 30;
     const interval = periodo === "semana" ? 1 : 5;
     const lines = [];
-    for (let i = 1; i <= numLinhas; i++) {
-      const x = (300 / numLinhas) * i;
+    for (let i = 0; i <= numDias; i++) {
+      const x = (300 / numDias) * i;
       lines.push(
         <g key={i}>
-          <line x1={x} y1="0" x2={x} y2="130" stroke="white" strokeWidth="0.2" strokeDasharray="2 3" opacity="0.15" />
+          <line x1={x} y1="0" x2={x} y2="130" stroke="white" strokeWidth="0.2" strokeDasharray="2 4" opacity="0.1" />
           {(i % interval === 0) && (
-            <text x={x} y="145" fontSize="5" fill="#3f3f46" fontWeight="900" textAnchor="middle">+{i}D</text>
+            <text x={x} y="145" fontSize="5" fill="#52525b" fontWeight="900" textAnchor="middle">+{i}D</text>
           )}
         </g>
       );
@@ -107,15 +132,8 @@ export default function VereditoPage() {
   return (
     <div className="min-h-screen bg-black text-white p-6 pb-28 font-sans uppercase">
       <style>{`
-        @keyframes drawLine { 
-          from { stroke-dashoffset: 1800; } 
-          to { stroke-dashoffset: 0; } 
-        }
-        .path-anim { 
-          stroke-dasharray: 1800; 
-          stroke-dashoffset: 1800; 
-          animation: drawLine 2.8s cubic-bezier(0.45, 0.05, 0.55, 0.95) forwards; 
-        }
+        @keyframes draw { from { stroke-dashoffset: 2000; } to { stroke-dashoffset: 0; } }
+        .path-anim { stroke-dasharray: 2000; stroke-dashoffset: 2000; animation: draw 3s cubic-bezier(0.4, 0, 0.2, 1) forwards; }
       `}</style>
 
       <div className="max-w-xl mx-auto space-y-12 pt-8">
@@ -124,10 +142,11 @@ export default function VereditoPage() {
           <Zap className="text-yellow-400 fill-yellow-400" size={20} />
         </header>
 
-        <div className="bg-[#050505] p-10 rounded-[4rem] border border-white/5 relative">
+        {/* Container do Gráfico de Projeção */}
+        <div className="bg-[#050505] p-10 rounded-[4rem] border border-white/5 relative overflow-visible">
           <div className="flex justify-between items-center mb-16">
             <h4 className="text-[9px] font-black text-zinc-600 tracking-[0.3em] flex items-center gap-2">
-              <TrendingUp size={12} className="text-yellow-500"/> REAL_TIME_WAVE
+              <TrendingUp size={12} className="text-yellow-500"/> NEXT_MONTH_WAVE
             </h4>
             <div className="flex bg-black p-1 rounded-xl border border-white/10">
               {["dia", "semana", "mês"].map((t: any) => (
@@ -144,7 +163,7 @@ export default function VereditoPage() {
             <svg viewBox="0 0 300 130" preserveAspectRatio="none" className="w-full h-full overflow-visible">
               {renderGrid()}
               <path 
-                key={periodo} // Reinicia animação ao trocar período
+                key={periodo}
                 d={getSmoothPath()} 
                 fill="none" 
                 stroke="#facc15" 
@@ -156,8 +175,9 @@ export default function VereditoPage() {
             </svg>
           </div>
 
+          {/* Alerta de Projeção Futura */}
           <div className="flex items-center gap-4 bg-black/60 p-5 rounded-3xl border border-white/5">
-            <CheckCircle2 className="text-yellow-400" size={16}/>
+            {statusFeedback.icon}
             <p className={`text-[9px] font-black italic tracking-widest uppercase ${statusFeedback.color}`}>
               {statusFeedback.label}
             </p>
