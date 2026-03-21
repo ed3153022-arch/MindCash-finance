@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState, useMemo } from "react";
 import { supabase } from "@/lib/supabase";
 import { TrendingUp, Zap, CheckCircle2, AlertCircle, Info } from "lucide-react";
 import { useRouter } from "next/navigation";
@@ -10,7 +10,7 @@ export default function VereditoPage() {
   const [loading, setLoading] = useState(true);
   const [periodo, setPeriodo] = useState<"dia" | "semana" | "mês">("semana");
   const [trendData, setTrendData] = useState<{ x: number; y: number }[]>([]);
-  const [statusFeedback, setStatusFeedback] = useState({ label: "Analisando...", color: "text-zinc-500", icon: <Info size={16}/> });
+  const [statusFeedback, setStatusFeedback] = useState({ label: "Analisando Projeção...", color: "text-zinc-500", icon: <Info size={16}/> });
 
   useEffect(() => {
     let isMounted = true;
@@ -42,15 +42,16 @@ export default function VereditoPage() {
           volumesHistoricos.push(volume);
         }
 
-        const pontosPorDia = 10; 
+        const pontosPorDia = periodo === "mês" ? 4 : 8; 
         const totalPontos = numDiasProjecao * pontosPorDia;
         const tempPoints = [];
 
         for (let i = 0; i <= totalPontos; i++) {
           const diaSimulado = Math.floor(i / pontosPorDia) % volumesHistoricos.length;
           const volBase = volumesHistoricos[diaSimulado] || 100;
+          
           const amplitude = Math.min(Math.max(volBase / 70, 15), 55);
-          const wave = Math.sin(i * 0.8) * amplitude + Math.cos(i * 0.4) * (amplitude / 1.2);
+          const wave = Math.sin(i * 0.9) * amplitude + Math.cos(i * 0.4) * (amplitude / 1.2);
           
           tempPoints.push({ 
             x: i * (300 / totalPontos), 
@@ -91,17 +92,18 @@ export default function VereditoPage() {
 
   const renderGrid = () => {
     const numDias = periodo === "dia" ? 1 : periodo === "semana" ? 7 : 30;
-    const intervalLabel = periodo === "mês" ? 5 : 1; 
+    const intervalLabel = periodo === "mês" ? 5 : 1;
     const lines = [];
 
-    // Cria uma linha para cada dia individual
+    // Desenha uma linha tracejada para CADA dia individual
     for (let i = 0; i <= numDias; i++) {
       const x = (300 / numDias) * i;
       lines.push(
         <g key={i}>
-          <line x1={x} y1="0" x2={x} y2="130" stroke="#FFFFFF" strokeWidth="0.3" strokeDasharray="2 3" opacity="0.15" />
+          <line x1={x} y1="0" x2={x} y2="130" stroke="#FFFFFF" strokeWidth="0.4" strokeDasharray="3 3" opacity="0.1" />
+          {/* Exibe o número (+D) apenas nos intervalos corretos */}
           {(i % intervalLabel === 0) && (
-            <text x={x} y="150" fontSize="6" fill="#FFFFFF" fontWeight="900" textAnchor="middle" opacity="0.5">+{i}D</text>
+            <text x={x} y="150" fontSize="6" fill="#FFFFFF" fontWeight="900" textAnchor="middle" opacity="0.4">+{i}D</text>
           )}
         </g>
       );
@@ -112,8 +114,8 @@ export default function VereditoPage() {
   return (
     <div className="min-h-screen bg-black text-white p-6 pb-28 font-sans uppercase">
       <style>{`
-        @keyframes draw { from { stroke-dashoffset: 2500; } to { stroke-dashoffset: 0; } }
-        .path-anim { stroke-dasharray: 2500; stroke-dashoffset: 2500; animation: draw 3.2s ease-out forwards; }
+        @keyframes draw { from { stroke-dashoffset: 2000; } to { stroke-dashoffset: 0; } }
+        .path-anim { stroke-dasharray: 2000; stroke-dashoffset: 2000; animation: draw 3s cubic-bezier(0.4, 0, 0.2, 1) forwards; }
       `}</style>
 
       <div className="max-w-xl mx-auto space-y-12 pt-8">
@@ -140,18 +142,18 @@ export default function VereditoPage() {
           </div>
           
           <div className="h-64 w-full mb-12 relative px-2">
-            <svg viewBox="0 0 300 160" preserveAspectRatio="none" className="w-full h-full overflow-visible">
+            <svg viewBox="0 -10 300 170" preserveAspectRatio="none" className="w-full h-full overflow-visible">
               {renderGrid()}
               <path 
                 key={periodo}
                 d={getSmoothPath()} 
                 fill="none" 
                 stroke="#facc15" 
-                strokeWidth="4.5" 
+                strokeWidth="4" 
                 strokeLinecap="round" 
                 className="path-anim"
               />
-              <circle cx={trendData[trendData.length-1]?.x} cy={trendData[trendData.length-1]?.y} r="4.5" fill="#facc15" className="animate-pulse" />
+              <circle cx={trendData[trendData.length-1]?.x} cy={trendData[trendData.length-1]?.y} r="4" fill="#facc15" className="animate-pulse" />
             </svg>
           </div>
 
