@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState, useMemo } from "react";
 import { supabase } from "@/lib/supabase";
 import { TrendingUp, Zap, CheckCircle2, AlertCircle, Info } from "lucide-react";
 import { useRouter } from "next/navigation";
@@ -29,6 +29,7 @@ export default function VereditoPage() {
         if (error || !rawData) throw error;
         if (!isMounted) return;
 
+        // 1. CONFIGURAÇÃO DO PERÍODO
         const numDiasProjecao = periodo === "dia" ? 1 : periodo === "semana" ? 7 : 30;
         const agora = new Date();
         const volumesHistoricos: number[] = [];
@@ -42,7 +43,8 @@ export default function VereditoPage() {
           volumesHistoricos.push(volume);
         }
 
-        const pontosPorDia = periodo === "mês" ? 5 : 10;
+        // 2. GERAÇÃO DA PROJEÇÃO
+        const pontosPorDia = periodo === "mês" ? 4 : 8; 
         const totalPontos = numDiasProjecao * pontosPorDia;
         const tempPoints = [];
 
@@ -50,27 +52,38 @@ export default function VereditoPage() {
           const diaSimulado = Math.floor(i / pontosPorDia) % volumesHistoricos.length;
           const volBase = volumesHistoricos[diaSimulado] || 100;
           
-          // Fator de amplitude agressivo, mas controlado para não vazar
-          // O viewBox agora vai de 0 a 200, dando mais "respiro" interno
-          const amplitude = Math.min(Math.max(volBase / 60, 20), 80);
-          
-          const wave = Math.sin(i * 0.8) * amplitude + Math.cos(i * 0.4) * (amplitude / 1.3);
+          const amplitude = Math.min(Math.max(volBase / 70, 15), 55);
+          const wave = Math.sin(i * 0.9) * amplitude + Math.cos(i * 0.4) * (amplitude / 1.2);
           
           tempPoints.push({ 
-            x: i * (300 / totalPontos),
-            // Centralizamos em 100 (metade de 200) e limitamos entre 10 e 190
-            y: Math.max(10, Math.min(190, 100 - wave))
+            x: i * (300 / totalPontos), 
+            // AJUSTE: Limitamos o Y entre 5 e 125 para não vazar do viewBox de 130
+            y: Math.max(5, Math.min(125, 65 - wave)) 
           });
         }
         setTrendData(tempPoints);
 
+        // 3. LÓGICA DE ALERTA
         const ultimoPontoY = tempPoints[tempPoints.length - 1].y;
-        if (ultimoPontoY < 80) {
-          setStatusFeedback({ label: `PROJEÇÃO: ENTRADAS ELEVADAS (+${numDiasProjecao}D)`, color: "text-green-400", icon: <CheckCircle2 className="text-green-400" size={16}/> });
-        } else if (ultimoPontoY > 120) {
-          setStatusFeedback({ label: `PROJEÇÃO: SAÍDAS CRÍTICAS (+${numDiasProjecao}D)`, color: "text-red-500", icon: <AlertCircle className="text-red-500" size={16}/> });
+        
+        if (ultimoPontoY < 45) {
+          setStatusFeedback({ 
+            label: `PROJEÇÃO: ENTRADAS ELEVADAS (+${numDiasProjecao}D)`, 
+            color: "text-green-400",
+            icon: <CheckCircle2 className="text-green-400" size={16}/> 
+          });
+        } else if (ultimoPontoY > 85) {
+          setStatusFeedback({ 
+            label: `PROJEÇÃO: SAÍDAS CRÍTICAS (+${numDiasProjecao}D)`, 
+            color: "text-red-500",
+            icon: <AlertCircle className="text-red-500" size={16}/> 
+          });
         } else {
-          setStatusFeedback({ label: `PROJEÇÃO: FLUXO MODERADO (+${numDiasProjecao}D)`, color: "text-yellow-400", icon: <TrendingUp className="text-yellow-400" size={16}/> });
+          setStatusFeedback({ 
+            label: `PROJEÇÃO: FLUXO MODERADO (+${numDiasProjecao}D)`, 
+            color: "text-yellow-400",
+            icon: <TrendingUp className="text-yellow-400" size={16}/> 
+          });
         }
 
       } catch (e) { console.error(e); } finally { if (isMounted) setLoading(false); }
@@ -103,9 +116,9 @@ export default function VereditoPage() {
       const x = (300 / numDias) * i;
       lines.push(
         <g key={i}>
-          <line x1={x} y1="0" x2={x} y2="200" stroke="white" strokeWidth="0.3" strokeDasharray="2 4" opacity="0.08" />
+          <line x1={x} y1="0" x2={x} y2="130" stroke="white" strokeWidth="0.2" strokeDasharray="2 4" opacity="0.1" />
           {(i % interval === 0) && (
-            <text x={x} y="220" fontSize="7" fill="#52525b" fontWeight="900" textAnchor="middle">+{i}D</text>
+            <text x={x} y="145" fontSize="5" fill="#52525b" fontWeight="900" textAnchor="middle">+{i}D</text>
           )}
         </g>
       );
@@ -116,12 +129,12 @@ export default function VereditoPage() {
   return (
     <div className="min-h-screen bg-black text-white p-6 pb-28 font-sans uppercase">
       <style>{`
-        @keyframes draw { from { stroke-dashoffset: 2500; } to { stroke-dashoffset: 0; } }
-        .path-anim { stroke-dasharray: 2500; stroke-dashoffset: 2500; animation: draw 3.2s cubic-bezier(0.4, 0, 0.2, 1) forwards; }
+        @keyframes draw { from { stroke-dashoffset: 2000; } to { stroke-dashoffset: 0; } }
+        .path-anim { stroke-dasharray: 2000; stroke-dashoffset: 2000; animation: draw 3s cubic-bezier(0.4, 0, 0.2, 1) forwards; }
       `}</style>
 
       <div className="max-w-xl mx-auto space-y-12 pt-8">
-        <header className="flex justify-between items-start px-2">
+        <header className="flex justify-between items-start">
           <h1 className="text-7xl font-black italic tracking-tighter leading-[0.8]">VEREDITO</h1>
           <Zap className="text-yellow-400 fill-yellow-400" size={20} />
         </header>
@@ -142,20 +155,19 @@ export default function VereditoPage() {
             </div>
           </div>
           
-          {/* Aumentamos o viewBox vertical de 130 para 200 para dar espaço aos picos */}
-          <div className="h-80 w-full mb-12 relative px-2">
-            <svg viewBox="0 0 300 230" preserveAspectRatio="none" className="w-full h-full overflow-visible">
+          <div className="h-64 w-full mb-12 relative px-2">
+            <svg viewBox="0 0 300 130" preserveAspectRatio="none" className="w-full h-full overflow-visible">
               {renderGrid()}
               <path 
                 key={periodo}
                 d={getSmoothPath()} 
                 fill="none" 
                 stroke="#facc15" 
-                strokeWidth="5" 
+                strokeWidth="4" 
                 strokeLinecap="round" 
                 className="path-anim"
               />
-              <circle cx={trendData[trendData.length-1]?.x} cy={trendData[trendData.length-1]?.y} r="5" fill="#facc15" className="animate-pulse" />
+              <circle cx={trendData[trendData.length-1]?.x} cy={trendData[trendData.length-1]?.y} r="4" fill="#facc15" className="animate-pulse" />
             </svg>
           </div>
 
