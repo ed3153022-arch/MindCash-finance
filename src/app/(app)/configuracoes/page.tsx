@@ -33,7 +33,9 @@ export default function VereditoPage() {
         const agora = new Date();
         const volumesHistoricos: number[] = [];
 
-        // 1. DIFERENCIAÇÃO REAL: Entradas (+) e Saídas (-)
+        // --- INÍCIO DA SUBSTITUIÇÃO ---
+        
+        // 1. Coleta o histórico real e calcula a saúde financeira (Delta)
         for (let i = 0; i < 30; i++) {
           const dRef = new Date();
           dRef.setDate(agora.getDate() - i);
@@ -41,13 +43,13 @@ export default function VereditoPage() {
             .filter(t => new Date(t.created_at).toDateString() === dRef.toDateString())
             .reduce((acc, t) => {
               const val = Math.abs(Number(t.amount));
-              // Se for retirada, subtrai. Se for depósito, soma.
+              // Se for saída (withdrawal), subtrai. Se for entrada, soma.
               return t.type === 'withdrawal' ? acc - val : acc + val;
             }, 0);
           volumesHistoricos.push(volume);
         }
 
-        // Calcula a média real de ganho/gasto (inclinação da projeção)
+        // Média real: se for negativa, o usuário está gastando mais do que ganha
         const mediaDelta = volumesHistoricos.reduce((a, b) => a + b, 0) / 30;
 
         const pontosPorDia = 8; 
@@ -55,31 +57,38 @@ export default function VereditoPage() {
         const tempPoints = [];
 
         for (let i = 0; i <= totalPontos; i++) {
-          const diaSimulado = Math.floor(i / pontosPorDia) % volumesHistoricos.length;
-          const volBase = volumesHistoricos[diaSimulado] || 0;
+          const progresso = i / totalPontos;
           
-          // 2. PROJEÇÃO DINÂMICA: A inclinação depende da média real das transações
-          // Se mediaDelta for negativa (gastos > ganhos), a inclinação sobe o Y (gráfico desce)
-          const inclinacao = (mediaDelta / 150) * i * -1; 
+          // 2. CORREÇÃO DA LINHA RETA E SALDO NEGATIVO:
+          // Reduzimos a força da inclinação para ela não estourar o topo/fundo rapidamente
+          // Se mediaDelta é negativa, inclinacao será positiva (fazendo o Y subir e o gráfico cair)
+          const fatorEscala = numDiasProjecao === 30 ? 400 : numDiasProjecao === 7 ? 150 : 50;
+          const inclinacao = (mediaDelta / fatorEscala) * i * -1; 
           
-          // Mantém a oscilação ativa até o fim do gráfico
-          const amplitude = Math.min(Math.max(Math.abs(volBase) / 60, 20), 45);
-          const wave = Math.sin(i * 0.7) * (amplitude * 0.8) + Math.cos(i * 0.4) * (amplitude * 0.4);
+          // 3. OSCILAÇÃO CONSTANTE:
+          // Usamos o índice 'i' para garantir que a onda nunca pare de oscilar até o final (+30D)
+          const wave = Math.sin(i * 0.8) * 12 + Math.cos(i * 0.4) * 8;
           
+          // 65 é o centro vertical do gráfico
+          const finalY = 65 + inclinacao - wave;
+
           tempPoints.push({ 
-            x: (i / totalPontos) * 300, // Garante que encoste na borda direita
-            y: Math.max(10, Math.min(125, 65 + inclinacao - wave)) 
+            x: progresso * 300, 
+            // Clamp entre 15 e 115 para a linha nunca virar uma reta no teto ou fundo
+            y: Math.max(15, Math.min(115, finalY)) 
           });
         }
         setTrendData(tempPoints);
 
+        // --- FIM DA SUBSTITUIÇÃO ---
+
         const ultimoPontoY = tempPoints[tempPoints.length - 1].y;
-        if (ultimoPontoY < 55) {
-          setStatusFeedback({ label: `PROJEÇÃO: TENDÊNCIA DE ENTRADAS (+${numDiasProjecao}D)`, color: "text-green-400", icon: <CheckCircle2 className="text-green-400" size={16}/> });
-        } else if (ultimoPontoY > 75) {
-          setStatusFeedback({ label: `PROJEÇÃO: RISCO DE SAÍDAS (+${numDiasProjecao}D)`, color: "text-red-500", icon: <AlertCircle className="text-red-500" size={16}/> });
+        if (ultimoPontoY < 45) {
+          setStatusFeedback({ label: `PROJEÇÃO: ENTRADAS ELEVADAS (+${numDiasProjecao}D)`, color: "text-green-400", icon: <CheckCircle2 className="text-green-400" size={16}/> });
+        } else if (ultimoPontoY > 85) {
+          setStatusFeedback({ label: `PROJEÇÃO: SAÍDAS CRÍTICAS (+${numDiasProjecao}D)`, color: "text-red-500", icon: <AlertCircle className="text-red-500" size={16}/> });
         } else {
-          setStatusFeedback({ label: `PROJEÇÃO: FLUXO ESTÁVEL (+${numDiasProjecao}D)`, color: "text-yellow-400", icon: <TrendingUp className="text-yellow-400" size={16}/> });
+          setStatusFeedback({ label: `PROJEÇÃO: FLUXO MODERADO (+${numDiasProjecao}D)`, color: "text-yellow-400", icon: <TrendingUp className="text-yellow-400" size={16}/> });
         }
 
       } catch (e) { console.error(e); } finally { if (isMounted) setLoading(false); }
