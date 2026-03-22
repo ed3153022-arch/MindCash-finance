@@ -31,56 +31,55 @@ export default function VereditoPage() {
 
         const numDiasProjecao = periodo === "dia" ? 1 : periodo === "semana" ? 7 : 30;
         const agora = new Date();
-        const volumesHistoricos: number[] = [];
 
-        // --- INÍCIO DA SUBSTITUIÇÃO ---
-        
-        // 1. Coleta o histórico real e calcula a saúde financeira (Delta)
+        // --- INÍCIO DA CORREÇÃO SOLICITADA ---
+
+        // 1. ANALISA O PADRÃO (O "motor" da projeção)
+        const historicoDeltas: number[] = [];
         for (let i = 0; i < 30; i++) {
           const dRef = new Date();
           dRef.setDate(agora.getDate() - i);
-          const volume = rawData
-            .filter(t => new Date(t.created_at).toDateString() === dRef.toDateString())
-            .reduce((acc, t) => {
-              const val = Math.abs(Number(t.amount));
-              // Se for saída (withdrawal), subtrai. Se for entrada, soma.
-              return t.type === 'withdrawal' ? acc - val : acc + val;
-            }, 0);
-          volumesHistoricos.push(volume);
+          const diaData = rawData.filter(t => new Date(t.created_at).toDateString() === dRef.toDateString());
+          
+          const deltaDia = diaData.reduce((acc, t) => {
+            const val = Math.abs(Number(t.amount));
+            // Se for retirada (withdrawal), subtrai do delta do dia
+            return t.type === 'withdrawal' ? acc - val : acc + val;
+          }, 0);
+          historicoDeltas.push(deltaDia);
         }
 
-        // Média real: se for negativa, o usuário está gastando mais do que ganha
-        const mediaDelta = volumesHistoricos.reduce((a, b) => a + b, 0) / 30;
+        // Média de variação diária: define se a projeção sobe ou desce
+        const mediaDiariaReal = historicoDeltas.reduce((a, b) => a + b, 0) / 30;
 
+        // 2. GERA A PROJEÇÃO FUTURA DRAMÁTICA
         const pontosPorDia = 8; 
         const totalPontos = numDiasProjecao * pontosPorDia;
         const tempPoints = [];
 
         for (let i = 0; i <= totalPontos; i++) {
           const progresso = i / totalPontos;
+          const fatorTempo = i / pontosPorDia; // Transforma pontos em dias futuros
+
+          // SENSIBILIDADE AUMENTADA: Multiplicador para tornar a subida/queda mais íngreme
+          const sensibilidade = 2.5; 
+          const inclinacaoProjetada = (mediaDiariaReal * sensibilidade / 50) * fatorTempo * -1;
           
-          // 2. CORREÇÃO DA LINHA RETA E SALDO NEGATIVO:
-          // Reduzimos a força da inclinação para ela não estourar o topo/fundo rapidamente
-          // Se mediaDelta é negativa, inclinacao será positiva (fazendo o Y subir e o gráfico cair)
-          const fatorEscala = numDiasProjecao === 30 ? 400 : numDiasProjecao === 7 ? 150 : 50;
-          const inclinacao = (mediaDelta / fatorEscala) * i * -1; 
+          // Mantém a oscilação constante para o gráfico não virar uma linha reta
+          const oscilacaoFutura = Math.sin(i * 0.8) * 12 + Math.cos(i * 0.4) * 6;
           
-          // 3. OSCILAÇÃO CONSTANTE:
-          // Usamos o índice 'i' para garantir que a onda nunca pare de oscilar até o final (+30D)
-          const wave = Math.sin(i * 0.8) * 12 + Math.cos(i * 0.4) * 8;
-          
-          // 65 é o centro vertical do gráfico
-          const finalY = 65 + inclinacao - wave;
+          // Ponto central (65). A inclinação puxa para cima ou para baixo conforme o tempo passa.
+          const pontoY = 65 + inclinacaoProjetada - oscilacaoFutura;
 
           tempPoints.push({ 
             x: progresso * 300, 
-            // Clamp entre 15 e 115 para a linha nunca virar uma reta no teto ou fundo
-            y: Math.max(15, Math.min(115, finalY)) 
+            // Garante que a linha nunca "estacione" no topo ou fundo
+            y: Math.max(10, Math.min(125, pontoY)) 
           });
         }
         setTrendData(tempPoints);
 
-        // --- FIM DA SUBSTITUIÇÃO ---
+        // --- FIM DA CORREÇÃO SOLICITADA ---
 
         const ultimoPontoY = tempPoints[tempPoints.length - 1].y;
         if (ultimoPontoY < 45) {
