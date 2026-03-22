@@ -32,9 +32,7 @@ export default function VereditoPage() {
         const numDiasProjecao = periodo === "dia" ? 1 : periodo === "semana" ? 7 : 30;
         const agora = new Date();
 
-        // --- INÍCIO DA CORREÇÃO SOLICITADA ---
-
-        // 1. ANALISA O PADRÃO (O "motor" da projeção)
+        // 1. ANALISA O COMPORTAMENTO PASSADO (O combustível do motor)
         const historicoDeltas: number[] = [];
         for (let i = 0; i < 30; i++) {
           const dRef = new Date();
@@ -43,51 +41,54 @@ export default function VereditoPage() {
           
           const deltaDia = diaData.reduce((acc, t) => {
             const val = Math.abs(Number(t.amount));
-            // Se for retirada (withdrawal), subtrai do delta do dia
             return t.type === 'withdrawal' ? acc - val : acc + val;
           }, 0);
           historicoDeltas.push(deltaDia);
         }
 
-        // Média de variação diária: define se a projeção sobe ou desce
+        // Média de variação diária real
         const mediaDiariaReal = historicoDeltas.reduce((a, b) => a + b, 0) / 30;
 
-        // 2. GERA A PROJEÇÃO FUTURA DRAMÁTICA
+        // 2. GERA A PROJEÇÃO ACUMULADA (Simulação do Futuro)
         const pontosPorDia = 8; 
         const totalPontos = numDiasProjecao * pontosPorDia;
         const tempPoints = [];
 
+        // Ponto de partida central (65 no eixo Y do SVG)
+        let saldoSimulado = 65; 
+
         for (let i = 0; i <= totalPontos; i++) {
           const progresso = i / totalPontos;
-          const fatorTempo = i / pontosPorDia; // Transforma pontos em dias futuros
+          
+          // O saldo simulado ACUMULA a tendência a cada ponto
+          // Se a média é negativa (mais gastos), o saldo diminui (Y aumenta no SVG)
+          // O divisor 35 ajusta a "agressividade" visual da inclinação
+          const impactoTendencia = (mediaDiariaReal / 35) / pontosPorDia;
+          
+          // Adiciona ruído orgânico baseado no histórico para evitar linhas artificiais
+          const indexHist = i % 30;
+          const ruidoReal = (historicoDeltas[indexHist] / 600); 
+          const wave = Math.sin(i * 0.8) * 8 + Math.cos(i * 0.4) * 4;
 
-          // SENSIBILIDADE AUMENTADA: Multiplicador para tornar a subida/queda mais íngreme
-          const sensibilidade = 2.5; 
-          const inclinacaoProjetada = (mediaDiariaReal * sensibilidade / 50) * fatorTempo * -1;
-          
-          // Mantém a oscilação constante para o gráfico não virar uma linha reta
-          const oscilacaoFutura = Math.sin(i * 0.8) * 12 + Math.cos(i * 0.4) * 6;
-          
-          // Ponto central (65). A inclinação puxa para cima ou para baixo conforme o tempo passa.
-          const pontoY = 65 + inclinacaoProjetada - oscilacaoFutura;
+          saldoSimulado = saldoSimulado - impactoTendencia;
+
+          const pontoY = saldoSimulado - wave - ruidoReal;
 
           tempPoints.push({ 
             x: progresso * 300, 
-            // Garante que a linha nunca "estacione" no topo ou fundo
             y: Math.max(10, Math.min(125, pontoY)) 
           });
         }
         setTrendData(tempPoints);
 
-        // --- FIM DA CORREÇÃO SOLICITADA ---
-
+        // Feedback visual baseado no destino final da linha
         const ultimoPontoY = tempPoints[tempPoints.length - 1].y;
-        if (ultimoPontoY < 45) {
-          setStatusFeedback({ label: `PROJEÇÃO: ENTRADAS ELEVADAS (+${numDiasProjecao}D)`, color: "text-green-400", icon: <CheckCircle2 className="text-green-400" size={16}/> });
-        } else if (ultimoPontoY > 85) {
-          setStatusFeedback({ label: `PROJEÇÃO: SAÍDAS CRÍTICAS (+${numDiasProjecao}D)`, color: "text-red-500", icon: <AlertCircle className="text-red-500" size={16}/> });
+        if (ultimoPontoY < 55) {
+          setStatusFeedback({ label: `PROJEÇÃO: TENDÊNCIA DE ALTA (+${numDiasProjecao}D)`, color: "text-green-400", icon: <CheckCircle2 className="text-green-400" size={16}/> });
+        } else if (ultimoPontoY > 75) {
+          setStatusFeedback({ label: `PROJEÇÃO: TENDÊNCIA DE QUEDA (+${numDiasProjecao}D)`, color: "text-red-500", icon: <AlertCircle className="text-red-500" size={16}/> });
         } else {
-          setStatusFeedback({ label: `PROJEÇÃO: FLUXO MODERADO (+${numDiasProjecao}D)`, color: "text-yellow-400", icon: <TrendingUp className="text-yellow-400" size={16}/> });
+          setStatusFeedback({ label: `PROJEÇÃO: FLUXO ESTÁVEL (+${numDiasProjecao}D)`, color: "text-yellow-400", icon: <TrendingUp className="text-yellow-400" size={16}/> });
         }
 
       } catch (e) { console.error(e); } finally { if (isMounted) setLoading(false); }
