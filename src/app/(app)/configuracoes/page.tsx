@@ -31,58 +31,55 @@ export default function VereditoPage() {
 
         const numDiasProjecao = periodo === "dia" ? 1 : periodo === "semana" ? 7 : 30;
         const agora = new Date();
-        
-        // 1. Calcula a tendência real (Saldo acumulado para entender o padrão)
-        let saldoAcumulado = 0;
-        const historicoDelta: number[] = [];
+        const volumesHistoricos: number[] = [];
 
-        for (let i = 29; i >= 0; i--) {
+        // 1. DIFERENCIAÇÃO REAL: Entradas (+) e Saídas (-)
+        for (let i = 0; i < 30; i++) {
           const dRef = new Date();
           dRef.setDate(agora.getDate() - i);
-          const diaData = rawData.filter(t => new Date(t.created_at).toDateString() === dRef.toDateString());
-          
-          const deltaDia = diaData.reduce((acc, t) => {
-            const val = Math.abs(Number(t.amount));
-            return t.type === 'withdrawal' ? acc - val : acc + val;
-          }, 0);
-          
-          historicoDelta.push(deltaDia);
+          const volume = rawData
+            .filter(t => new Date(t.created_at).toDateString() === dRef.toDateString())
+            .reduce((acc, t) => {
+              const val = Math.abs(Number(t.amount));
+              // Se for retirada, subtrai. Se for depósito, soma.
+              return t.type === 'withdrawal' ? acc - val : acc + val;
+            }, 0);
+          volumesHistoricos.push(volume);
         }
 
-        // Média de variação diária (o "padrão" do usuário)
-        const tendenciaMedia = historicoDelta.reduce((a, b) => a + b, 0) / 30;
+        // Calcula a média real de ganho/gasto (inclinação da projeção)
+        const mediaDelta = volumesHistoricos.reduce((a, b) => a + b, 0) / 30;
 
-        // 2. Gera a PROJEÇÃO FUTURA
         const pontosPorDia = 8; 
         const totalPontos = numDiasProjecao * pontosPorDia;
         const tempPoints = [];
 
         for (let i = 0; i <= totalPontos; i++) {
-          const progresso = i / totalPontos;
+          const diaSimulado = Math.floor(i / pontosPorDia) % volumesHistoricos.length;
+          const volBase = volumesHistoricos[diaSimulado] || 0;
           
-          // Lógica da Projeção: Inclinação baseada na tendência + Oscilação orgânica
-          // tendenciaMedia positiva = gráfico sobe (Y diminui) | negativa = gráfico desce (Y aumenta)
-          const inclinacao = (tendenciaMedia / 100) * i * -1; 
-          const wave = Math.sin(i * 0.8) * 15 + Math.cos(i * 0.3) * 10;
+          // 2. PROJEÇÃO DINÂMICA: A inclinação depende da média real das transações
+          // Se mediaDelta for negativa (gastos > ganhos), a inclinação sobe o Y (gráfico desce)
+          const inclinacao = (mediaDelta / 150) * i * -1; 
           
-          const baseY = 65; // Centro do gráfico
-          const finalY = baseY + inclinacao + wave;
-
+          // Mantém a oscilação ativa até o fim do gráfico
+          const amplitude = Math.min(Math.max(Math.abs(volBase) / 60, 20), 45);
+          const wave = Math.sin(i * 0.7) * (amplitude * 0.8) + Math.cos(i * 0.4) * (amplitude * 0.4);
+          
           tempPoints.push({ 
-            x: (i / totalPontos) * 300, 
-            y: Math.max(10, Math.min(125, finalY)) 
+            x: (i / totalPontos) * 300, // Garante que encoste na borda direita
+            y: Math.max(10, Math.min(125, 65 + inclinacao - wave)) 
           });
         }
         setTrendData(tempPoints);
 
-        // 3. Feedback baseado no ponto final da projeção
         const ultimoPontoY = tempPoints[tempPoints.length - 1].y;
-        if (ultimoPontoY < 45) {
-          setStatusFeedback({ label: `PROJEÇÃO: TENDÊNCIA DE ALTA (+${numDiasProjecao}D)`, color: "text-green-400", icon: <CheckCircle2 className="text-green-400" size={16}/> });
-        } else if (ultimoPontoY > 85) {
-          setStatusFeedback({ label: `PROJEÇÃO: RISCO DE QUEDA (+${numDiasProjecao}D)`, color: "text-red-500", icon: <AlertCircle className="text-red-500" size={16}/> });
+        if (ultimoPontoY < 55) {
+          setStatusFeedback({ label: `PROJEÇÃO: TENDÊNCIA DE ENTRADAS (+${numDiasProjecao}D)`, color: "text-green-400", icon: <CheckCircle2 className="text-green-400" size={16}/> });
+        } else if (ultimoPontoY > 75) {
+          setStatusFeedback({ label: `PROJEÇÃO: RISCO DE SAÍDAS (+${numDiasProjecao}D)`, color: "text-red-500", icon: <AlertCircle className="text-red-500" size={16}/> });
         } else {
-          setStatusFeedback({ label: `PROJEÇÃO: ESTABILIDADE (+${numDiasProjecao}D)`, color: "text-yellow-400", icon: <TrendingUp className="text-yellow-400" size={16}/> });
+          setStatusFeedback({ label: `PROJEÇÃO: FLUXO ESTÁVEL (+${numDiasProjecao}D)`, color: "text-yellow-400", icon: <TrendingUp className="text-yellow-400" size={16}/> });
         }
 
       } catch (e) { console.error(e); } finally { if (isMounted) setLoading(false); }
@@ -112,7 +109,7 @@ export default function VereditoPage() {
     const lines = [];
 
     for (let i = 0; i <= numDias; i++) {
-      const x = (i / numDias) * 300;
+      const x = (300 / numDias) * i;
       lines.push(
         <g key={i}>
           <line x1={x} y1="0" x2={x} y2="130" stroke="#FFFFFF" strokeWidth="0.4" strokeDasharray="3 3" opacity="0.1" />
@@ -142,7 +139,7 @@ export default function VereditoPage() {
           <div className="flex justify-between items-center mb-16">
             <h4 className="text-[9px] font-black text-zinc-600 tracking-[0.3em] flex items-center gap-2">
               <TrendingUp size={12} className="text-yellow-500"/> 
-              PROJEÇÃO PARA {periodo === "dia" ? "PRÓXIMO DIA" : periodo === "semana" ? "PRÓXIMA SEMANA" : "PRÓXIMO MÊS"}
+              TENDÊNCIA DA PRÓXIMA {periodo === "dia" ? "DIA" : periodo === "semana" ? "SEMANA" : "MÊS"}
             </h4>
             <div className="flex bg-black p-1 rounded-xl border border-white/10">
               {["dia", "semana", "mês"].map((t: any) => (
