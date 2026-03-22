@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useEffect, useState, useMemo } from "react";
+import React, { useEffect, useState } from "react";
 import { supabase } from "@/lib/supabase";
 import { TrendingUp, Zap, CheckCircle2, AlertCircle, Info } from "lucide-react";
 import { useRouter } from "next/navigation";
@@ -10,7 +10,11 @@ export default function VereditoPage() {
   const [loading, setLoading] = useState(true);
   const [periodo, setPeriodo] = useState<"dia" | "semana" | "mês">("semana");
   const [trendData, setTrendData] = useState<{ x: number; y: number }[]>([]);
-  const [statusFeedback, setStatusFeedback] = useState({ label: "Analisando Projeção...", color: "text-zinc-500", icon: <Info size={16}/> });
+  const [statusFeedback, setStatusFeedback] = useState({ 
+    label: "Analisando Projeção...", 
+    color: "text-zinc-500", 
+    icon: <Info size={16}/> 
+  });
 
   useEffect(() => {
     let isMounted = true;
@@ -21,60 +25,62 @@ export default function VereditoPage() {
         const { data: { user } } = await supabase.auth.getUser();
         if (!user) { router.push("/login"); return; }
 
+        // BUSCA TODO O HISTÓRICO DE UMA VEZ
         const { data: rawData, error } = await supabase
           .from("transactions")
-          .select("amount, type, created_at")
+          .select("amount, type")
           .eq("user_id", user.id);
 
         if (error || !rawData) throw error;
         if (!isMounted) return;
 
-        // --- INÍCIO DA CORREÇÃO SIMPLIFICADA ---
-        const numDiasProjecao = periodo === "dia" ? 1 : periodo === "semana" ? 7 : 30;
-        
-        // 1. CALCULA A TENDÊNCIA REAL (GANHOS VS GASTOS DOS ÚLTIMOS 30 DIAS)
-        const saldoHistoricoTotal = rawData.reduce((acc, t) => {
+        // 1. CÁLCULO DO SALDO REAL (LÊ TODAS AS TRANSAÇÕES)
+        const saldoRealTotal = rawData.reduce((acc, t) => {
           const val = Math.abs(Number(t.amount));
           return t.type === 'withdrawal' ? acc - val : acc + val;
         }, 0);
-        
-        // Média de quanto o saldo sobe ou desce por dia
-        const tendenciaDiaria = saldoHistoricoTotal / 30;
 
-        // 2. GERA A LINHA DE PROJEÇÃO FUTURA
-        const pontosPorDia = 8; 
+        // 2. CONFIGURAÇÃO DA PROJEÇÃO SIMPLIFICADA
+        const numDiasProjecao = periodo === "dia" ? 1 : periodo === "semana" ? 7 : 30;
+        const pontosPorDia = 8;
         const totalPontos = numDiasProjecao * pontosPorDia;
         const tempPoints = [];
 
+        // Fator de inclinação: quanto maior o saldo, mais a linha sobe ou desce
+        const forcaTendencia = saldoRealTotal / 400; 
+
         for (let i = 0; i <= totalPontos; i++) {
           const progresso = i / totalPontos;
-          const diasFuturos = i / pontosPorDia;
-
-          // A inclinação acumula com o tempo: quanto mais dias, mais longe do centro
-          // Dividimos por 30 para suavizar a linha no gráfico
-          const inclinacao = (tendenciaDiaria / 30) * diasFuturos * -1;
+          const progressoTempo = i / pontosPorDia;
           
-          // Mantém a onda visual para não ser uma linha reta estática
+          // O "i" garante movimento do início ao fim do SVG (x: 0 a 300)
+          // Se o saldo for negativo, a tendência será positiva, fazendo o Y subir (linha cair)
+          const tendencia = (forcaTendencia * progressoTempo) * -1;
+          
+          // Mantém a oscilação visual para o gráfico ter "vida"
           const wave = Math.sin(i * 0.8) * 10 + Math.cos(i * 0.4) * 5;
-          
+
           tempPoints.push({ 
             x: progresso * 300, 
-            y: Math.max(15, Math.min(115, 65 + inclinacao - wave)) 
+            y: Math.max(15, Math.min(115, 65 + tendencia - wave)) 
           });
         }
         setTrendData(tempPoints);
-        // --- FIM DA CORREÇÃO ---
 
-        const ultimoPontoY = tempPoints[tempPoints.length - 1].y;
-        if (ultimoPontoY < 55) {
+        // FEEDBACK BASEADO NO SALDO REAL PROCESSADO
+        if (saldoRealTotal > 50) {
           setStatusFeedback({ label: `PROJEÇÃO: TENDÊNCIA DE ALTA (+${numDiasProjecao}D)`, color: "text-green-400", icon: <CheckCircle2 className="text-green-400" size={16}/> });
-        } else if (ultimoPontoY > 75) {
+        } else if (saldoRealTotal < -50) {
           setStatusFeedback({ label: `PROJEÇÃO: TENDÊNCIA DE QUEDA (+${numDiasProjecao}D)`, color: "text-red-500", icon: <AlertCircle className="text-red-500" size={16}/> });
         } else {
           setStatusFeedback({ label: `PROJEÇÃO: FLUXO ESTÁVEL (+${numDiasProjecao}D)`, color: "text-yellow-400", icon: <TrendingUp className="text-yellow-400" size={16}/> });
         }
 
-      } catch (e) { console.error(e); } finally { if (isMounted) setLoading(false); }
+      } catch (e) { 
+        console.error(e); 
+      } finally { 
+        if (isMounted) setLoading(false); 
+      }
     }
 
     fetchSystemData();
@@ -169,5 +175,5 @@ export default function VereditoPage() {
         </div>
       </div>
     </div>
-   );
+  );
 }
