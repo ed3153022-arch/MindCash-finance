@@ -25,7 +25,6 @@ export default function VereditoPage() {
         const { data: { user } } = await supabase.auth.getUser();
         if (!user) { router.push("/login"); return; }
 
-        // BUSCA TODO O HISTÓRICO DE UMA VEZ
         const { data: rawData, error } = await supabase
           .from("transactions")
           .select("amount, type")
@@ -34,53 +33,53 @@ export default function VereditoPage() {
         if (error || !rawData) throw error;
         if (!isMounted) return;
 
-        // 1. CÁLCULO DO SALDO REAL (LÊ TODAS AS TRANSAÇÕES)
-        const saldoRealTotal = rawData.reduce((acc, t) => {
+        // 1. CÁLCULO DO SALDO (DNA DO SEU DINHEIRO)
+        const saldoGeral = rawData.reduce((acc, t) => {
           const val = Math.abs(Number(t.amount));
           return t.type === 'withdrawal' ? acc - val : acc + val;
         }, 0);
 
-        // 2. CONFIGURAÇÃO DA PROJEÇÃO SIMPLIFICADA
+        // 2. GERAÇÃO DA LINHA COMPLETA (DA ESQUERDA PARA A DIREITA)
         const numDiasProjecao = periodo === "dia" ? 1 : periodo === "semana" ? 7 : 30;
-        const pontosPorDia = 8;
-        const totalPontos = numDiasProjecao * pontosPorDia;
+        
+        // Aumentamos a densidade de pontos para a linha ficar bem suave
+        const totalPontos = 100; 
         const tempPoints = [];
 
-        // Fator de inclinação: quanto maior o saldo, mais a linha sobe ou desce
-        const forcaTendencia = saldoRealTotal / 400; 
+        // Sensibilidade da inclinação (ajustada para ser visível)
+        const sensibilidade = saldoGeral / 300;
 
         for (let i = 0; i <= totalPontos; i++) {
-          const progresso = i / totalPontos;
-          const progressoTempo = i / pontosPorDia;
+          const progresso = i / totalPontos; // Vai de 0 a 1 (0% a 100% da largura)
           
-          // O "i" garante movimento do início ao fim do SVG (x: 0 a 300)
-          // Se o saldo for negativo, a tendência será positiva, fazendo o Y subir (linha cair)
-          const tendencia = (forcaTendencia * progressoTempo) * -1;
-          
-          // Mantém a oscilação visual para o gráfico ter "vida"
-          const wave = Math.sin(i * 0.8) * 10 + Math.cos(i * 0.4) * 5;
+          // O X agora sempre vai de 0 a 300, preenchendo o gráfico todo
+          const x = progresso * 300;
 
+          // A tendência acumula baseada no progresso do tempo
+          const tendencia = (sensibilidade * progresso * numDiasProjecao) * -1;
+          
+          // Oscilação orgânica para dar realismo
+          const wave = Math.sin(progresso * Math.PI * 4) * 8 + Math.cos(progresso * Math.PI * 2) * 4;
+
+          // Começa no centro (65) e aplica a tendência + onda
           tempPoints.push({ 
-            x: progresso * 300, 
-            y: Math.max(15, Math.min(115, 65 + tendencia - wave)) 
+            x: x, 
+            y: Math.max(10, Math.min(125, 65 + tendencia - wave)) 
           });
         }
+        
         setTrendData(tempPoints);
 
-        // FEEDBACK BASEADO NO SALDO REAL PROCESSADO
-        if (saldoRealTotal > 50) {
-          setStatusFeedback({ label: `PROJEÇÃO: TENDÊNCIA DE ALTA (+${numDiasProjecao}D)`, color: "text-green-400", icon: <CheckCircle2 className="text-green-400" size={16}/> });
-        } else if (saldoRealTotal < -50) {
-          setStatusFeedback({ label: `PROJEÇÃO: TENDÊNCIA DE QUEDA (+${numDiasProjecao}D)`, color: "text-red-500", icon: <AlertCircle className="text-red-500" size={16}/> });
+        // Feedback baseado no saldo
+        if (saldoGeral > 0) {
+          setStatusFeedback({ label: `PROJEÇÃO: TENDÊNCIA DE ALTA (+${numDiasProjecao}D)`, color: "text-green-400", icon: <CheckCircle2 size={16}/> });
+        } else if (saldoGeral < 0) {
+          setStatusFeedback({ label: `PROJEÇÃO: TENDÊNCIA DE QUEDA (+${numDiasProjecao}D)`, color: "text-red-500", icon: <AlertCircle size={16}/> });
         } else {
-          setStatusFeedback({ label: `PROJEÇÃO: FLUXO ESTÁVEL (+${numDiasProjecao}D)`, color: "text-yellow-400", icon: <TrendingUp className="text-yellow-400" size={16}/> });
+          setStatusFeedback({ label: `PROJEÇÃO: FLUXO ESTÁVEL (+${numDiasProjecao}D)`, color: "text-yellow-400", icon: <TrendingUp size={16}/> });
         }
 
-      } catch (e) { 
-        console.error(e); 
-      } finally { 
-        if (isMounted) setLoading(false); 
-      }
+      } catch (e) { console.error(e); } finally { if (isMounted) setLoading(false); }
     }
 
     fetchSystemData();
