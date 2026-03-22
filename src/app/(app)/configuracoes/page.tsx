@@ -29,44 +29,49 @@ export default function VereditoPage() {
         if (error || !rawData) throw error;
         if (!isMounted) return;
 
+        // --- INÍCIO DA CORREÇÃO SIMPLIFICADA ---
         const numDiasProjecao = periodo === "dia" ? 1 : periodo === "semana" ? 7 : 30;
-        const agora = new Date();
-        const volumesHistoricos: number[] = [];
+        
+        // 1. CALCULA A TENDÊNCIA REAL (GANHOS VS GASTOS DOS ÚLTIMOS 30 DIAS)
+        const saldoHistoricoTotal = rawData.reduce((acc, t) => {
+          const val = Math.abs(Number(t.amount));
+          return t.type === 'withdrawal' ? acc - val : acc + val;
+        }, 0);
+        
+        // Média de quanto o saldo sobe ou desce por dia
+        const tendenciaDiaria = saldoHistoricoTotal / 30;
 
-        for (let i = 0; i < 30; i++) {
-          const dRef = new Date();
-          dRef.setDate(agora.getDate() - i);
-          const volume = rawData
-            .filter(t => new Date(t.created_at).toDateString() === dRef.toDateString())
-            .reduce((acc, t) => acc + Math.abs(Number(t.amount)), 0);
-          volumesHistoricos.push(volume);
-        }
-
-        const pontosPorDia = periodo === "mês" ? 4 : 8; 
+        // 2. GERA A LINHA DE PROJEÇÃO FUTURA
+        const pontosPorDia = 8; 
         const totalPontos = numDiasProjecao * pontosPorDia;
         const tempPoints = [];
 
         for (let i = 0; i <= totalPontos; i++) {
-          const diaSimulado = Math.floor(i / pontosPorDia) % volumesHistoricos.length;
-          const volBase = volumesHistoricos[diaSimulado] || 100;
+          const progresso = i / totalPontos;
+          const diasFuturos = i / pontosPorDia;
+
+          // A inclinação acumula com o tempo: quanto mais dias, mais longe do centro
+          // Dividimos por 30 para suavizar a linha no gráfico
+          const inclinacao = (tendenciaDiaria / 30) * diasFuturos * -1;
           
-          const amplitude = Math.min(Math.max(volBase / 70, 15), 55);
-          const wave = Math.sin(i * 0.9) * amplitude + Math.cos(i * 0.4) * (amplitude / 1.2);
+          // Mantém a onda visual para não ser uma linha reta estática
+          const wave = Math.sin(i * 0.8) * 10 + Math.cos(i * 0.4) * 5;
           
           tempPoints.push({ 
-            x: i * (300 / totalPontos), 
-            y: Math.max(8, Math.min(122, 65 - wave)) 
+            x: progresso * 300, 
+            y: Math.max(15, Math.min(115, 65 + inclinacao - wave)) 
           });
         }
         setTrendData(tempPoints);
+        // --- FIM DA CORREÇÃO ---
 
         const ultimoPontoY = tempPoints[tempPoints.length - 1].y;
-        if (ultimoPontoY < 45) {
-          setStatusFeedback({ label: `PROJEÇÃO: ENTRADAS ELEVADAS (+${numDiasProjecao}D)`, color: "text-green-400", icon: <CheckCircle2 className="text-green-400" size={16}/> });
-        } else if (ultimoPontoY > 85) {
-          setStatusFeedback({ label: `PROJEÇÃO: SAÍDAS CRÍTICAS (+${numDiasProjecao}D)`, color: "text-red-500", icon: <AlertCircle className="text-red-500" size={16}/> });
+        if (ultimoPontoY < 55) {
+          setStatusFeedback({ label: `PROJEÇÃO: TENDÊNCIA DE ALTA (+${numDiasProjecao}D)`, color: "text-green-400", icon: <CheckCircle2 className="text-green-400" size={16}/> });
+        } else if (ultimoPontoY > 75) {
+          setStatusFeedback({ label: `PROJEÇÃO: TENDÊNCIA DE QUEDA (+${numDiasProjecao}D)`, color: "text-red-500", icon: <AlertCircle className="text-red-500" size={16}/> });
         } else {
-          setStatusFeedback({ label: `PROJEÇÃO: FLUXO MODERADO (+${numDiasProjecao}D)`, color: "text-yellow-400", icon: <TrendingUp className="text-yellow-400" size={16}/> });
+          setStatusFeedback({ label: `PROJEÇÃO: FLUXO ESTÁVEL (+${numDiasProjecao}D)`, color: "text-yellow-400", icon: <TrendingUp className="text-yellow-400" size={16}/> });
         }
 
       } catch (e) { console.error(e); } finally { if (isMounted) setLoading(false); }
@@ -95,13 +100,11 @@ export default function VereditoPage() {
     const intervalLabel = periodo === "mês" ? 5 : 1;
     const lines = [];
 
-    // Desenha uma linha tracejada para CADA dia individual
     for (let i = 0; i <= numDias; i++) {
       const x = (300 / numDias) * i;
       lines.push(
         <g key={i}>
           <line x1={x} y1="0" x2={x} y2="130" stroke="#FFFFFF" strokeWidth="0.4" strokeDasharray="3 3" opacity="0.1" />
-          {/* Exibe o número (+D) apenas nos intervalos corretos */}
           {(i % intervalLabel === 0) && (
             <text x={x} y="150" fontSize="6" fill="#FFFFFF" fontWeight="900" textAnchor="middle" opacity="0.4">+{i}D</text>
           )}
@@ -166,5 +169,5 @@ export default function VereditoPage() {
         </div>
       </div>
     </div>
-  );
+   );
 }
