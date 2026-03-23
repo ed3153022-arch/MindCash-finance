@@ -10,7 +10,7 @@ export default function VereditoPage() {
   const [loading, setLoading] = useState(true);
   const [periodo, setPeriodo] = useState<"dia" | "semana" | "mês">("semana");
   const [trendData, setTrendData] = useState<{ x: number; y: number }[]>([]);
-  const [statusFeedback, setStatusFeedback] = useState({ label: "Analisando...", color: "text-zinc-500", icon: <Info size={16}/> });
+  const [statusFeedback, setStatusFeedback] = useState({ label: "Analisando Projeção...", color: "text-zinc-500", icon: <Info size={16}/> });
 
   useEffect(() => {
     let isMounted = true;
@@ -23,86 +23,117 @@ export default function VereditoPage() {
 
         const { data: rawData, error } = await supabase
           .from("transactions")
-          .select("amount, type")
+          .select("amount, type, created_at")
           .eq("user_id", user.id);
 
+        if (error || !rawData) throw error;
         if (!isMounted) return;
 
-        // --- LÓGICA INFALÍVEL DE CÁLCULO ---
-        let saldoTotal = 0;
-        if (rawData && rawData.length > 0) {
-          saldoTotal = rawData.reduce((acc, t) => {
-            const val = Math.abs(Number(t.amount)) || 0;
-            return t.type === 'withdrawal' ? acc - val : acc + val;
-          }, 0);
+        const numDiasProjecao = periodo === "dia" ? 1 : periodo === "semana" ? 7 : 30;
+        const agora = new Date();
+        const volumesHistoricos: number[] = [];
+
+        // Coleta volumes dos últimos 30 dias para basear a "agitação" do gráfico
+        for (let i = 0; i < 30; i++) {
+          const dRef = new Date();
+          dRef.setDate(agora.getDate() - i);
+          const volume = rawData
+            .filter(t => new Date(t.created_at).toDateString() === dRef.toDateString())
+            .reduce((acc, t) => acc + Math.abs(Number(t.amount)), 0);
+          volumesHistoricos.push(volume);
         }
 
-        const numDias = periodo === "dia" ? 1 : periodo === "semana" ? 7 : 30;
-        const pontosFixos = 50; 
-        const novaTrend = [];
+        const pontosPorDia = periodo === "mês" ? 4 : 8; 
+        const totalPontos = numDiasProjecao * pontosPorDia;
+        const tempPoints = [];
 
-        // Forçamos a inclinação a ser visível mas controlada
-        // Se saldoTotal for 1000, a inclinação final será +- 40 pixels
-        const forcaInclinacao = Math.max(-40, Math.min(40, saldoTotal / 100));
-
-        for (let i = 0; i <= pontosFixos; i++) {
-          const x = (i / pontosFixos) * 300;
-          const progresso = i / pontosFixos;
+        for (let i = 0; i <= totalPontos; i++) {
+          const diaSimulado = Math.floor(i / pontosPorDia) % volumesHistoricos.length;
+          const volBase = volumesHistoricos[diaSimulado] || 100;
           
-          // A linha começa em 65 (centro) e vai para cima (Y menor) ou baixo (Y maior)
-          const inclinar = forcaInclinacao * progresso * (numDias / 10);
-          const onda = Math.sin(i * 0.6) * 6; // Onda constante para o gráfico ter "vida"
-
-          novaTrend.push({ 
-            x: x, 
-            y: 65 - inclinar + onda 
+          // Gera a amplitude baseada no volume real
+          const amplitude = Math.min(Math.max(volBase / 70, 15), 55);
+          const wave = Math.sin(i * 0.9) * amplitude + Math.cos(i * 0.4) * (amplitude / 1.2);
+          
+          tempPoints.push({ 
+            x: i * (300 / totalPontos), 
+            y: Math.max(8, Math.min(122, 65 - wave)) 
           });
         }
+        setTrendData(tempPoints);
 
-        setTrendData(novaTrend);
-
-        // Feedback simplificado
-        if (saldoTotal > 0) {
-          setStatusFeedback({ label: `PROJEÇÃO POSITIVA (+${numDias}D)`, color: "text-green-400", icon: <CheckCircle2 size={16}/> });
-        } else if (saldoTotal < 0) {
-          setStatusFeedback({ label: `PROJEÇÃO DE QUEDA (+${numDias}D)`, color: "text-red-500", icon: <AlertCircle size={16}/> });
+        const ultimoPontoY = tempPoints[tempPoints.length - 1].y;
+        if (ultimoPontoY < 45) {
+          setStatusFeedback({ label: `PROJEÇÃO: ENTRADAS ELEVADAS (+${numDiasProjecao}D)`, color: "text-green-400", icon: <CheckCircle2 className="text-green-400" size={16}/> });
+        } else if (ultimoPontoY > 85) {
+          setStatusFeedback({ label: `PROJEÇÃO: SAÍDAS CRÍTICAS (+${numDiasProjecao}D)`, color: "text-red-500", icon: <AlertCircle className="text-red-500" size={16}/> });
         } else {
-          setStatusFeedback({ label: "FLUXO ESTÁVEL", color: "text-yellow-400", icon: <TrendingUp size={16}/> });
+          setStatusFeedback({ label: `PROJEÇÃO: FLUXO MODERADO (+${numDiasProjecao}D)`, color: "text-yellow-400", icon: <TrendingUp className="text-yellow-400" size={16}/> });
         }
 
-      } catch (err) {
-        console.error("Erro no Veredito:", err);
-      } finally {
-        if (isMounted) setLoading(false);
-      }
+      } catch (e) { console.error(e); } finally { if (isMounted) setLoading(false); }
     }
 
     fetchSystemData();
     return () => { isMounted = false; };
   }, [periodo, router]);
 
-  // Função de desenho da linha (SVG Path)
-  const pathData = useMemo(() => {
+  const getSmoothPath = () => {
     if (trendData.length < 2) return "";
-    return `M ${trendData[0].x},${trendData[0].y} ` + 
-      trendData.map((p, i) => i === 0 ? "" : `L ${p.x},${p.y}`).join(" ");
-  }, [trendData]);
+    let d = `M ${trendData[0].x},${trendData[0].y}`;
+    for (let i = 0; i < trendData.length - 1; i++) {
+      const curr = trendData[i];
+      const next = trendData[i + 1];
+      const mx = (curr.x + next.x) / 2;
+      const my = (curr.y + next.y) / 2;
+      d += ` Q ${curr.x},${curr.y} ${mx},${my}`;
+    }
+    d += ` L ${trendData[trendData.length - 1].x},${trendData[trendData.length - 1].y}`;
+    return d;
+  };
+
+  const renderGrid = () => {
+    const numDias = periodo === "dia" ? 1 : periodo === "semana" ? 7 : 30;
+    const intervalLabel = periodo === "mês" ? 5 : 1;
+    const lines = [];
+
+    for (let i = 0; i <= numDias; i++) {
+      const x = (300 / numDias) * i;
+      lines.push(
+        <g key={i}>
+          <line x1={x} y1="0" x2={x} y2="130" stroke="#FFFFFF" strokeWidth="0.4" strokeDasharray="3 3" opacity="0.1" />
+          {(i % intervalLabel === 0) && (
+            <text x={x} y="150" fontSize="6" fill="#FFFFFF" fontWeight="900" textAnchor="middle" opacity="0.4">+{i}D</text>
+          )}
+        </g>
+      );
+    }
+    return lines;
+  };
 
   return (
-    <div className="min-h-screen bg-black text-white p-6 font-sans uppercase">
+    <div className="min-h-screen bg-black text-white p-6 pb-28 font-sans uppercase">
+      <style>{`
+        @keyframes draw { from { stroke-dashoffset: 2000; } to { stroke-dashoffset: 0; } }
+        .path-anim { stroke-dasharray: 2000; stroke-dashoffset: 2000; animation: draw 3s cubic-bezier(0.4, 0, 0.2, 1) forwards; }
+      `}</style>
+
       <div className="max-w-xl mx-auto space-y-12 pt-8">
         <header className="flex justify-between items-start">
-          <h1 className="text-7xl font-black italic tracking-tighter">VEREDITO</h1>
+          <h1 className="text-7xl font-black italic tracking-tighter leading-[0.8]">VEREDITO</h1>
           <Zap className="text-yellow-400 fill-yellow-400" size={20} />
         </header>
 
-        <div className="bg-[#050505] p-10 rounded-[3rem] border border-white/5">
-          <div className="flex justify-between items-center mb-10">
-            <h4 className="text-[9px] font-black text-zinc-600 tracking-widest">TENDÊNCIA PRÓXIMA {periodo}</h4>
+        <div className="bg-[#050505] p-10 rounded-[4rem] border border-white/5 relative overflow-hidden">
+          <div className="flex justify-between items-center mb-16">
+            <h4 className="text-[9px] font-black text-zinc-600 tracking-[0.3em] flex items-center gap-2">
+              <TrendingUp size={12} className="text-yellow-500"/> 
+              TENDÊNCIA DA PRÓXIMA {periodo === "dia" ? "DIA" : periodo === "semana" ? "SEMANA" : "MÊS"}
+            </h4>
             <div className="flex bg-black p-1 rounded-xl border border-white/10">
-              {["dia", "semana", "mês"].map((t) => (
-                <button key={t} onClick={() => setPeriodo(t as any)} 
-                  className={`px-4 py-1 rounded-lg text-[8px] font-black ${periodo === t ? 'bg-yellow-400 text-black' : 'text-zinc-500'}`}
+              {["dia", "semana", "mês"].map((t: any) => (
+                <button key={t} onClick={() => setPeriodo(t)} 
+                  className={`px-5 py-1.5 rounded-lg text-[8px] font-black transition-all ${periodo === t ? 'bg-yellow-400 text-black' : 'text-zinc-800'}`}
                 >
                   {t}
                 </button>
@@ -110,25 +141,27 @@ export default function VereditoPage() {
             </div>
           </div>
           
-          <div className="h-48 w-full mb-10">
-            {loading ? (
-              <div className="h-full w-full flex items-center justify-center text-zinc-800 text-[10px]">CARREGANDO...</div>
-            ) : (
-              <svg viewBox="0 0 300 130" className="w-full h-full overflow-visible">
-                {/* Grid */}
-                {[0, 1, 2, 3].map(i => (
-                  <line key={i} x1="0" y1={i * 40} x2="300" y2={i * 40} stroke="white" opacity="0.05" />
-                ))}
-                {/* Linha da Projeção */}
-                <path d={pathData} fill="none" stroke="#facc15" strokeWidth="3" strokeLinecap="round" />
-                <circle cx={trendData[trendData.length-1]?.x} cy={trendData[trendData.length-1]?.y} r="3" fill="#facc15" />
-              </svg>
-            )}
+          <div className="h-64 w-full mb-12 relative px-2">
+            <svg viewBox="0 -10 300 170" preserveAspectRatio="none" className="w-full h-full overflow-visible">
+              {renderGrid()}
+              <path 
+                key={periodo}
+                d={getSmoothPath()} 
+                fill="none" 
+                stroke="#facc15" 
+                strokeWidth="4" 
+                strokeLinecap="round" 
+                className="path-anim"
+              />
+              <circle cx={trendData[trendData.length-1]?.x} cy={trendData[trendData.length-1]?.y} r="4" fill="#facc15" className="animate-pulse" />
+            </svg>
           </div>
 
-          <div className="flex items-center gap-4 bg-zinc-900/50 p-4 rounded-2xl border border-white/5">
+          <div className="flex items-center gap-4 bg-black/60 p-5 rounded-3xl border border-white/5">
             {statusFeedback.icon}
-            <span className={`text-[10px] font-bold tracking-tighter ${statusFeedback.color}`}>{statusFeedback.label}</span>
+            <p className={`text-[9px] font-black italic tracking-widest uppercase ${statusFeedback.color}`}>
+              {statusFeedback.label}
+            </p>
           </div>
         </div>
       </div>
