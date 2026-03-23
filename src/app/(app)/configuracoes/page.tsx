@@ -10,7 +10,7 @@ export default function VereditoPage() {
   const [loading, setLoading] = useState(true);
   const [periodo, setPeriodo] = useState<"dia" | "semana" | "mês">("semana");
   const [trendData, setTrendData] = useState<{ x: number; y: number }[]>([]);
-  const [statusFeedback, setStatusFeedback] = useState({ label: "Analisando Projeção...", color: "text-zinc-500", icon: <Info size={16}/> });
+  const [statusFeedback, setStatusFeedback] = useState({ label: "Analisando...", color: "text-zinc-500", icon: <Info size={16}/> });
 
   useEffect(() => {
     let isMounted = true;
@@ -33,7 +33,6 @@ export default function VereditoPage() {
         const agora = new Date();
         const volumesHistoricos: number[] = [];
 
-        // Coleta volumes dos últimos 30 dias para basear a "agitação" do gráfico
         for (let i = 0; i < 30; i++) {
           const dRef = new Date();
           dRef.setDate(agora.getDate() - i);
@@ -50,8 +49,6 @@ export default function VereditoPage() {
         for (let i = 0; i <= totalPontos; i++) {
           const diaSimulado = Math.floor(i / pontosPorDia) % volumesHistoricos.length;
           const volBase = volumesHistoricos[diaSimulado] || 100;
-          
-          // Gera a amplitude baseada no volume real
           const amplitude = Math.min(Math.max(volBase / 70, 15), 55);
           const wave = Math.sin(i * 0.9) * amplitude + Math.cos(i * 0.4) * (amplitude / 1.2);
           
@@ -62,13 +59,14 @@ export default function VereditoPage() {
         }
         setTrendData(tempPoints);
 
+        // AJUSTE DE FEEDBACK: LUCRO, GASTOS OU MODERADO
         const ultimoPontoY = tempPoints[tempPoints.length - 1].y;
         if (ultimoPontoY < 45) {
-          setStatusFeedback({ label: `PROJEÇÃO: ENTRADAS ELEVADAS (+${numDiasProjecao}D)`, color: "text-green-400", icon: <CheckCircle2 className="text-green-400" size={16}/> });
+          setStatusFeedback({ label: `PROJEÇÃO: TENDÊNCIA DE LUCRO (+${numDiasProjecao}D)`, color: "text-green-400", icon: <CheckCircle2 size={16}/> });
         } else if (ultimoPontoY > 85) {
-          setStatusFeedback({ label: `PROJEÇÃO: SAÍDAS CRÍTICAS (+${numDiasProjecao}D)`, color: "text-red-500", icon: <AlertCircle className="text-red-500" size={16}/> });
+          setStatusFeedback({ label: `PROJEÇÃO: TENDÊNCIA DE GASTOS (+${numDiasProjecao}D)`, color: "text-red-500", icon: <AlertCircle size={16}/> });
         } else {
-          setStatusFeedback({ label: `PROJEÇÃO: FLUXO MODERADO (+${numDiasProjecao}D)`, color: "text-yellow-400", icon: <TrendingUp className="text-yellow-400" size={16}/> });
+          setStatusFeedback({ label: `PROJEÇÃO: FLUXO MODERADO (+${numDiasProjecao}D)`, color: "text-yellow-400", icon: <TrendingUp size={16}/> });
         }
 
       } catch (e) { console.error(e); } finally { if (isMounted) setLoading(false); }
@@ -96,7 +94,6 @@ export default function VereditoPage() {
     const numDias = periodo === "dia" ? 1 : periodo === "semana" ? 7 : 30;
     const intervalLabel = periodo === "mês" ? 5 : 1;
     const lines = [];
-
     for (let i = 0; i <= numDias; i++) {
       const x = (300 / numDias) * i;
       lines.push(
@@ -126,10 +123,12 @@ export default function VereditoPage() {
 
         <div className="bg-[#050505] p-10 rounded-[4rem] border border-white/5 relative overflow-hidden">
           <div className="flex justify-between items-center mb-16">
+            {/* AJUSTE DE TÍTULO CONFORME SOLICITADO */}
             <h4 className="text-[9px] font-black text-zinc-600 tracking-[0.3em] flex items-center gap-2">
               <TrendingUp size={12} className="text-yellow-500"/> 
-              TENDÊNCIA DA PRÓXIMA {periodo === "dia" ? "DIA" : periodo === "semana" ? "SEMANA" : "MÊS"}
+              TENDÊNCIAS DO PRÓXIMO {periodo === "mês" ? "MÊS" : periodo === "semana" ? "SEMANA" : "DIA"}
             </h4>
+            
             <div className="flex bg-black p-1 rounded-xl border border-white/10">
               {["dia", "semana", "mês"].map((t: any) => (
                 <button key={t} onClick={() => setPeriodo(t)} 
