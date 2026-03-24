@@ -13,10 +13,10 @@ export default function VereditoPage() {
   const [loading, setLoading] = useState(true);
   const [periodo, setPeriodo] = useState<"dia" | "semana" | "mês">("semana");
   
-  // Estados de Dados
-  const [resumo, setResumo] = useState({ saldo: 0, maiorGasto: "", razao: 0 });
+  const [resumo, setResumo] = useState({ saldo: 0, maiorGasto: "Analisando...", razao: 0 });
   const [trendData, setTrendData] = useState<{ x: number; y: number }[]>([]);
-  const [statusFeedback, setStatusFeedback] = useState({ label: "Analisando...", color: "text-zinc-500", icon: <Activity size={16}/> });
+  const [statusFeedback, setStatusFeedback] = useState({ label: "Iniciando...", color: "text-zinc-500", icon: <Activity size={16}/> });
+  
   const [radarStats, setRadarStats] = useState({
     consistencia: 0, precisao: 0, previsao: 0, disciplina: 0, engajamento: 0, evolucao: 0
   });
@@ -25,66 +25,80 @@ export default function VereditoPage() {
     let isMounted = true;
     async function fetchVereditoGeral() {
       try {
-        setLoading(true);
         const { data: { user } } = await supabase.auth.getUser();
         if (!user) { router.push("/login"); return; }
 
         const { data: rawData, error } = await supabase.from("transactions").select("*").eq("user_id", user.id);
-        if (error || !rawData) throw error;
+        if (error) throw error;
         if (!isMounted) return;
 
+        const dados = rawData || [];
         const agora = new Date();
-        const entradas = rawData.filter(t => t.type !== 'withdrawal').reduce((acc, t) => acc + Number(t.amount), 0);
-        const saidas = rawData.filter(t => t.type === 'withdrawal').reduce((acc, t) => acc + Math.abs(Number(t.amount)), 0);
+        const entradas = dados.filter(t => t.type !== 'withdrawal').reduce((acc, t) => acc + Number(t.amount), 0);
+        const saidas = dados.filter(t => t.type === 'withdrawal').reduce((acc, t) => acc + Math.abs(Number(t.amount)), 0);
         
-        // Calcular Categoria mais frequente de gasto
         const gastosMap: any = {};
-        rawData.filter(t => t.type === 'withdrawal').forEach(t => {
-            gastosMap[t.category] = (gastosMap[t.category] || 0) + Math.abs(t.amount);
+        dados.filter(t => t.type === 'withdrawal').forEach(t => {
+            const cat = t.category || "Sem Categoria";
+            gastosMap[cat] = (gastosMap[cat] || 0) + Math.abs(t.amount);
         });
-        const categoriaTop = Object.keys(gastosMap).reduce((a, b) => gastosMap[a] > gastosMap[b] ? a : b, "N/A");
+        const categoriasOrdenadas = Object.keys(gastosMap).sort((a, b) => gastosMap[b] - gastosMap[a]);
+        const categoriaTop = categoriasOrdenadas[0] || "Nenhum Gasto";
 
         setResumo({ saldo: entradas - saidas, maiorGasto: categoriaTop, razao: saidas / (entradas || 1) });
 
-        // --- CÁLCULO RADAR ---
-        const diasAtivos = new Set(rawData.filter(t => (agora.getTime() - new Date(t.created_at).getTime()) / (1000 * 3600 * 24) <= 7).map(t => new Date(t.created_at).toDateString())).size;
+        const diasAtivos = new Set(dados.filter(t => (agora.getTime() - new Date(t.created_at).getTime()) / (1000 * 3600 * 24) <= 7).map(t => new Date(t.created_at).toDateString())).size;
+        
         setRadarStats({
           consistencia: (diasAtivos / 7) * 100,
-          precisao: (rawData.filter(t => t.category && t.category !== "Outros").length / (rawData.length || 1)) * 100,
-          previsao: rawData.length > 20 ? 90 : 50,
-          disciplina: Math.max(0, 100 - (rawData.filter(t => t.type === 'withdrawal' && Math.abs(t.amount) > 700).length * 12)),
+          precisao: (dados.filter(t => t.category && t.category !== "Outros").length / (dados.length || 1)) * 100,
+          previsao: dados.length > 20 ? 90 : 50,
+          disciplina: Math.max(0, 100 - (dados.filter(t => t.type === 'withdrawal' && Math.abs(t.amount) > 700).length * 12)),
           engajamento: 88,
           evolucao: Math.min(100, Math.max(0, ((entradas - saidas) / (entradas || 1)) * 100 + 35))
         });
 
-        // --- TENDÊNCIA ---
         const numDias = periodo === "dia" ? 1 : periodo === "semana" ? 7 : 30;
         const pontosPorDia = periodo === "mês" ? 4 : 8; 
         const totalPontos = numDias * pontosPorDia;
         const temp = [];
         for (let i = 0; i <= totalPontos; i++) {
-          const wave = Math.sin(i * 0.8) * 25 + Math.cos(i * 0.3) * 15;
+          const wave = Math.sin(i * 0.8) * 20 + Math.cos(i * 0.3) * 10;
           temp.push({ x: i * (300 / totalPontos), y: Math.max(10, Math.min(120, 65 - wave)) });
         }
         setTrendData(temp);
 
-        const ultimoY = temp[temp.length - 1].y;
+        const ultimoY = temp[temp.length - 1]?.y || 65;
         if (ultimoY < 45) setStatusFeedback({ label: `TENDÊNCIA DE LUCRO (+${numDias}D)`, color: "text-green-400", icon: <CheckCircle2 size={16}/> });
         else if (ultimoY > 85) setStatusFeedback({ label: `TENDÊNCIA DE GASTOS (+${numDias}D)`, color: "text-red-500", icon: <AlertCircle size={16}/> });
         else setStatusFeedback({ label: `FLUXO MODERADO (+${numDias}D)`, color: "text-yellow-400", icon: <TrendingUp size={16}/> });
 
-      } catch (e) { console.error(e); } finally { if (isMounted) setLoading(false); }
+      } catch (e) { 
+        console.error("Erro no Veredito:", e); 
+      } finally { 
+        if (isMounted) setLoading(false); 
+      }
     }
     fetchVereditoGeral();
     return () => { isMounted = false; };
   }, [periodo, router]);
 
   const vereditoFinal = useMemo(() => {
-    const score = Object.values(radarStats).reduce((a, b) => a + b, 0) / 6;
+    const statsArray = [radarStats.consistencia, radarStats.precisao, radarStats.previsao, radarStats.disciplina, radarStats.engajamento, radarStats.evolucao];
+    const score = statsArray.reduce((a, b) => a + b, 0) / 6;
     if (resumo.saldo > 0 && score >= 75) return { label: "DOMINANTE", color: "text-green-400", bg: "bg-green-400/5", border: "border-green-400/20", icon: <ShieldCheck size={24}/>, desc: "SISTEMA OTIMIZADO. CONTROLE EXPONENCIAL." };
     if (resumo.saldo > 0 && score >= 45) return { label: "ESTÁVEL", color: "text-yellow-400", bg: "bg-yellow-400/5", border: "border-yellow-400/20", icon: <Zap size={24}/>, desc: "FLUXO SOB CONTROLE, MAS HÁ PONTOS CEGOS." };
     return { label: "CRÍTICO", color: "text-red-500", bg: "bg-red-500/5", border: "border-red-500/20", icon: <ShieldAlert size={24}/>, desc: "COLAPSO FINANCEIRO IMINENTE. REAJA." };
   }, [resumo.saldo, radarStats]);
+
+  const radarPath = useMemo(() => {
+    const order = [radarStats.consistencia, radarStats.precisao, radarStats.previsao, radarStats.disciplina, radarStats.engajamento, radarStats.evolucao];
+    const pts = [0, 60, 120, 180, 240, 300].map((a, i) => {
+      const r = (order[i] / 100) * 80;
+      return `${100 + r * Math.cos((a - 90) * (Math.PI / 180))},${100 + r * Math.sin((a - 90) * (Math.PI / 180))}`;
+    });
+    return `M ${pts.join(" L ")} Z`;
+  }, [radarStats]);
 
   const renderGrid = () => {
     const numDias = periodo === "dia" ? 1 : periodo === "semana" ? 7 : 30;
@@ -94,7 +108,7 @@ export default function VereditoPage() {
       const x = (300 / numDias) * i;
       lines.push(
         <g key={i}>
-          <line x1={x} y1="0" x2={x} y2="130" stroke="white" strokeWidth="0.5" strokeDasharray="4 4" opacity="0.15" />
+          <line x1={x} y1="0" x2={x} y2="130" stroke="white" strokeWidth="0.5" strokeDasharray="4 4" opacity="0.1" />
           <text x={x} y="150" fontSize="7" fill="white" fontWeight="900" textAnchor="middle" opacity="0.3">+{i}D</text>
         </g>
       );
@@ -102,31 +116,31 @@ export default function VereditoPage() {
     return lines;
   };
 
-  if (loading) return <div className="min-h-screen bg-black flex items-center justify-center text-[10px] font-black tracking-[0.5em] text-yellow-400">PROCESSANDO...</div>;
+  if (loading) return <div className="min-h-screen bg-black flex items-center justify-center text-[10px] font-black tracking-[0.5em] text-yellow-400">SINCRONIZANDO VEREDITO...</div>;
 
   return (
     <div className="min-h-screen bg-black text-white p-6 pb-28 font-sans uppercase">
       <div className="max-w-xl mx-auto space-y-12">
         <header className="flex justify-between items-center"><h1 className="text-7xl font-black italic tracking-tighter leading-[0.8]">VEREDITO</h1><Zap className="text-yellow-400 fill-yellow-400" size={20} /></header>
 
-        {/* 1. STATUS AJUSTADO */}
+        {/* 1. STATUS */}
         <section className={`p-8 rounded-[3rem] border ${vereditoFinal.border} ${vereditoFinal.bg}`}>
           <div className="flex items-center gap-3 mb-4">{vereditoFinal.icon}<span className="text-[9px] font-black tracking-[0.4em] text-zinc-500">STATUS DO SISTEMA</span></div>
           <h2 className={`text-6xl font-black italic tracking-tighter ${vereditoFinal.color}`}>{vereditoFinal.label}</h2>
           <p className="text-[10px] font-bold text-white/60 tracking-[0.2em] mt-2 mb-6">{vereditoFinal.desc}</p>
           <div className="border-t border-white/5 pt-6">
-            <p className="text-[8px] font-black text-zinc-600 tracking-[0.2em]">LEGENDA DE ANÁLISE:</p>
+            <p className="text-[8px] font-black text-zinc-600 tracking-[0.2em]">ANÁLISE DE FLUXO:</p>
             <p className="text-[9px] text-zinc-400 normal-case mt-2 leading-relaxed">
-              O sistema detectou que sua maior saída está concentrada em **{resumo.maiorGasto}**. 
-              Seu balanço atual representa **{(resumo.razao * 100).toFixed(0)}%** de consumo da sua receita total.
+              MAIOR FOCO DE SAÍDA: <span className="text-white font-bold">{resumo.maiorGasto}</span>. 
+              GASTOS CONSOMEM <span className="text-white font-bold">{(resumo.razao * 100).toFixed(0)}%</span> DA RECEITA REGISTRADA.
             </p>
           </div>
         </section>
 
-        {/* 2. GRÁFICO DE LINHA COM GRID */}
+        {/* 2. LINHA */}
         <section className="bg-[#050505] p-10 rounded-[4rem] border border-white/5">
           <div className="flex justify-between items-center mb-10">
-            <h4 className="text-[9px] font-black text-zinc-600 tracking-[0.3em]">TENDÊNCIAS DO PRÓXIMO {periodo.toUpperCase()}</h4>
+            <h4 className="text-[9px] font-black text-zinc-600 tracking-[0.3em]">PROJEÇÃO {periodo.toUpperCase()}</h4>
             <div className="flex bg-black p-1 rounded-xl border border-white/10">
               {["dia", "semana", "mês"].map((t: any) => (
                 <button key={t} onClick={() => setPeriodo(t)} className={`px-4 py-1.5 rounded-lg text-[8px] font-black ${periodo === t ? 'bg-yellow-400 text-black' : 'text-zinc-700'}`}>{t}</button>
@@ -136,7 +150,9 @@ export default function VereditoPage() {
           <div className="h-48 w-full mb-10">
             <svg viewBox="0 0 300 160" className="w-full h-full overflow-visible">
               {renderGrid()}
-              <path d={`M ${trendData[0]?.x},${trendData[0]?.y} ` + trendData.map(p => `L ${p.x},${p.y}`).join(" ")} fill="none" stroke="#facc15" strokeWidth="4" strokeLinecap="round" />
+              {trendData.length > 0 && (
+                <path d={`M ${trendData[0].x},${trendData[0].y} ` + trendData.map(p => `L ${p.x},${p.y}`).join(" ")} fill="none" stroke="#facc15" strokeWidth="4" strokeLinecap="round" />
+              )}
             </svg>
           </div>
           <div className="flex items-center gap-4 bg-black/60 p-5 rounded-3xl border border-white/5">
@@ -144,29 +160,30 @@ export default function VereditoPage() {
           </div>
         </section>
 
-        {/* 3. RADAR COM LEGENDA DE % */}
+        {/* 3. RADAR */}
         <section className="bg-[#050505] p-10 rounded-[4rem] border border-white/5">
-          <h4 className="text-[9px] font-black text-zinc-600 tracking-[0.3em] mb-12 text-center">STATUS DO USUÁRIO</h4>
+          <h4 className="text-[9px] font-black text-zinc-600 tracking-[0.3em] mb-12 text-center">PERFIL COMPORTAMENTAL</h4>
           <div className="flex justify-center mb-12">
             <svg viewBox="0 0 200 200" className="w-64 h-64 overflow-visible">
               {[1, 0.75, 0.5, 0.25].map(s => (
                 <polygon key={s} points={[0,60,120,180,240,300].map(a => `${100+(80*s)*Math.cos((a-90)*Math.PI/180)},${100+(80*s)*Math.sin((a-90)*Math.PI/180)}`).join(" ")} fill="none" stroke="white" strokeWidth="0.5" opacity="0.1" />
               ))}
-              <path d={useMemo(() => {
-                const pts = [0, 60, 120, 180, 240, 300].map((a, i) => {
-                  const r = (Object.values(radarStats)[i] / 100) * 80;
-                  return `${100 + r * Math.cos((a - 90) * (Math.PI / 180))},${100 + r * Math.sin((a - 90) * (Math.PI / 180))}`;
-                });
-                return `M ${pts.join(" L ")} Z`;
-              }, [radarStats])} fill="#facc15" fillOpacity="0.2" stroke="#facc15" strokeWidth="3" />
+              <path d={radarPath} fill="#facc15" fillOpacity="0.2" stroke="#facc15" strokeWidth="3" strokeLinejoin="round" />
             </svg>
           </div>
           
-          <div className="grid grid-cols-2 gap-4 border-t border-white/5 pt-8">
-            {Object.entries(radarStats).map(([key, value]) => (
-              <div key={key} className="flex justify-between items-center bg-black/40 p-3 rounded-2xl border border-white/5">
-                <span className="text-[7px] font-black text-zinc-500 tracking-tighter">{key.toUpperCase()}</span>
-                <span className="text-[10px] font-black text-yellow-400 italic">{value.toFixed(0)}%</span>
+          <div className="grid grid-cols-2 gap-3 border-t border-white/5 pt-8">
+            {[
+              { l: "CONSISTÊNCIA", v: radarStats.consistencia },
+              { l: "PRECISÃO", v: radarStats.precisao },
+              { l: "PREVISÃO", v: radarStats.previsao },
+              { l: "DISCIPLINA", v: radarStats.disciplina },
+              { l: "ENGAJAMENTO", v: radarStats.engajamento },
+              { l: "EVOLUÇÃO", v: radarStats.evolucao },
+            ].map((item) => (
+              <div key={item.l} className="flex justify-between items-center bg-black/40 p-3 rounded-2xl border border-white/5">
+                <span className="text-[7px] font-black text-zinc-500 tracking-tighter">{item.l}</span>
+                <span className="text-[10px] font-black text-yellow-400 italic">{item.v.toFixed(0)}%</span>
               </div>
             ))}
           </div>
