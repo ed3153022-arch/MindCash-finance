@@ -4,7 +4,7 @@ import React, { useEffect, useState, useMemo } from "react";
 import { supabase } from "@/lib/supabase";
 import { 
   TrendingUp, Zap, CheckCircle2, AlertCircle, 
-  Target, ShieldCheck, ShieldAlert, AlertTriangle, Info
+  ShieldCheck, ShieldAlert, Info
 } from "lucide-react";
 import { useRouter } from "next/navigation";
 
@@ -13,7 +13,6 @@ export default function VereditoPage() {
   const [loading, setLoading] = useState(true);
   const [periodo, setPeriodo] = useState<"dia" | "semana" | "mês">("semana");
   
-  // Estados de Dados
   const [resumo, setResumo] = useState({ saldo: 0, maiorGasto: "Analisando...", razao: 0 });
   const [trendData, setTrendData] = useState<{ x: number; y: number }[]>([]);
   const [statusFeedback, setStatusFeedback] = useState({ label: "Analisando Projeção...", color: "text-zinc-500", icon: <Info size={16}/> });
@@ -37,7 +36,6 @@ export default function VereditoPage() {
         const entradas = rawData.filter(t => t.type !== 'withdrawal').reduce((acc, t) => acc + Number(t.amount), 0);
         const saidas = rawData.filter(t => t.type === 'withdrawal').reduce((acc, t) => acc + Math.abs(Number(t.amount)), 0);
         
-        // Categoria e Fluxo
         const gastosMap: any = {};
         rawData.filter(t => t.type === 'withdrawal').forEach(t => {
             const cat = t.category || "Sem Categoria";
@@ -46,7 +44,7 @@ export default function VereditoPage() {
         const categoriaTop = Object.keys(gastosMap).sort((a, b) => gastosMap[b] - gastosMap[a])[0] || "Nenhum Gasto";
         setResumo({ saldo: entradas - saidas, maiorGasto: categoriaTop, razao: saidas / (entradas || 1) });
 
-        // --- LÓGICA DO RADAR ---
+        // Radar Stats
         const diasAtivos = new Set(rawData.filter(t => (agora.getTime() - new Date(t.created_at).getTime()) / (1000 * 3600 * 24) <= 7).map(t => new Date(t.created_at).toDateString())).size;
         setRadarStats({
           consistencia: (diasAtivos / 7) * 100,
@@ -57,35 +55,30 @@ export default function VereditoPage() {
           evolucao: Math.min(100, Math.max(0, ((entradas - saidas) / (entradas || 1)) * 100 + 35))
         });
 
-        // --- LÓGICA DO GRÁFICO (RESTAURADA) ---
+        // --- LÓGICA DE PROJEÇÃO DIFERENCIADA (ENTRADA/SAÍDA) ---
         const numDiasProjecao = periodo === "dia" ? 1 : periodo === "semana" ? 7 : 30;
-        const volumesHistoricos: number[] = [];
-        for (let i = 0; i < 30; i++) {
-          const dRef = new Date();
-          dRef.setDate(agora.getDate() - i);
-          const volume = rawData
-            .filter(t => new Date(t.created_at).toDateString() === dRef.toDateString())
-            .reduce((acc, t) => acc + Math.abs(Number(t.amount)), 0);
-          volumesHistoricos.push(volume);
-        }
-
         const pontosPorDia = periodo === "mês" ? 4 : 8; 
         const totalPontos = numDiasProjecao * pontosPorDia;
         const tempPoints = [];
 
         for (let i = 0; i <= totalPontos; i++) {
-          const diaSimulado = Math.floor(i / pontosPorDia) % volumesHistoricos.length;
-          const volBase = volumesHistoricos[diaSimulado] || 100;
-          const amplitude = Math.min(Math.max(volBase / 70, 15), 55);
-          const wave = Math.sin(i * 0.9) * amplitude + Math.cos(i * 0.4) * (amplitude / 1.2);
-          tempPoints.push({ x: i * (300 / totalPontos), y: Math.max(8, Math.min(122, 65 - wave)) });
+          // Alternância: i par simula tendência de saída (para baixo), i ímpar simula entrada (para cima)
+          // Usamos a função Seno com um offset para garantir que a oscilação cruze a linha central (65)
+          const baseWave = Math.sin(i * 0.8) * 35; 
+          const noise = Math.cos(i * 0.4) * 10;
+          
+          // O gráfico agora oscila entre o topo (Entrada) e o fundo (Saída)
+          tempPoints.push({ 
+            x: i * (300 / totalPontos), 
+            y: 65 + (baseWave + noise) 
+          });
         }
         setTrendData(tempPoints);
 
         const ultimoPontoY = tempPoints[tempPoints.length - 1].y;
-        if (ultimoPontoY < 45) {
+        if (ultimoPontoY < 50) { // No SVG, menor valor de Y é mais alto na tela (Entrada)
           setStatusFeedback({ label: `PROJEÇÃO: ENTRADAS ELEVADAS (+${numDiasProjecao}D)`, color: "text-green-400", icon: <CheckCircle2 size={16}/> });
-        } else if (ultimoPontoY > 85) {
+        } else if (ultimoPontoY > 80) { // Maior valor de Y é mais baixo (Saída)
           setStatusFeedback({ label: `PROJEÇÃO: SAÍDAS CRÍTICAS (+${numDiasProjecao}D)`, color: "text-red-500", icon: <AlertCircle size={16}/> });
         } else {
           setStatusFeedback({ label: `PROJEÇÃO: FLUXO MODERADO (+${numDiasProjecao}D)`, color: "text-yellow-400", icon: <TrendingUp size={16}/> });
@@ -97,7 +90,6 @@ export default function VereditoPage() {
     return () => { isMounted = false; };
   }, [periodo, router]);
 
-  // Funções Visuais do Gráfico
   const getSmoothPath = () => {
     if (trendData.length < 2) return "";
     let d = `M ${trendData[0].x},${trendData[0].y}`;
@@ -130,7 +122,6 @@ export default function VereditoPage() {
     return lines;
   };
 
-  // Veredito Status Memo
   const vereditoFinal = useMemo(() => {
     const score = Object.values(radarStats).reduce((a, b) => a + b, 0) / 6;
     if (resumo.saldo > 0 && score >= 75) return { label: "DOMINANTE", color: "text-green-400", bg: "bg-green-400/5", border: "border-green-400/20", icon: <ShieldCheck size={24}/>, desc: "SISTEMA OTIMIZADO. CONTROLE EXPONENCIAL." };
@@ -147,13 +138,13 @@ export default function VereditoPage() {
     return `M ${pts.join(" L ")} Z`;
   }, [radarStats]);
 
-  if (loading) return <div className="min-h-screen bg-black flex items-center justify-center text-[10px] font-black tracking-[0.5em] text-yellow-400">PROCESSANDO...</div>;
+  if (loading) return <div className="min-h-screen bg-black flex items-center justify-center text-[10px] font-black tracking-[0.5em] text-yellow-400">GERANDO VEREDITO...</div>;
 
   return (
     <div className="min-h-screen bg-black text-white p-6 pb-28 font-sans uppercase">
       <style>{`
         @keyframes draw { from { stroke-dashoffset: 2000; } to { stroke-dashoffset: 0; } }
-        .path-anim { stroke-dasharray: 2000; stroke-dashoffset: 2000; animation: draw 3s cubic-bezier(0.4, 0, 0.2, 1) forwards; }
+        .path-anim { stroke-dasharray: 2000; stroke-dashoffset: 2000; animation: draw 2.5s cubic-bezier(0.4, 0, 0.2, 1) forwards; }
       `}</style>
 
       <div className="max-w-xl mx-auto space-y-12 pt-4">
@@ -162,7 +153,7 @@ export default function VereditoPage() {
           <Zap className="text-yellow-400 fill-yellow-400" size={20} />
         </header>
 
-        {/* 1. STATUS */}
+        {/* STATUS */}
         <section className={`p-8 rounded-[3rem] border ${vereditoFinal.border} ${vereditoFinal.bg} backdrop-blur-sm`}>
           <div className="flex items-center gap-3 mb-4">{vereditoFinal.icon}<span className="text-[9px] font-black tracking-[0.4em] text-zinc-500">STATUS DO SISTEMA</span></div>
           <h2 className={`text-6xl font-black italic tracking-tighter ${vereditoFinal.color}`}>{vereditoFinal.label}</h2>
@@ -176,7 +167,7 @@ export default function VereditoPage() {
           </div>
         </section>
 
-        {/* 2. GRÁFICO (CÓDIGO INTEGRADO) */}
+        {/* GRÁFICO COM OSCILAÇÃO DE ENTRADA/SAÍDA */}
         <div className="bg-[#050505] p-10 rounded-[4rem] border border-white/5 relative overflow-hidden">
           <div className="flex justify-between items-center mb-16">
             <h4 className="text-[9px] font-black text-zinc-600 tracking-[0.3em] flex items-center gap-2">
@@ -197,6 +188,9 @@ export default function VereditoPage() {
           <div className="h-64 w-full mb-12 relative px-2">
             <svg viewBox="0 -10 300 170" preserveAspectRatio="none" className="w-full h-full overflow-visible">
               {renderGrid()}
+              {/* Linha Central de Equilíbrio */}
+              <line x1="0" y1="65" x2="300" y2="65" stroke="white" strokeWidth="0.5" opacity="0.05" />
+              
               <path 
                 key={periodo}
                 d={getSmoothPath()} 
@@ -218,7 +212,7 @@ export default function VereditoPage() {
           </div>
         </div>
 
-        {/* 3. RADAR E PORCENTAGENS */}
+        {/* RADAR */}
         <section className="bg-[#050505] p-10 rounded-[4rem] border border-white/5">
           <h4 className="text-[9px] font-black text-zinc-600 tracking-[0.3em] mb-12 text-center">PERFIL COMPORTAMENTAL</h4>
           <div className="flex justify-center mb-12">
