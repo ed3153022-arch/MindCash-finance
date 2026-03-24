@@ -55,30 +55,45 @@ export default function VereditoPage() {
           evolucao: Math.min(100, Math.max(0, ((entradas - saidas) / (entradas || 1)) * 100 + 35))
         });
 
-        // --- LÓGICA DE PROJEÇÃO DIFERENCIADA (ENTRADA/SAÍDA) ---
+        // --- LÓGICA DO GRÁFICO COM CONDICIONAL ---
         const numDiasProjecao = periodo === "dia" ? 1 : periodo === "semana" ? 7 : 30;
+        const volumesHistoricos: number[] = [];
+        for (let i = 0; i < 30; i++) {
+          const dRef = new Date();
+          dRef.setDate(agora.getDate() - i);
+          const volume = rawData
+            .filter(t => new Date(t.created_at).toDateString() === dRef.toDateString())
+            .reduce((acc, t) => acc + Math.abs(Number(t.amount)), 0);
+          volumesHistoricos.push(volume);
+        }
+
         const pontosPorDia = periodo === "mês" ? 4 : 8; 
         const totalPontos = numDiasProjecao * pontosPorDia;
         const tempPoints = [];
 
         for (let i = 0; i <= totalPontos; i++) {
-          // Alternância: i par simula tendência de saída (para baixo), i ímpar simula entrada (para cima)
-          // Usamos a função Seno com um offset para garantir que a oscilação cruze a linha central (65)
-          const baseWave = Math.sin(i * 0.8) * 35; 
-          const noise = Math.cos(i * 0.4) * 10;
+          const diaSimulado = Math.floor(i / pontosPorDia) % volumesHistoricos.length;
+          const volBase = volumesHistoricos[diaSimulado] || 100;
+          const amplitude = Math.min(Math.max(volBase / 70, 15), 55);
           
-          // O gráfico agora oscila entre o topo (Entrada) e o fundo (Saída)
-          tempPoints.push({ 
-            x: i * (300 / totalPontos), 
-            y: 65 + (baseWave + noise) 
-          });
+          let yPos;
+          if (periodo === "semana") {
+            // Oscilação de Entrada/Saída (Para cima e para baixo)
+            const wave = Math.sin(i * 0.9) * amplitude + Math.cos(i * 0.4) * (amplitude / 1.2);
+            yPos = 65 + wave; 
+          } else {
+            // Oscilação Original (Apenas para cima)
+            const wave = Math.sin(i * 0.9) * amplitude + Math.cos(i * 0.4) * (amplitude / 1.2);
+            yPos = Math.max(8, Math.min(122, 65 - wave)); 
+          }
+          tempPoints.push({ x: i * (300 / totalPontos), y: yPos });
         }
         setTrendData(tempPoints);
 
         const ultimoPontoY = tempPoints[tempPoints.length - 1].y;
-        if (ultimoPontoY < 50) { // No SVG, menor valor de Y é mais alto na tela (Entrada)
+        if (ultimoPontoY < 50) {
           setStatusFeedback({ label: `PROJEÇÃO: ENTRADAS ELEVADAS (+${numDiasProjecao}D)`, color: "text-green-400", icon: <CheckCircle2 size={16}/> });
-        } else if (ultimoPontoY > 80) { // Maior valor de Y é mais baixo (Saída)
+        } else if (ultimoPontoY > 80) {
           setStatusFeedback({ label: `PROJEÇÃO: SAÍDAS CRÍTICAS (+${numDiasProjecao}D)`, color: "text-red-500", icon: <AlertCircle size={16}/> });
         } else {
           setStatusFeedback({ label: `PROJEÇÃO: FLUXO MODERADO (+${numDiasProjecao}D)`, color: "text-yellow-400", icon: <TrendingUp size={16}/> });
@@ -123,7 +138,7 @@ export default function VereditoPage() {
   };
 
   const vereditoFinal = useMemo(() => {
-    const score = Object.values(radarStats).reduce((a, b) => a + b, 0) / 6;
+    const score = [radarStats.consistencia, radarStats.precisao, radarStats.previsao, radarStats.disciplina, radarStats.engajamento, radarStats.evolucao].reduce((a, b) => a + b, 0) / 6;
     if (resumo.saldo > 0 && score >= 75) return { label: "DOMINANTE", color: "text-green-400", bg: "bg-green-400/5", border: "border-green-400/20", icon: <ShieldCheck size={24}/>, desc: "SISTEMA OTIMIZADO. CONTROLE EXPONENCIAL." };
     if (resumo.saldo > 0 && score >= 45) return { label: "ESTÁVEL", color: "text-yellow-400", bg: "bg-yellow-400/5", border: "border-yellow-400/20", icon: <Zap size={24}/>, desc: "FLUXO SOB CONTROLE, MAS HÁ PONTOS CEGOS." };
     return { label: "CRÍTICO", color: "text-red-500", bg: "bg-red-500/5", border: "border-red-500/20", icon: <ShieldAlert size={24}/>, desc: "COLAPSO FINANCEIRO IMINENTE. REAJA." };
@@ -138,7 +153,7 @@ export default function VereditoPage() {
     return `M ${pts.join(" L ")} Z`;
   }, [radarStats]);
 
-  if (loading) return <div className="min-h-screen bg-black flex items-center justify-center text-[10px] font-black tracking-[0.5em] text-yellow-400">GERANDO VEREDITO...</div>;
+  if (loading) return <div className="min-h-screen bg-black flex items-center justify-center text-[10px] font-black tracking-[0.5em] text-yellow-400">SINCRONIZANDO VEREDITO...</div>;
 
   return (
     <div className="min-h-screen bg-black text-white p-6 pb-28 font-sans uppercase">
@@ -167,7 +182,7 @@ export default function VereditoPage() {
           </div>
         </section>
 
-        {/* GRÁFICO COM OSCILAÇÃO DE ENTRADA/SAÍDA */}
+        {/* GRÁFICO PERSONALIZADO */}
         <div className="bg-[#050505] p-10 rounded-[4rem] border border-white/5 relative overflow-hidden">
           <div className="flex justify-between items-center mb-16">
             <h4 className="text-[9px] font-black text-zinc-600 tracking-[0.3em] flex items-center gap-2">
@@ -188,8 +203,7 @@ export default function VereditoPage() {
           <div className="h-64 w-full mb-12 relative px-2">
             <svg viewBox="0 -10 300 170" preserveAspectRatio="none" className="w-full h-full overflow-visible">
               {renderGrid()}
-              {/* Linha Central de Equilíbrio */}
-              <line x1="0" y1="65" x2="300" y2="65" stroke="white" strokeWidth="0.5" opacity="0.05" />
+              {periodo === "semana" && <line x1="0" y1="65" x2="300" y2="65" stroke="white" strokeWidth="0.5" opacity="0.05" />}
               
               <path 
                 key={periodo}
