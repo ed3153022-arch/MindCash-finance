@@ -32,32 +32,34 @@ export default function VereditoPage() {
         const numDiasProjecao = periodo === "dia" ? 1 : periodo === "semana" ? 7 : 30;
         const agora = new Date();
         
-        // AJUSTE BRUTO: Mapeia o saldo real de cada dia (Entradas - Saídas)
-        const saldosHistoricos: number[] = [];
-        for (let i = 0; i < 30; i++) {
-          const dRef = new Date();
-          dRef.setDate(agora.getDate() - i);
-          const transacoesDia = rawData.filter(t => new Date(t.created_at).toDateString() === dRef.toDateString());
-          
-          const entradas = transacoesDia.filter(t => t.type !== 'withdrawal').reduce((acc, t) => acc + Number(t.amount), 0);
-          const saidas = transacoesDia.filter(t => t.type === 'withdrawal').reduce((acc, t) => acc + Math.abs(Number(t.amount)), 0);
-          
-          saldosHistoricos.push(entradas - saidas);
-        }
+        // AJUSTE BRUTO: Criamos um mapa de saldos (Entrada - Saída) por dia
+        // 0 = hoje, 1 = ontem, etc.
+        const saldosPorDia = new Array(31).fill(0);
+        rawData.forEach(t => {
+          const dataT = new Date(t.created_at);
+          const diffDias = Math.floor((agora.getTime() - dataT.getTime()) / (1000 * 3600 * 24));
+          if (diffDias >= 0 && diffDias <= 30) {
+            const valor = Math.abs(Number(t.amount));
+            // Diferencia entrada de saída
+            saldosPorDia[diffDias] += (t.type === 'withdrawal' ? -valor : valor);
+          }
+        });
 
         const pontosPorDia = periodo === "mês" ? 4 : 8; 
         const totalPontos = numDiasProjecao * pontosPorDia;
         const tempPoints = [];
 
         for (let i = 0; i <= totalPontos; i++) {
-          const diaSimulado = Math.floor(i / pontosPorDia) % saldosHistoricos.length;
-          const saldoDia = saldosHistoricos[diaSimulado] || 0;
+          // O gráfico começa da esquerda (Hoje) para a direita (Dias passados/tendência)
+          const diaIndice = Math.floor(i / pontosPorDia);
+          const saldo = saldosPorDia[diaIndice] || 0;
           
-          // PROPORÇÃO: Divide por 200 para que 10k tenha um impacto grande (50px), mas não quebre o layout
-          // Se saldoDia é positivo (entrada), subtrai de 65 (sobe). Se negativo (saída), soma (desce).
-          const deslocamentoReal = saldoDia / 200;
+          // Lógica de Pixels: 65 é o centro (neutral). 
+          // Se saldo é negativo (saída), soma ao Y para descer. 
+          // Se saldo é positivo (entrada), subtrai do Y para subir.
+          const deslocamentoReal = saldo / 200; 
           
-          // Mantém o wave apenas para o gráfico não ficar uma linha reta estática
+          // Mantendo a oscilação visual "wave" do seu código para não ficar reto
           const wave = Math.sin(i * 0.9) * 8;
           
           tempPoints.push({ 
@@ -67,7 +69,7 @@ export default function VereditoPage() {
         }
         setTrendData(tempPoints);
 
-        const ultimoPontoY = tempPoints[tempPoints.length - 1].y;
+        const ultimoPontoY = tempPoints[0].y; // Analisa o estado atual (começo da linha)
         if (ultimoPontoY < 45) {
           setStatusFeedback({ label: `PROJEÇÃO: ENTRADAS ELEVADAS (+${numDiasProjecao}D)`, color: "text-green-400", icon: <CheckCircle2 className="text-green-400" size={16}/> });
         } else if (ultimoPontoY > 85) {
@@ -83,6 +85,7 @@ export default function VereditoPage() {
     return () => { isMounted = false; };
   }, [periodo, router]);
 
+  // RESTANTE DO CÓDIGO (getSmoothPath, renderGrid e return) CONTINUA IGUALZINHO
   const getSmoothPath = () => {
     if (trendData.length < 2) return "";
     let d = `M ${trendData[0].x},${trendData[0].y}`;
@@ -101,7 +104,6 @@ export default function VereditoPage() {
     const numDias = periodo === "dia" ? 1 : periodo === "semana" ? 7 : 30;
     const intervalLabel = periodo === "mês" ? 5 : 1;
     const lines = [];
-
     for (let i = 0; i <= numDias; i++) {
       const x = (300 / numDias) * i;
       lines.push(
