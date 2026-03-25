@@ -1,169 +1,138 @@
 "use client";
 
-import React, { useEffect, useState, useMemo } from "react";
+import React, { useEffect, useState } from "react";
 import { supabase } from "@/lib/supabase";
-import { TrendingUp, Zap, CheckCircle2, AlertCircle, Info } from "lucide-react";
+import { Zap, ShieldCheck, Target, Activity, Flame, Gauge, BrainCircuit } from "lucide-react";
 import { useRouter } from "next/navigation";
 
 export default function VereditoPage() {
   const router = useRouter();
   const [loading, setLoading] = useState(true);
-  const [periodo, setPeriodo] = useState<"dia" | "semana" | "mês">("semana");
-  const [trendData, setTrendData] = useState<{ x: number; y: number }[]>([]);
-  const [statusFeedback, setStatusFeedback] = useState({ label: "Analisando Projeção...", color: "text-zinc-500", icon: <Info size={16}/> });
+  const [metrics, setMetrics] = useState({
+    consistencia: 0,
+    precisao: 0,
+    previsao: 0,
+    disciplina: 0,
+    engajamento: 0,
+    evolucao: 0
+  });
 
   useEffect(() => {
-    let isMounted = true;
-
-    async function fetchSystemData() {
+    async function fetchVereditoData() {
       try {
-        setLoading(true);
         const { data: { user } } = await supabase.auth.getUser();
         if (!user) { router.push("/login"); return; }
 
-        const { data: rawData, error } = await supabase
-          .from("transactions")
-          .select("amount, type, created_at")
-          .eq("user_id", user.id);
-
-        if (error || !rawData) throw error;
-        if (!isMounted) return;
-
-        const numDiasProjecao = periodo === "dia" ? 1 : periodo === "semana" ? 7 : 30;
-        const agora = new Date();
-        const volumesHistoricos: number[] = [];
-
-        for (let i = 0; i < 30; i++) {
-          const dRef = new Date();
-          dRef.setDate(agora.getDate() - i);
-          const volume = rawData
-            .filter(t => new Date(t.created_at).toDateString() === dRef.toDateString())
-            .reduce((acc, t) => acc + Math.abs(Number(t.amount)), 0);
-          volumesHistoricos.push(volume);
-        }
-
-        const pontosPorDia = periodo === "mês" ? 4 : 8; 
-        const totalPontos = numDiasProjecao * pontosPorDia;
-        const tempPoints = [];
-
-        for (let i = 0; i <= totalPontos; i++) {
-          const diaSimulado = Math.floor(i / pontosPorDia) % volumesHistoricos.length;
-          const volBase = volumesHistoricos[diaSimulado] || 100;
-          
-          const amplitude = Math.min(Math.max(volBase / 70, 15), 55);
-          const wave = Math.sin(i * 0.9) * amplitude + Math.cos(i * 0.4) * (amplitude / 1.2);
-          
-          tempPoints.push({ 
-            x: i * (300 / totalPontos), 
-            y: Math.max(8, Math.min(122, 65 - wave)) 
-          });
-        }
-        setTrendData(tempPoints);
-
-        const ultimoPontoY = tempPoints[tempPoints.length - 1].y;
-        if (ultimoPontoY < 45) {
-          setStatusFeedback({ label: `PROJEÇÃO: ENTRADAS ELEVADAS (+${numDiasProjecao}D)`, color: "text-green-400", icon: <CheckCircle2 className="text-green-400" size={16}/> });
-        } else if (ultimoPontoY > 85) {
-          setStatusFeedback({ label: `PROJEÇÃO: SAÍDAS CRÍTICAS (+${numDiasProjecao}D)`, color: "text-red-500", icon: <AlertCircle className="text-red-500" size={16}/> });
-        } else {
-          setStatusFeedback({ label: `PROJEÇÃO: FLUXO MODERADO (+${numDiasProjecao}D)`, color: "text-yellow-400", icon: <TrendingUp className="text-yellow-400" size={16}/> });
-        }
-
-      } catch (e) { console.error(e); } finally { if (isMounted) setLoading(false); }
+        // Simulação de busca de dados para as métricas (Substitua pela sua lógica de DB)
+        setMetrics({
+          consistencia: 88,
+          precisao: 92,
+          previsao: 74,
+          disciplina: 95,
+          engajamento: 81,
+          evolucao: 89
+        });
+      } catch (e) { console.error(e); } finally { setLoading(false); }
     }
+    fetchVereditoData();
+  }, [router]);
 
-    fetchSystemData();
-    return () => { isMounted = false; };
-  }, [periodo, router]);
-
-  const getSmoothPath = () => {
-    if (trendData.length < 2) return "";
-    let d = `M ${trendData[0].x},${trendData[0].y}`;
-    for (let i = 0; i < trendData.length - 1; i++) {
-      const curr = trendData[i];
-      const next = trendData[i + 1];
-      const mx = (curr.x + next.x) / 2;
-      const my = (curr.y + next.y) / 2;
-      d += ` Q ${curr.x},${curr.y} ${mx},${my}`;
-    }
-    d += ` L ${trendData[trendData.length - 1].x},${trendData[trendData.length - 1].y}`;
-    return d;
+  // Lógica de Status Expandida (Mais de 3 níveis)
+  const getStatusDetail = (avg: number) => {
+    if (avg >= 95) return { label: "IMPLACÁVEL", desc: "Execução perfeita. O sistema opera em eficiência máxima sem falhas detectadas.", color: "text-cyan-400", bg: "bg-cyan-500/10" };
+    if (avg >= 85) return { label: "DOMINANTE", desc: "Controle exponencial. Sua estratégia está sobrepondo as variações do mercado.", color: "text-green-400", bg: "bg-green-500/10" };
+    if (avg >= 70) return { label: "ESTÁVEL", desc: "Fluxo constante. O gerenciamento está segurando a volatilidade com segurança.", color: "text-yellow-400", bg: "bg-yellow-500/10" };
+    if (avg >= 50) return { label: "MODERADO", desc: "Atenção necessária. Existem brechas na consistência que podem gerar perdas.", color: "text-orange-400", bg: "bg-orange-500/10" };
+    return { label: "CRÍTICO", desc: "Risco de colapso. O comportamento atual não sustenta o patrimônio a longo prazo.", color: "text-red-500", bg: "bg-red-500/10" };
   };
 
-  const renderGrid = () => {
-    const numDias = periodo === "dia" ? 1 : periodo === "semana" ? 7 : 30;
-    const intervalLabel = periodo === "mês" ? 5 : 1;
-    const lines = [];
+  const avgScore = (Object.values(metrics).reduce((a, b) => a + b, 0)) / 6;
+  const status = getStatusDetail(avgScore);
 
-    // Desenha uma linha tracejada para CADA dia individual
-    for (let i = 0; i <= numDias; i++) {
-      const x = (300 / numDias) * i;
-      lines.push(
-        <g key={i}>
-          <line x1={x} y1="0" x2={x} y2="130" stroke="#FFFFFF" strokeWidth="0.4" strokeDasharray="3 3" opacity="0.1" />
-          {/* Exibe o número (+D) apenas nos intervalos corretos */}
-          {(i % intervalLabel === 0) && (
-            <text x={x} y="150" fontSize="6" fill="#FFFFFF" fontWeight="900" textAnchor="middle" opacity="0.4">+{i}D</text>
-          )}
-        </g>
-      );
-    }
-    return lines;
+  // Gerador de Radar SVG
+  const renderRadar = () => {
+    const pts = [metrics.consistencia, metrics.precisao, metrics.previsao, metrics.disciplina, metrics.engajamento, metrics.evolucao];
+    const points = pts.map((val, i) => {
+      const angle = (Math.PI * 2 * i) / 6 - Math.PI / 2;
+      const r = (val / 100) * 80;
+      return `${100 + r * Math.cos(angle)},${100 + r * Math.sin(angle)}`;
+    }).join(" ");
+
+    return (
+      <svg viewBox="0 0 200 200" className="w-full h-64 drop-shadow-[0_0_15px_rgba(250,204,21,0.3)]">
+        {/* Teias de fundo */}
+        {[0.2, 0.4, 0.6, 0.8, 1].map((p) => (
+          <polygon key={p} points={Array.from({length: 6}).map((_, i) => {
+            const a = (Math.PI * 2 * i) / 6 - Math.PI / 2;
+            return `${100 + p * 80 * Math.cos(a)},${100 + p * 80 * Math.sin(a)}`;
+          }).join(" ")} fill="none" stroke="white" strokeWidth="0.2" opacity="0.1" />
+        ))}
+        {/* Polígono de Dados */}
+        <polygon points={points} fill="rgba(250, 204, 21, 0.3)" stroke="#facc15" strokeWidth="2" />
+      </svg>
+    );
   };
 
   return (
-    <div className="min-h-screen bg-black text-white p-6 pb-28 font-sans uppercase">
-      <style>{`
-        @keyframes draw { from { stroke-dashoffset: 2000; } to { stroke-dashoffset: 0; } }
-        .path-anim { stroke-dasharray: 2000; stroke-dashoffset: 2000; animation: draw 3s cubic-bezier(0.4, 0, 0.2, 1) forwards; }
-      `}</style>
-
-      <div className="max-w-xl mx-auto space-y-12 pt-8">
-        <header className="flex justify-between items-start">
-          <h1 className="text-7xl font-black italic tracking-tighter leading-[0.8]">VEREDITO</h1>
-          <Zap className="text-yellow-400 fill-yellow-400" size={20} />
+    <div className="min-h-screen bg-black text-white p-6 pb-32 font-sans uppercase tracking-tighter">
+      <div className="max-w-xl mx-auto space-y-10 pt-8">
+        
+        {/* HEADER */}
+        <header className="flex justify-between items-center border-b border-white/10 pb-6">
+          <h1 className="text-6xl font-black italic leading-none">VEREDITO</h1>
+          <Zap className="text-yellow-400 fill-yellow-400 animate-pulse" size={24} />
         </header>
 
-        <div className="bg-[#050505] p-10 rounded-[4rem] border border-white/5 relative overflow-hidden">
-          <div className="flex justify-between items-center mb-16">
-            <h4 className="text-[9px] font-black text-zinc-600 tracking-[0.3em] flex items-center gap-2">
-              <TrendingUp size={12} className="text-yellow-500"/> 
-              TENDÊNCIA DA PRÓXIMA {periodo === "dia" ? "DIA" : periodo === "semana" ? "SEMANA" : "MÊS"}
-            </h4>
-            <div className="flex bg-black p-1 rounded-xl border border-white/10">
-              {["dia", "semana", "mês"].map((t: any) => (
-                <button key={t} onClick={() => setPeriodo(t)} 
-                  className={`px-5 py-1.5 rounded-lg text-[8px] font-black transition-all ${periodo === t ? 'bg-yellow-400 text-black' : 'text-zinc-800'}`}
-                >
-                  {t}
-                </button>
-              ))}
+        {/* PARTE 2: STATUS DETALHADO */}
+        <section className={`p-8 rounded-[2.5rem] border border-white/5 ${status.bg} backdrop-blur-sm relative overflow-hidden`}>
+          <div className="relative z-10">
+            <div className="flex items-center gap-3 mb-2">
+              <ShieldCheck className={status.color} size={20} />
+              <span className="text-[10px] font-bold text-zinc-500 tracking-[0.3em]">STATUS DO SISTEMA</span>
             </div>
-          </div>
-          
-          <div className="h-64 w-full mb-12 relative px-2">
-            <svg viewBox="0 -10 300 170" preserveAspectRatio="none" className="w-full h-full overflow-visible">
-              {renderGrid()}
-              <path 
-                key={periodo}
-                d={getSmoothPath()} 
-                fill="none" 
-                stroke="#facc15" 
-                strokeWidth="4" 
-                strokeLinecap="round" 
-                className="path-anim"
-              />
-              <circle cx={trendData[trendData.length-1]?.x} cy={trendData[trendData.length-1]?.y} r="4" fill="#facc15" className="animate-pulse" />
-            </svg>
-          </div>
-
-          <div className="flex items-center gap-4 bg-black/60 p-5 rounded-3xl border border-white/5">
-            {statusFeedback.icon}
-            <p className={`text-[9px] font-black italic tracking-widest uppercase ${statusFeedback.color}`}>
-              {statusFeedback.label}
+            <h2 className={`text-6xl font-black italic mb-4 ${status.color}`}>{status.label}</h2>
+            <p className="text-[11px] text-zinc-400 font-medium leading-relaxed normal-case max-w-[90%]">
+              {status.desc}
             </p>
           </div>
-        </div>
+          <BrainCircuit className="absolute -right-4 -bottom-4 text-white/5" size={140} />
+        </section>
+
+        {/* PARTE 1: RADAR E LEGENDA 3 COLUNAS */}
+        <section className="bg-[#050505] p-8 rounded-[3rem] border border-white/5">
+          <div className="flex items-center gap-2 mb-8 text-zinc-600">
+            <Target size={14} />
+            <span className="text-[9px] font-black tracking-[0.2em]">PERFIL COMPORTAMENTAL ATIVO</span>
+          </div>
+
+          <div className="flex justify-center mb-10">
+            {renderRadar()}
+          </div>
+
+          {/* LEGENDA EM 3 COLUNAS / 2 LINHAS */}
+          <div className="grid grid-cols-3 gap-y-8 gap-x-4 border-t border-white/5 pt-8">
+            {[
+              { label: "CONSISTÊNCIA", val: metrics.consistencia, icon: <Activity size={10}/> },
+              { label: "PRECISÃO", val: metrics.precisao, icon: <Target size={10}/> },
+              { label: "PREVISÃO", val: metrics.previsao, icon: <BrainCircuit size={10}/> },
+              { label: "DISCIPLINA", val: metrics.disciplina, icon: <ShieldCheck size={10}/> },
+              { label: "ENGAJAMENTO", val: metrics.engajamento, icon: <Flame size={10}/> },
+              { label: "EVOLUÇÃO", val: metrics.evolucao, icon: <Gauge size={10}/> },
+            ].map((item) => (
+              <div key={item.label} className="space-y-1">
+                <div className="flex items-center gap-1.5 text-zinc-500">
+                  {item.icon}
+                  <span className="text-[8px] font-bold">{item.label}</span>
+                </div>
+                <div className="flex items-baseline gap-1">
+                  <span className="text-xl font-black italic">{item.val}</span>
+                  <span className="text-[10px] font-bold text-yellow-500">%</span>
+                </div>
+              </div>
+            ))}
+          </div>
+        </section>
+
       </div>
     </div>
   );
