@@ -55,45 +55,49 @@ export default function VereditoPage() {
           evolucao: Math.min(100, Math.max(0, ((entradas - saidas) / (entradas || 1)) * 100 + 35))
         });
 
-        // --- LÓGICA DO GRÁFICO COM CONDICIONAL ---
+        // --- LÓGICA DO GRÁFICO UNIFICADA ---
         const numDiasProjecao = periodo === "dia" ? 1 : periodo === "semana" ? 7 : 30;
-        const volumesHistoricos: number[] = [];
-        for (let i = 0; i < 30; i++) {
-          const dRef = new Date();
-          dRef.setDate(agora.getDate() - i);
-          const volume = rawData
-            .filter(t => new Date(t.created_at).toDateString() === dRef.toDateString())
-            .reduce((acc, t) => acc + Math.abs(Number(t.amount)), 0);
-          volumesHistoricos.push(volume);
-        }
-
         const pontosPorDia = periodo === "mês" ? 4 : 8; 
         const totalPontos = numDiasProjecao * pontosPorDia;
         const tempPoints = [];
 
+        // Valor máximo para normalizar a escala visual
+        const maxVal = Math.max(...rawData.map(t => Math.abs(Number(t.amount))), 100);
+
         for (let i = 0; i <= totalPontos; i++) {
-          const diaSimulado = Math.floor(i / pontosPorDia) % volumesHistoricos.length;
-          const volBase = volumesHistoricos[diaSimulado] || 100;
-          const amplitude = Math.min(Math.max(volBase / 70, 15), 55);
+          const dRef = new Date();
+          // Mapeia o ponto para o histórico (retroativo de 7 dias para simular a curva)
+          dRef.setDate(agora.getDate() - (i % 7)); 
           
+          const tDoDia = rawData.filter(t => new Date(t.created_at).toDateString() === dRef.toDateString());
+          const vEntrada = tDoDia.filter(t => t.type !== 'withdrawal').reduce((acc, t) => acc + Number(t.amount), 0);
+          const vSaida = tDoDia.filter(t => t.type === 'withdrawal').reduce((acc, t) => acc + Math.abs(Number(t.amount)), 0);
+
           let yPos;
           if (periodo === "semana") {
-            // Oscilação de Entrada/Saída (Para cima e para baixo)
-            const wave = Math.sin(i * 0.9) * amplitude + Math.cos(i * 0.4) * (amplitude / 1.2);
-            yPos = 65 + wave; 
+            // SEMANA: Diferencia Entrada (sobe) e Saída (desce) proporcionalmente
+            const ganhoEscalado = (vEntrada / maxVal) * 45;
+            const gastoEscalado = (vSaida / maxVal) * 45;
+            const wave = Math.sin(i * 0.8) * 5; // Pequeno ruído para fluidez
+            
+            // 65 é o centro. Subtrair sobe (ganho), somar desce (gasto)
+            yPos = 65 - ganhoEscalado + gastoEscalado + wave;
           } else {
-            // Oscilação Original (Apenas para cima)
+            // DIA e MÊS: Mantém sua oscilação original perfeita
+            const volTotal = vEntrada + vSaida || 100;
+            const amplitude = Math.min(Math.max(volTotal / 70, 15), 55);
             const wave = Math.sin(i * 0.9) * amplitude + Math.cos(i * 0.4) * (amplitude / 1.2);
             yPos = Math.max(8, Math.min(122, 65 - wave)); 
           }
-          tempPoints.push({ x: i * (300 / totalPontos), y: yPos });
+          
+          tempPoints.push({ x: i * (300 / totalPontos), y: Math.max(10, Math.min(120, yPos)) });
         }
         setTrendData(tempPoints);
 
         const ultimoPontoY = tempPoints[tempPoints.length - 1].y;
-        if (ultimoPontoY < 50) {
+        if (ultimoPontoY < 55) {
           setStatusFeedback({ label: `PROJEÇÃO: ENTRADAS ELEVADAS (+${numDiasProjecao}D)`, color: "text-green-400", icon: <CheckCircle2 size={16}/> });
-        } else if (ultimoPontoY > 80) {
+        } else if (ultimoPontoY > 75) {
           setStatusFeedback({ label: `PROJEÇÃO: SAÍDAS CRÍTICAS (+${numDiasProjecao}D)`, color: "text-red-500", icon: <AlertCircle size={16}/> });
         } else {
           setStatusFeedback({ label: `PROJEÇÃO: FLUXO MODERADO (+${numDiasProjecao}D)`, color: "text-yellow-400", icon: <TrendingUp size={16}/> });
