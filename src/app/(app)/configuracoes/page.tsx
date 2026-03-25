@@ -32,43 +32,37 @@ export default function VereditoPage() {
         const numDiasProjecao = periodo === "dia" ? 1 : periodo === "semana" ? 7 : 30;
         const agora = new Date();
         
-        // Mapeamos os volumes diários separando entradas de saídas para precisão
-        const historicoDetalhado = Array.from({ length: 30 }, (_, i) => {
+        // AJUSTE BRUTO: Mapeia o saldo real de cada dia (Entradas - Saídas)
+        const saldosHistoricos: number[] = [];
+        for (let i = 0; i < 30; i++) {
           const dRef = new Date();
           dRef.setDate(agora.getDate() - i);
-          const diaStr = dRef.toDateString();
+          const transacoesDia = rawData.filter(t => new Date(t.created_at).toDateString() === dRef.toDateString());
           
-          const transacoesDia = rawData.filter(t => new Date(t.created_at).toDateString() === diaStr);
           const entradas = transacoesDia.filter(t => t.type !== 'withdrawal').reduce((acc, t) => acc + Number(t.amount), 0);
           const saidas = transacoesDia.filter(t => t.type === 'withdrawal').reduce((acc, t) => acc + Math.abs(Number(t.amount)), 0);
           
-          return { entradas, saidas };
-        });
+          saldosHistoricos.push(entradas - saidas);
+        }
 
         const pontosPorDia = periodo === "mês" ? 4 : 8; 
         const totalPontos = numDiasProjecao * pontosPorDia;
         const tempPoints = [];
 
         for (let i = 0; i <= totalPontos; i++) {
-          const diaSimulado = Math.floor(i / pontosPorDia) % 30;
-          const dados = historicoDetalhado[diaSimulado] || { entradas: 0, saidas: 0 };
+          const diaSimulado = Math.floor(i / pontosPorDia) % saldosHistoricos.length;
+          const saldoDia = saldosHistoricos[diaSimulado] || 0;
           
-          // LÓGICA DE OSCILAÇÃO PRECISA E DRÁSTICA
-          // Se 1.000 -> forca é ~5. Se 10.000 -> forca é 50+ (oscila drasticamente)
-          const forcaEntrada = Math.min(dados.entradas / 180, 60); 
-          const forcaSaida = Math.min(dados.saidas / 180, 60);
+          // PROPORÇÃO: Divide por 200 para que 10k tenha um impacto grande (50px), mas não quebre o layout
+          // Se saldoDia é positivo (entrada), subtrai de 65 (sobe). Se negativo (saída), soma (desce).
+          const deslocamentoReal = saldoDia / 200;
           
-          // O "wave" original para manter o estilo visual orgânico
-          const waveOriginal = Math.sin(i * 0.9) * 12 + Math.cos(i * 0.4) * 8;
+          // Mantém o wave apenas para o gráfico não ficar uma linha reta estática
+          const wave = Math.sin(i * 0.9) * 8;
           
-          // Ponto base 65 (meio do gráfico)
-          // Entradas puxam para CIMA (y diminui), Saídas puxam para BAIXO (y aumenta)
-          const deslocamentoSinal = (forcaSaida - forcaEntrada);
-          const yFinal = 65 + deslocamentoSinal - waveOriginal;
-
           tempPoints.push({ 
             x: i * (300 / totalPontos), 
-            y: Math.max(8, Math.min(122, yFinal)) 
+            y: Math.max(8, Math.min(122, 65 - deslocamentoReal - wave)) 
           });
         }
         setTrendData(tempPoints);
