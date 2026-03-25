@@ -31,45 +31,36 @@ export default function VereditoPage() {
 
         const numDiasProjecao = periodo === "dia" ? 1 : periodo === "semana" ? 7 : 30;
         const agora = new Date();
-        
-        // AJUSTE BRUTO: Criamos um mapa de saldos (Entrada - Saída) por dia
-        // 0 = hoje, 1 = ontem, etc.
-        const saldosPorDia = new Array(31).fill(0);
-        rawData.forEach(t => {
-          const dataT = new Date(t.created_at);
-          const diffDias = Math.floor((agora.getTime() - dataT.getTime()) / (1000 * 3600 * 24));
-          if (diffDias >= 0 && diffDias <= 30) {
-            const valor = Math.abs(Number(t.amount));
-            // Diferencia entrada de saída
-            saldosPorDia[diffDias] += (t.type === 'withdrawal' ? -valor : valor);
-          }
-        });
+        const volumesHistoricos: number[] = [];
+
+        for (let i = 0; i < 30; i++) {
+          const dRef = new Date();
+          dRef.setDate(agora.getDate() - i);
+          const volume = rawData
+            .filter(t => new Date(t.created_at).toDateString() === dRef.toDateString())
+            .reduce((acc, t) => acc + Math.abs(Number(t.amount)), 0);
+          volumesHistoricos.push(volume);
+        }
 
         const pontosPorDia = periodo === "mês" ? 4 : 8; 
         const totalPontos = numDiasProjecao * pontosPorDia;
         const tempPoints = [];
 
         for (let i = 0; i <= totalPontos; i++) {
-          // O gráfico começa da esquerda (Hoje) para a direita (Dias passados/tendência)
-          const diaIndice = Math.floor(i / pontosPorDia);
-          const saldo = saldosPorDia[diaIndice] || 0;
+          const diaSimulado = Math.floor(i / pontosPorDia) % volumesHistoricos.length;
+          const volBase = volumesHistoricos[diaSimulado] || 100;
           
-          // Lógica de Pixels: 65 é o centro (neutral). 
-          // Se saldo é negativo (saída), soma ao Y para descer. 
-          // Se saldo é positivo (entrada), subtrai do Y para subir.
-          const deslocamentoReal = saldo / 200; 
-          
-          // Mantendo a oscilação visual "wave" do seu código para não ficar reto
-          const wave = Math.sin(i * 0.9) * 8;
+          const amplitude = Math.min(Math.max(volBase / 70, 15), 55);
+          const wave = Math.sin(i * 0.9) * amplitude + Math.cos(i * 0.4) * (amplitude / 1.2);
           
           tempPoints.push({ 
             x: i * (300 / totalPontos), 
-            y: Math.max(8, Math.min(122, 65 - deslocamentoReal - wave)) 
+            y: Math.max(8, Math.min(122, 65 - wave)) 
           });
         }
         setTrendData(tempPoints);
 
-        const ultimoPontoY = tempPoints[0].y; // Analisa o estado atual (começo da linha)
+        const ultimoPontoY = tempPoints[tempPoints.length - 1].y;
         if (ultimoPontoY < 45) {
           setStatusFeedback({ label: `PROJEÇÃO: ENTRADAS ELEVADAS (+${numDiasProjecao}D)`, color: "text-green-400", icon: <CheckCircle2 className="text-green-400" size={16}/> });
         } else if (ultimoPontoY > 85) {
@@ -85,7 +76,6 @@ export default function VereditoPage() {
     return () => { isMounted = false; };
   }, [periodo, router]);
 
-  // RESTANTE DO CÓDIGO (getSmoothPath, renderGrid e return) CONTINUA IGUALZINHO
   const getSmoothPath = () => {
     if (trendData.length < 2) return "";
     let d = `M ${trendData[0].x},${trendData[0].y}`;
@@ -104,11 +94,14 @@ export default function VereditoPage() {
     const numDias = periodo === "dia" ? 1 : periodo === "semana" ? 7 : 30;
     const intervalLabel = periodo === "mês" ? 5 : 1;
     const lines = [];
+
+    // Desenha uma linha tracejada para CADA dia individual
     for (let i = 0; i <= numDias; i++) {
       const x = (300 / numDias) * i;
       lines.push(
         <g key={i}>
           <line x1={x} y1="0" x2={x} y2="130" stroke="#FFFFFF" strokeWidth="0.4" strokeDasharray="3 3" opacity="0.1" />
+          {/* Exibe o número (+D) apenas nos intervalos corretos */}
           {(i % intervalLabel === 0) && (
             <text x={x} y="150" fontSize="6" fill="#FFFFFF" fontWeight="900" textAnchor="middle" opacity="0.4">+{i}D</text>
           )}
