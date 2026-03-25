@@ -24,7 +24,6 @@ export default function VereditoPage() {
         const { data: { user } } = await supabase.auth.getUser();
         if (!user) { router.push("/login"); return; }
 
-        // Busca Transações e Limites em paralelo
         const [transRes, limitesRes] = await Promise.all([
           supabase.from("transactions").select("*").eq("user_id", user.id).order('created_at', { ascending: false }),
           supabase.from("category_limits").select("*").eq("user_id", user.id)
@@ -34,43 +33,29 @@ export default function VereditoPage() {
         const limites = limitesRes.data || [];
         const agora = new Date();
 
-        // --- 1. CONSISTÊNCIA (Últimos 7 dias ativos) ---
-        const dias7D = new Set(
-          rawData
-            .filter(t => (agora.getTime() - new Date(t.created_at).getTime()) / (1000 * 3600 * 24) <= 7)
-            .map(t => new Date(t.created_at).toDateString())
-        ).size;
+        const dias7D = new Set(rawData.filter(t => (agora.getTime() - new Date(t.created_at).getTime()) / (1000 * 3600 * 24) <= 7).map(t => new Date(t.created_at).toDateString())).size;
         const consistencia = (dias7D / 7) * 100;
 
-        // --- 2. PRECISÃO (Evitar categoria 'Outros') ---
         const totalT = rawData.length || 1;
         const bemCategorizadas = rawData.filter(t => t.category && t.category !== "Outros" && t.category !== "Outra").length;
         const precisao = (bemCategorizadas / totalT) * 100;
 
-        // --- 3. PREVISÃO (Cobertura de Limites) ---
         const categoriasComSaida = new Set(rawData.filter(t => t.type === 'withdrawal').map(t => t.category)).size;
         const previsao = categoriasComSaida > 0 ? (limites.length / categoriasComSaida) * 100 : 0;
 
-        // --- 4. DISCIPLINA (Respeito aos limites por categoria) ---
         let penalidade = 0;
         limites.forEach(lim => {
-          const gastoCat = rawData
-            .filter(t => t.category === lim.category && t.type === 'withdrawal')
-            .reduce((acc, t) => acc + Math.abs(Number(t.amount)), 0);
+          const gastoCat = rawData.filter(t => t.category === lim.category && t.type === 'withdrawal').reduce((acc, t) => acc + Math.abs(Number(t.amount)), 0);
           if (gastoCat > lim.limit_amount) {
             penalidade += ((gastoCat - lim.limit_amount) / lim.limit_amount) * 25; 
           }
         });
         const disciplina = Math.max(0, 100 - penalidade);
 
-        // --- 5. EVOLUÇÃO (Investimentos e Aportes) ---
-        const volInvestido = rawData
-          .filter(t => ["Investimentos", "Aportes", "Reserva", "Investimento"].includes(t.category))
-          .reduce((acc, t) => acc + Math.abs(Number(t.amount)), 0);
+        const volInvestido = rawData.filter(t => ["Investimentos", "Aportes", "Reserva", "Investimento"].includes(t.category)).reduce((acc, t) => acc + Math.abs(Number(t.amount)), 0);
         const entradasTotais = rawData.filter(t => t.type !== 'withdrawal').reduce((acc, t) => acc + Number(t.amount), 0);
         const evolucao = entradasTotais > 0 ? (volInvestido / (entradasTotais * 0.2)) * 100 : 0;
 
-        // --- 6. ENGAJAMENTO (Média de 2 registros/dia) ---
         const dataInicio = new Date(rawData[rawData.length - 1]?.created_at || agora);
         const diasDeVida = Math.max(1, Math.floor((agora.getTime() - dataInicio.getTime()) / (1000 * 3600 * 24)));
         const engajamento = (totalT / (diasDeVida * 2)) * 100;
@@ -101,22 +86,49 @@ export default function VereditoPage() {
   const status = getStatusDetail(avgScore);
 
   const renderRadar = () => {
+    const labels = ["CONSISTÊNCIA", "PRECISÃO", "PREVISÃO", "DISCIPLINA", "EVOLUÇÃO", "ENGAJAMENTO"];
     const pts = [metrics.consistencia, metrics.precisao, metrics.previsao, metrics.disciplina, metrics.evolucao, metrics.engajamento];
+    
+    // Centro do gráfico
+    const cx = 100;
+    const cy = 100;
+    const radius = 70; // Tamanho da teia
+
     const points = pts.map((val, i) => {
       const angle = (Math.PI * 2 * i) / 6 - Math.PI / 2;
-      const r = (val / 100) * 80;
-      return `${100 + r * Math.cos(angle)},${100 + r * Math.sin(angle)}`;
+      const r = (val / 100) * radius;
+      return `${cx + r * Math.cos(angle)},${cy + r * Math.sin(angle)}`;
     }).join(" ");
 
     return (
-      <svg viewBox="0 0 200 200" className="w-full h-64 drop-shadow-[0_0_15px_rgba(250,204,21,0.3)]">
+      <svg viewBox="0 0 200 200" className="w-full h-80 overflow-visible drop-shadow-[0_0_15px_rgba(250,204,21,0.2)]">
+        {/* Teias de fundo */}
         {[0.2, 0.4, 0.6, 0.8, 1].map((p) => (
           <polygon key={p} points={Array.from({length: 6}).map((_, i) => {
             const a = (Math.PI * 2 * i) / 6 - Math.PI / 2;
-            return `${100 + p * 80 * Math.cos(a)},${100 + p * 80 * Math.sin(a)}`;
-          }).join(" ")} fill="none" stroke="white" strokeWidth="0.2" opacity="0.1" />
+            return `${cx + p * radius * Math.cos(a)},${cy + p * radius * Math.sin(a)}`;
+          }).join(" ")} fill="none" stroke="white" strokeWidth="0.5" opacity="0.1" />
         ))}
+        
+        {/* Polígono de Dados */}
         <polygon points={points} fill="rgba(250, 204, 21, 0.3)" stroke="#facc15" strokeWidth="2.5" className="transition-all duration-700" />
+
+        {/* Nomes nas pontas */}
+        {labels.map((label, i) => {
+          const angle = (Math.PI * 2 * i) / 6 - Math.PI / 2;
+          const x = cx + (radius + 15) * Math.cos(angle);
+          const y = cy + (radius + 15) * Math.sin(angle);
+          
+          let anchor = "middle";
+          if (Math.cos(angle) > 0.2) anchor = "start";
+          else if (Math.cos(angle) < -0.2) anchor = "end";
+
+          return (
+            <text key={i} x={x} y={y} textAnchor={anchor} fontSize="7" fontWeight="bold" fill="#52525b" className="uppercase tracking-widest">
+              {label}
+            </text>
+          );
+        })}
       </svg>
     );
   };
@@ -154,7 +166,7 @@ export default function VereditoPage() {
             <span className="text-[9px] font-black tracking-[0.2em]">MATRIZ TÉCNICA COMPORTAMENTAL</span>
           </div>
 
-          <div className="flex justify-center mb-10">{renderRadar()}</div>
+          <div className="flex justify-center mb-10 overflow-visible">{renderRadar()}</div>
 
           <div className="grid grid-cols-3 gap-y-8 gap-x-4 border-t border-white/5 pt-8">
             {[
