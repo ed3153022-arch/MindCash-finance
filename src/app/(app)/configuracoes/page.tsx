@@ -6,7 +6,8 @@ import {
   TrendingUp, Zap, CheckCircle2, AlertCircle, 
   ShieldCheck, ShieldAlert, Info
 } from "lucide-react";
-import { useRouter } from "navigation";
+// CORREÇÃO AQUI: O caminho correto é "next/navigation"
+import { useRouter } from "next/navigation";
 
 export default function VereditoPage() {
   const router = useRouter();
@@ -55,7 +56,7 @@ export default function VereditoPage() {
           evolucao: Math.min(100, Math.max(0, ((entradasTotal - saidasTotal) / (entradasTotal || 1)) * 100 + 35))
         });
 
-        // --- LÓGICA DO GRÁFICO AJUSTADA (APENAS SEMANA MUDA) ---
+        // --- LÓGICA DO GRÁFICO ---
         const numDiasProjecao = periodo === "dia" ? 1 : periodo === "semana" ? 7 : 30;
         const pontosPorDia = periodo === "mês" ? 4 : 8; 
         const totalPontos = numDiasProjecao * pontosPorDia;
@@ -68,12 +69,10 @@ export default function VereditoPage() {
           
           const vEntrada = tDoDia.filter(t => t.type !== 'withdrawal').reduce((acc, t) => acc + Number(t.amount), 0);
           const vSaida = tDoDia.filter(t => t.type === 'withdrawal').reduce((acc, t) => acc + Math.abs(Number(t.amount)), 0);
-          const volTotal = vEntrada + vSaida || 100;
 
           let yPos;
           if (periodo === "semana") {
-            // Lógica drástica: Transações maiores = oscilação maior
-            // 1.000 mexe pouco, 10.000 mexe muito.
+            // OSCILAÇÃO DRÁSTICA: Transação de 10k mexe muito mais que 1k
             const forcaEntrada = Math.min(vEntrada / 10000, 1.2) * 55;
             const forcaSaida = Math.min(vSaida / 10000, 1.2) * 55;
             const waveLeve = Math.sin(i * 0.9) * 5;
@@ -81,7 +80,8 @@ export default function VereditoPage() {
             // 65 é o centro. Entrada sobe (-), Saída desce (+)
             yPos = 65 - forcaEntrada + forcaSaida + waveLeve;
           } else {
-            // DIA e MÊS: Mantém sua lógica original de oscilação para cima
+            // DIA e MÊS: Mantém sua lógica original
+            const volTotal = vEntrada + vSaida || 100;
             const amplitude = Math.min(Math.max(volTotal / 70, 15), 55);
             const wave = Math.sin(i * 0.9) * amplitude + Math.cos(i * 0.4) * (amplitude / 1.2);
             yPos = 65 - wave;
@@ -154,7 +154,7 @@ export default function VereditoPage() {
     return { label: "CRÍTICO", color: "text-red-500", bg: "bg-red-500/5", border: "border-red-500/20", icon: <ShieldAlert size={24}/>, desc: "COLAPSO FINANCEIRO IMINENTE. REAJA." };
   }, [resumo.saldo, radarStats]);
 
-  if (loading) return <div className="min-h-screen bg-black flex items-center justify-center text-[10px] font-black tracking-[0.5em] text-yellow-400">SINCRONIZANDO...</div>;
+  if (loading) return <div className="min-h-screen bg-black flex items-center justify-center text-[10px] font-black tracking-[0.5em] text-yellow-400 text-center">SINCRONIZANDO VEREDITO...</div>;
 
   return (
     <div className="min-h-screen bg-black text-white p-6 pb-28 font-sans uppercase">
@@ -176,7 +176,7 @@ export default function VereditoPage() {
           <p className="text-[10px] font-bold text-white/60 tracking-[0.2em] mt-2 mb-6">{vereditoFinal.desc}</p>
         </section>
 
-        {/* GRÁFICO (ESTILO ORIGINAL) */}
+        {/* GRÁFICO PERSONALIZADO */}
         <div className="bg-[#050505] p-10 rounded-[4rem] border border-white/5 relative overflow-hidden">
           <div className="flex justify-between items-center mb-16">
             <h4 className="text-[9px] font-black text-zinc-600 tracking-[0.3em] flex items-center gap-2">
