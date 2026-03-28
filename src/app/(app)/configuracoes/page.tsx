@@ -2,7 +2,7 @@
 
 import React, { useEffect, useState, useMemo } from "react";
 import { supabase } from "@/lib/supabase";
-import { Zap, ShieldCheck, Target, Activity, Flame, Gauge, BrainCircuit, Loader2, AlertTriangle, Trophy, Crown } from "lucide-react";
+import { Zap, ShieldCheck, Target, Activity, Flame, Gauge, BrainCircuit, Loader2, AlertTriangle, Trophy, Crown, Shield } from "lucide-react";
 import { useRouter } from "next/navigation";
 
 export default function VereditoPage() {
@@ -70,10 +70,8 @@ export default function VereditoPage() {
     fetchVereditoData();
   }, [router]);
 
-  // --- LÓGICA DE VULNERABILIDADE (NOVO) ---
   const vulnerability = useMemo(() => {
     const entries = Object.entries(metrics);
-    // Encontra a métrica com o menor valor
     const lowest = entries.reduce((prev, curr) => prev[1] < curr[1] ? prev : curr);
     const alt = new Date().getDate() % 2 === 0;
 
@@ -87,10 +85,7 @@ export default function VereditoPage() {
     };
 
     const target = tips[lowest[0]];
-    return { 
-      name: target.label, 
-      desc: alt ? target.msgA : target.msgB 
-    };
+    return { name: target.label, desc: alt ? target.msgA : target.msgB };
   }, [metrics]);
 
   const getStatusDetail = (avg: number) => {
@@ -109,11 +104,9 @@ export default function VereditoPage() {
     const labels = ["CONSISTÊNCIA", "PRECISÃO", "PREVISÃO", "DISCIPLINA", "EVOLUÇÃO", "ENGAJAMENTO"];
     const pts = [metrics.consistencia, metrics.precisao, metrics.previsao, metrics.disciplina, metrics.evolucao, metrics.engajamento];
     const cx = 100, cy = 100, radius = 70;
-
     const points = pts.map((val, i) => {
       const a = (Math.PI * 2 * i) / 6 - Math.PI / 2;
-      const r = (val / 100) * radius;
-      return `${cx + r * Math.cos(a)},${cy + r * Math.sin(a)}`;
+      return `${cx + (val / 100) * radius * Math.cos(a)},${cy + (val / 100) * radius * Math.sin(a)}`;
     }).join(" ");
 
     return (
@@ -127,9 +120,7 @@ export default function VereditoPage() {
         <polygon points={points} fill="rgba(250, 204, 21, 0.3)" stroke="#facc15" strokeWidth="2.5" />
         {labels.map((label, i) => {
           const a = (Math.PI * 2 * i) / 6 - Math.PI / 2;
-          const x = cx + (radius + 20) * Math.cos(a);
-          const y = cy + (radius + 20) * Math.sin(a);
-          return <text key={i} x={x} y={y} textAnchor="middle" fontSize="7" fontWeight="bold" fill="#71717a" className="uppercase tracking-widest">{label}</text>;
+          return <text key={i} x={cx + (radius + 20) * Math.cos(a)} y={cy + (radius + 20) * Math.sin(a)} textAnchor="middle" fontSize="7" fontWeight="bold" fill="#71717a" className="uppercase tracking-widest">{label}</text>;
         })}
       </svg>
     );
@@ -139,15 +130,33 @@ export default function VereditoPage() {
 
   return (
     <div className="min-h-screen bg-black text-white p-6 pb-32 font-sans uppercase tracking-tighter">
-      <div className="max-w-xl mx-auto space-y-8 pt-4">
+      <div className="max-w-xl mx-auto space-y-10 pt-8">
         
-        {/* 1. SELOS (Espaço reservado para os ícones) */}
-        <div className="flex justify-center gap-6 py-2 opacity-50">
-           <Trophy size={18} className={metrics.disciplina > 85 ? "text-yellow-500 opacity-100" : "text-zinc-700"} />
-           <ShieldCheck size={18} className={metrics.consistencia > 90 ? "text-cyan-500 opacity-100" : "text-zinc-700"} />
-           <Crown size={18} className={avgScore > 90 ? "text-orange-500 opacity-100" : "text-zinc-700"} />
-           <Flame size={18} className={metrics.engajamento > 80 ? "text-red-500 opacity-100" : "text-zinc-700"} />
-        </div>
+        {/* CABEÇALHO RESTAURADO */}
+        <header className="flex justify-between items-center border-b border-white/10 pb-6">
+          <div>
+            <h1 className="text-6xl font-black italic text-white leading-none">VEREDITO</h1>
+            <p className="text-[10px] text-zinc-500 font-bold tracking-[0.2em] mt-2">ANÁLISE ALGORÍTMICA DE PERFORMANCE CAPITAL</p>
+          </div>
+          <Zap className="text-yellow-400 fill-yellow-400" size={24} />
+        </header>
+
+        {/* 1. SELOS (MURALHA, SENTINELA, SOBERANO, IMPULSO) */}
+        <section className="grid grid-cols-4 gap-2">
+          {[
+            { id: 'mur', name: "MURA\nLHA", icon: <Shield size={18}/>, active: metrics.disciplina > 85, color: "text-blue-500" },
+            { id: 'sen', name: "SENTI\nNELA", icon: <ShieldCheck size={18}/>, active: metrics.consistencia > 90, color: "text-cyan-500" },
+            { id: 'sob', name: "SOBE\nRANO", icon: <Crown size={18}/>, active: avgScore > 90, color: "text-orange-500" },
+            { id: 'imp', name: "IMPU\nLSO", icon: <Flame size={18}/>, active: metrics.engajamento > 80, color: "text-red-500" }
+          ].map(s => (
+            <div key={s.id} className={`flex flex-col items-center p-3 rounded-2xl border ${s.active ? 'border-white/10 bg-white/5' : 'border-white/5 opacity-20'}`}>
+              <div className={s.active ? s.color : 'text-zinc-700'}>{s.icon}</div>
+              <div className="text-[7px] font-black mt-2 text-center leading-tight tracking-[0.2em]">
+                {s.name.split('\n').map((line, i) => <div key={i}>{line}</div>)}
+              </div>
+            </div>
+          ))}
+        </section>
 
         {/* 2. STATUS FINANCEIRO */}
         <section className={`p-8 rounded-[2.5rem] border border-white/5 ${status.bg} backdrop-blur-sm relative overflow-hidden`}>
@@ -157,7 +166,7 @@ export default function VereditoPage() {
               <span className="text-[10px] font-bold text-zinc-500 tracking-[0.3em]">DIAGNÓSTICO ATIVO</span>
             </div>
             <h2 className={`text-6xl font-black italic mb-4 ${status.color}`}>{status.label}</h2>
-            <p className="text-[11px] text-zinc-400 font-medium leading-relaxed normal-case max-w-[90%]">{status.desc}</p>
+            <p className="text-[11px] text-zinc-400 font-medium normal-case max-w-[90%]">{status.desc}</p>
           </div>
           <BrainCircuit className="absolute -right-4 -bottom-4 text-white/5" size={140} />
         </section>
@@ -175,11 +184,9 @@ export default function VereditoPage() {
           </div>
         </section>
 
-        {/* 4. CARD DE VULNERABILIDADE (NOVO) */}
-        <section className="bg-red-950/20 border border-red-500/20 p-6 rounded-[2rem] flex items-center gap-5">
-           <div className="bg-red-500/20 p-4 rounded-2xl">
-              <AlertTriangle className="text-red-500" size={24} />
-           </div>
+        {/* 4. CARD DE VULNERABILIDADE */}
+        <section className="bg-red-950/20 border border-red-500/20 p-6 rounded-[2.5rem] flex items-center gap-5">
+           <div className="bg-red-500/20 p-4 rounded-2xl"><AlertTriangle className="text-red-500" size={24} /></div>
            <div>
               <p className="text-[10px] font-black text-red-500 tracking-[0.2em] mb-1">VULNERABILIDADE: {vulnerability.name}</p>
               <p className="text-[11px] text-zinc-400 normal-case leading-snug">{vulnerability.desc}</p>
