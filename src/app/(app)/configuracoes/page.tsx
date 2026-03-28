@@ -130,32 +130,36 @@ export default function VereditoPage() {
 
   return (
     <div className="min-h-screen bg-black text-white p-6 pb-32 font-sans uppercase tracking-tighter">
-      <div className="max-w-xl mx-auto space-y-10 pt-8">
+      <div className="max-w-xl mx-auto space-y-8 pt-8">
         
-        {/* CABEÇALHO RESTAURADO */}
+        {/* CABEÇALHO COM DESCRIÇÃO SIMPLIFICADA */}
         <header className="flex justify-between items-center border-b border-white/10 pb-6">
           <div>
             <h1 className="text-6xl font-black italic text-white leading-none">VEREDITO</h1>
-            <p className="text-[10px] text-zinc-500 font-bold tracking-[0.2em] mt-2">ANÁLISE ALGORÍTMICA DE PERFORMANCE CAPITAL</p>
+            <p className="text-[10px] text-zinc-500 font-bold tracking-[0.4em] mt-2">JUÍZO DE PERFORMANCE</p>
           </div>
           <Zap className="text-yellow-400 fill-yellow-400" size={24} />
         </header>
 
-        {/* 1. SELOS (MURALHA, SENTINELA, SOBERANO, IMPULSO) */}
-        <section className="grid grid-cols-4 gap-2">
-          {[
-            { id: 'mur', name: "MURA\nLHA", icon: <Shield size={18}/>, active: metrics.disciplina > 85, color: "text-blue-500" },
-            { id: 'sen', name: "SENTI\nNELA", icon: <ShieldCheck size={18}/>, active: metrics.consistencia > 90, color: "text-cyan-500" },
-            { id: 'sob', name: "SOBE\nRANO", icon: <Crown size={18}/>, active: avgScore > 90, color: "text-orange-500" },
-            { id: 'imp', name: "IMPU\nLSO", icon: <Flame size={18}/>, active: metrics.engajamento > 80, color: "text-red-500" }
-          ].map(s => (
-            <div key={s.id} className={`flex flex-col items-center p-3 rounded-2xl border ${s.active ? 'border-white/10 bg-white/5' : 'border-white/5 opacity-20'}`}>
-              <div className={s.active ? s.color : 'text-zinc-700'}>{s.icon}</div>
-              <div className="text-[7px] font-black mt-2 text-center leading-tight tracking-[0.2em]">
-                {s.name.split('\n').map((line, i) => <div key={i}>{line}</div>)}
+        {/* 1. CARD DE CONQUISTAS (SELOS EM UMA LINHA) */}
+        <section className="bg-[#050505] p-5 rounded-[2.5rem] border border-white/5">
+          <div className="flex items-center gap-2 mb-4 px-2">
+            <Trophy className="text-zinc-500" size={14} />
+            <span className="text-[9px] font-black text-zinc-500 tracking-widest">CONQUISTAS DE PERFORMANCE</span>
+          </div>
+          <div className="grid grid-cols-4 gap-3">
+            {[
+              { id: 'mur', name: "MURALHA", icon: <Shield size={18}/>, active: metrics.disciplina > 85, color: "text-blue-500" },
+              { id: 'sen', name: "SENTINELA", icon: <ShieldCheck size={18}/>, active: metrics.consistencia > 90, color: "text-cyan-500" },
+              { id: 'sob', name: "SOBERANO", icon: <Crown size={18}/>, active: avgScore > 90, color: "text-orange-500" },
+              { id: 'imp', name: "IMPULSO", icon: <Flame size={18}/>, active: metrics.engajamento > 80, color: "text-red-500" }
+            ].map(s => (
+              <div key={s.id} className={`flex flex-col items-center p-3 rounded-2xl border transition-all ${s.active ? 'border-white/10 bg-white/5' : 'border-white/5 opacity-20'}`}>
+                <div className={s.active ? s.color : 'text-zinc-700'}>{s.icon}</div>
+                <span className="text-[7px] font-black mt-2 text-center tracking-[0.1em]">{s.name}</span>
               </div>
-            </div>
-          ))}
+            ))}
+          </div>
         </section>
 
         {/* 2. STATUS FINANCEIRO */}
