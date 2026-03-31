@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabase";
-import { AlertTriangle, Hourglass, Zap, X, Trash2 } from "lucide-react";
+import { AlertTriangle, Hourglass, Zap, X, Trash2, Calendar } from "lucide-react";
 
 const MASTER_CATS = [
   { nome: "Alimentação", emoji: "🍔", cor: "#FF007A" },
@@ -23,7 +23,6 @@ export default function DashboardPage() {
   const [metas, setMetas] = useState<any[]>([]);
   const [transacoes, setTransacoes] = useState<any[]>([]);
   
-  // --- ESTADOS GASTOS FIXOS ---
   const [fixedExpenses, setFixedExpenses] = useState<any[]>([]);
   const [ignoredExpenses, setIgnoredExpenses] = useState<string[]>([]);
   const [showFixedModal, setShowFixedModal] = useState(false);
@@ -131,7 +130,7 @@ export default function DashboardPage() {
 
   return (
     <>
-      {/* 1. NOTIFICAÇÕES PUSH (FLUTUANTES NO TOPO) */}
+      {/* 1. NOTIFICAÇÕES PUSH */}
       <div className="fixed top-6 left-4 right-4 z-[110] space-y-3 pointer-events-none">
         {fixedExpenses.map((expense) => {
           if (ignoredExpenses.includes(expense.id)) return null;
@@ -187,7 +186,7 @@ export default function DashboardPage() {
           </div>
       </div>
 
-      {/* --- CARD: GESTÃO DE GASTOS FIXOS --- */}
+      {/* CARD GASTOS FIXOS */}
       <div className="bg-[#111] pt-10 pb-8 px-8 rounded-[1.5rem] border border-white/5 w-full md:col-span-2 relative">
         <button onClick={() => setShowFixedModal(true)} className="absolute top-8 right-8 bg-yellow-400 text-black px-4 py-2 rounded-xl font-black text-[9px] uppercase tracking-widest active:scale-95 transition flex items-center gap-2">
           <Zap size={12} fill="black" /> ADICIONAR
@@ -223,7 +222,7 @@ export default function DashboardPage() {
         </div>
       </div>
 
-      {/* RESTANTE DO DASHBOARD... */}
+      {/* GRÁFICO DONUT */}
       <div className="bg-[#111] pt-12 pb-8 px-8 rounded-[1.5rem] border border-white/5 flex flex-col items-center w-full">
         <span className="text-zinc-500 text-[10px] font-black uppercase tracking-[0.2em] mb-10 self-start italic px-2">Uso do Orçamento</span>
         <div className="relative w-64 h-64 flex items-center justify-center mb-10">
@@ -249,6 +248,7 @@ export default function DashboardPage() {
         </p>
       </div>
 
+      {/* LIMITES POR CATEGORIA */}
       <div className="bg-[#111] pt-12 pb-8 px-8 rounded-[1.5rem] border border-white/5 space-y-10 w-full">
         <h3 className="text-xl font-black italic uppercase text-white tracking-tighter px-2">Limites por Categoria</h3>
         <div className="space-y-10 px-2">
@@ -271,6 +271,7 @@ export default function DashboardPage() {
         </div>
       </div>
 
+      {/* ATIVIDADE RECENTE */}
       <div className="bg-[#111] pt-12 pb-8 px-8 rounded-[1.5rem] border border-white/5 space-y-8 w-full md:col-span-2">
         <div className="flex justify-between items-center px-2">
           <h3 className="text-xl font-black italic uppercase text-white tracking-tighter">Atividade</h3>
@@ -308,16 +309,47 @@ export default function DashboardPage() {
         </div>
       </div>
 
-      {/* MODAL GASTO FIXO */}
+      {/* --- MODAL GASTO FIXO (AJUSTADO COM DATAS) --- */}
       {showFixedModal && (
         <div className="fixed inset-0 bg-black/95 backdrop-blur-md z-[120] flex items-center justify-center p-6">
           <div className="bg-[#111] w-full max-w-sm rounded-[1.5rem] pt-12 pb-8 px-8 border border-white/10 shadow-2xl text-white italic">
             <h2 className="text-2xl font-black italic uppercase text-yellow-400 mb-6 px-2">Nova Sentença Fixa</h2>
-            <div className="space-y-4 mb-8 px-2">
-              <input placeholder="NOME DO GASTO" value={newFixed.name} onChange={(e)=>setNewFixed({...newFixed, name: e.target.value})} className="w-full bg-black border border-white/10 p-4 rounded-2xl text-xs font-black italic outline-none focus:border-yellow-400 uppercase" />
-              <input placeholder="VALOR (R$)" inputMode="numeric" value={newFixed.amount} onChange={(e)=>setNewFixed({...newFixed, amount: e.target.value})} className="w-full bg-black border border-white/10 p-4 rounded-2xl text-xs font-black italic outline-none focus:border-yellow-400" />
-              <input placeholder="DIA DO VENCIMENTO (1-31)" type="number" value={newFixed.due_day} onChange={(e)=>setNewFixed({...newFixed, due_day: e.target.value})} className="w-full bg-black border border-white/10 p-4 rounded-2xl text-xs font-black italic outline-none focus:border-yellow-400" />
+            
+            <div className="space-y-6 mb-8 px-2">
+              <div className="space-y-1">
+                <label className="text-[8px] font-black uppercase text-zinc-500 ml-1 italic tracking-widest">Identificação</label>
+                <input placeholder="NOME DO GASTO" value={newFixed.name} onChange={(e)=>setNewFixed({...newFixed, name: e.target.value})} className="w-full bg-black border border-white/10 p-4 rounded-2xl text-xs font-black italic outline-none focus:border-yellow-400 uppercase" />
+              </div>
+
+              <div className="space-y-1">
+                <label className="text-[8px] font-black uppercase text-zinc-500 ml-1 italic tracking-widest">Valor da Sentença</label>
+                <input placeholder="R$ 0,00" inputMode="numeric" value={newFixed.amount} onChange={(e)=>setNewFixed({...newFixed, amount: e.target.value})} className="w-full bg-black border border-white/10 p-4 rounded-2xl text-xs font-black italic outline-none focus:border-yellow-400" />
+              </div>
+
+              <div className="space-y-1">
+                <label className="text-[8px] font-black uppercase text-zinc-500 ml-1 italic tracking-widest">Dia do Vencimento</label>
+                <div className="relative flex items-center">
+                  <div className="absolute left-4 flex items-center gap-1.5 pointer-events-none">
+                     <span className="text-[10px] font-black text-zinc-600">//</span>
+                     <span className={`text-xs font-black italic ${newFixed.due_day ? "text-yellow-400" : "text-zinc-800"}`}>
+                        {newFixed.due_day ? newFixed.due_day.toString().padStart(2, '0') : "00"}
+                     </span>
+                     <span className="text-[10px] font-black text-zinc-600">// MM // AAAA</span>
+                  </div>
+                  <input 
+                    type="number" 
+                    max="31" 
+                    min="1"
+                    placeholder="" 
+                    value={newFixed.due_day} 
+                    onChange={(e)=>setNewFixed({...newFixed, due_day: e.target.value})} 
+                    className="w-full bg-black border border-white/10 p-4 pl-32 rounded-2xl text-xs font-black italic outline-none focus:border-yellow-400 text-transparent caret-yellow-400" 
+                  />
+                </div>
+                <p className="text-[7px] text-zinc-600 mt-2 ml-1 uppercase font-black tracking-tighter italic">*Insira apenas o dia (ex: 31)</p>
+              </div>
             </div>
+
             <div className="flex flex-col gap-3">
               <button onClick={handleAddFixed} className="w-full bg-yellow-400 text-black py-4 rounded-2xl font-black uppercase text-[10px] tracking-widest">Confirmar</button>
               <button onClick={() => setShowFixedModal(false)} className="w-full py-4 text-zinc-500 font-black text-[9px] uppercase tracking-widest">Cancelar</button>
