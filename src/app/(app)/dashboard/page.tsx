@@ -52,7 +52,7 @@ export default function DashboardPage() {
           .eq("user_id", user.id)
           .gte("created_at", inicioMes)
           .order("created_at", { ascending: false }),
-        supabase.from("fixed_expenses").select("*").eq("user_id", user.id)
+        supabase.from("fixed_expenses").select("*").eq("user_id", user.id).order("due_day", { ascending: true })
       ]);
 
       setMetas(m.data || []);
@@ -62,7 +62,7 @@ export default function DashboardPage() {
     setLoading(false);
   }
 
-  // Máscara DD/MM/AAAA
+  // MÁSCARA CORRIGIDA: 00/00/0000
   const maskDate = (value: string) => {
     return value
       .replace(/\D/g, "")
@@ -74,22 +74,28 @@ export default function DashboardPage() {
   async function handleAddFixed() {
     if(!newFixed.name || !newFixed.amount || !newFixed.due_date) return alert("Preencha tudo!");
     
-    // Converte DD/MM/AAAA para objeto Date
-    const [d, m, y] = newFixed.due_date.split("/");
-    const dataVencimento = new Date(parseInt(y), parseInt(m) - 1, parseInt(d));
+    // Extrai Dia, Mês e Ano para criar a data exata
+    const partes = newFixed.due_date.split("/");
+    if (partes.length < 3) return alert("Data incompleta!");
 
+    const dia = parseInt(partes[0]);
+    const mes = parseInt(partes[1]) - 1; // Meses no JS começam em 0
+    const ano = parseInt(partes[2]);
+
+    const dataVencimento = new Date(ano, mes, dia);
     if (isNaN(dataVencimento.getTime())) return alert("Data inválida!");
 
     const valorLimpo = newFixed.amount.toString().replace(/\./g, "").replace(",", ".");
+    
     const { data: { user } } = await supabase.auth.getUser();
     
-    // Salvamos o dia (para compatibilidade) e a data completa (para o alerta preciso)
+    // Salvamos o dia (pelo campo antigo) e a data completa (novo campo)
     const { error } = await supabase.from("fixed_expenses").insert({
       user_id: user?.id,
       name: newFixed.name.toUpperCase(),
       amount: parseFloat(valorLimpo),
-      due_day: parseInt(d),
-      full_due_date: dataVencimento.toISOString() // Novo campo no banco
+      due_day: dia,
+      full_due_date: dataVencimento.toISOString() // Certifique-se que essa coluna existe no Supabase
     });
 
     if(!error) { 
@@ -105,7 +111,6 @@ export default function DashboardPage() {
     loadData();
   }
 
-  // Lógica de cores e dados para o Dashboard (omitida para brevidade, mas mantida no seu código original)
   const entradas = transacoes.filter(t => t.type === "entrada").reduce((acc, t) => acc + Number(t.amount), 0);
   const saídas = transacoes.filter(t => t.type === "saida").reduce((acc, t) => acc + Number(t.amount), 0);
   const saldo = entradas - saídas;
@@ -132,7 +137,11 @@ export default function DashboardPage() {
       const strokeDashoffset = -acumulado * circunferencia;
       acumulado += percentual;
       return (
-        <circle key={cat.nome} cx="80" cy="80" r={raio} fill="none" stroke={cat.cor} strokeWidth="20" strokeDasharray={strokeDasharray} strokeDashoffset={strokeDashoffset} strokeLinecap="round" />
+        <circle 
+          key={cat.nome} cx="80" cy="80" r={raio} fill="none" 
+          stroke={cat.cor} strokeWidth="20" strokeDasharray={strokeDasharray} 
+          strokeDashoffset={strokeDashoffset} strokeLinecap="round"
+        />
       );
     });
   };
@@ -141,7 +150,7 @@ export default function DashboardPage() {
 
   return (
     <>
-      {/* NOTIFICAÇÕES COM COMPARAÇÃO DE DATA COMPLETA */}
+      {/* NOTIFICAÇÕES COM LÓGICA DE DATA COMPLETA */}
       <div className="fixed top-6 left-4 right-4 z-[110] space-y-3 pointer-events-none">
         {fixedExpenses.map((expense) => {
           if (ignoredExpenses.includes(expense.id)) return null;
@@ -149,7 +158,11 @@ export default function DashboardPage() {
           const hoje = new Date();
           hoje.setHours(0,0,0,0);
           
-          const dataVenc = expense.full_due_date ? new Date(expense.full_due_date) : new Date(hoje.getFullYear(), hoje.getMonth(), expense.due_day);
+          // Usa a data completa se existir, senão reconstrói com base no dia e mês atual
+          const dataVenc = expense.full_due_date 
+            ? new Date(expense.full_due_date) 
+            : new Date(hoje.getFullYear(), hoje.getMonth(), expense.due_day);
+          
           dataVenc.setHours(0,0,0,0);
 
           const diffTempo = dataVenc.getTime() - hoje.getTime();
@@ -185,13 +198,11 @@ export default function DashboardPage() {
         </div>
       </div>
 
-      {/* CARD SALDO */}
       <div className="bg-[#111] pt-12 pb-8 px-8 rounded-[1.5rem] border border-white/5 w-full md:col-span-2">
         <p className="text-zinc-500 text-[9px] font-black uppercase tracking-widest mb-1 italic">Saldo Disponível</p>
         <h2 className="text-4xl font-black italic text-white break-words">R$ {saldo.toLocaleString('pt-BR')}</h2>
       </div>
 
-      {/* CARD GASTOS FIXOS */}
       <div className="bg-[#111] pt-10 pb-8 px-8 rounded-[1.5rem] border border-white/5 w-full md:col-span-2 relative">
         <button onClick={() => setShowFixedModal(true)} className="absolute top-8 right-8 bg-yellow-400 text-black px-4 py-2 rounded-xl font-black text-[9px] uppercase tracking-widest active:scale-95 transition flex items-center gap-2">
           <Zap size={12} fill="black" /> ADICIONAR
@@ -203,14 +214,12 @@ export default function DashboardPage() {
         </div>
 
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 px-2">
-          {fixedExpenses.map(expense => (
+          {fixedExpenses.length > 0 ? fixedExpenses.map(expense => (
             <div key={expense.id} className="bg-black/40 border border-white/5 p-5 rounded-[1.8rem] flex justify-between items-center group">
               <div className="flex items-center gap-4">
                 <div className="flex items-center gap-1 bg-zinc-900 border border-white/5 px-2 py-2 rounded-xl">
                   <span className="text-[8px] font-black text-zinc-700">//</span>
-                  <span className="text-xs font-black text-yellow-400 italic">
-                    {new Date(expense.full_due_date || "").toLocaleDateString('pt-BR', {day: '2-digit'})}
-                  </span>
+                  <span className="text-xs font-black text-yellow-400 italic">{expense.due_day.toString().padStart(2, '0')}</span>
                   <span className="text-[8px] font-black text-zinc-700">//</span>
                 </div>
                 <div>
@@ -223,11 +232,12 @@ export default function DashboardPage() {
                 <button onClick={() => handleDeleteFixed(expense.id)} className="text-zinc-800 hover:text-red-500 transition"><Trash2 size={14}/></button>
               </div>
             </div>
-          ))}
+          )) : (
+            <p className="text-zinc-600 text-center py-6 font-black uppercase text-[10px] italic w-full col-span-2 tracking-widest opacity-50">Sem gastos fixos</p>
+          )}
         </div>
       </div>
 
-      {/* MODAL GASTO FIXO COM DATA COMPLETA */}
       {showFixedModal && (
         <div className="fixed inset-0 bg-black/95 backdrop-blur-md z-[120] flex items-center justify-center p-6">
           <div className="bg-[#111] w-full max-w-sm rounded-[1.5rem] pt-12 pb-8 px-8 border border-white/10 shadow-2xl text-white italic">
@@ -245,7 +255,7 @@ export default function DashboardPage() {
               </div>
 
               <div>
-                <label className="text-[8px] font-black uppercase text-zinc-500 ml-1 italic tracking-widest mb-1 block">Vencimento (Dia/Mês/Ano)</label>
+                <label className="text-[8px] font-black uppercase text-zinc-500 ml-1 italic tracking-widest mb-1 block">Data de Vencimento</label>
                 <input 
                   placeholder="00/00/0000" 
                   inputMode="numeric"
@@ -264,7 +274,96 @@ export default function DashboardPage() {
         </div>
       )}
 
-      {/* Restante dos componentes (Donut, Atividade, etc) se mantêm iguais ao anterior */}
+      {/* --- RESTANTE MANTIDO --- */}
+      <div className="bg-[#111] pt-12 pb-8 px-8 rounded-[1.5rem] border border-white/5 flex flex-col items-center w-full">
+        <span className="text-zinc-500 text-[10px] font-black uppercase tracking-[0.2em] mb-10 self-start italic px-2">Uso do Orçamento</span>
+        <div className="relative w-64 h-64 flex items-center justify-center mb-10">
+          <svg className="w-full h-full -rotate-90" viewBox="0 0 160 160">
+            <circle cx="80" cy="80" r={70} fill="none" stroke="#1a1a1a" strokeWidth="18" />
+            {renderDonutChartSegments()}
+          </svg>
+          <div className="absolute flex flex-col items-center">
+            <span className="text-6xl font-black italic text-white leading-none">{porcentagemGeral}%</span>
+            <span className="text-[10px] text-zinc-500 font-black tracking-widest uppercase italic mt-2">Gasto</span>
+          </div>
+        </div>
+        <p className="text-zinc-500 font-black text-[11px] uppercase italic tracking-tight text-center">
+          <span className="text-white text-base">R$ {saídas.toLocaleString('pt-BR')}</span> DE R$ {orcamentoTotal.toLocaleString('pt-BR')}
+        </p>
+      </div>
+
+      <div className="bg-[#111] pt-12 pb-8 px-8 rounded-[1.5rem] border border-white/5 space-y-10 w-full">
+        <h3 className="text-xl font-black italic uppercase text-white tracking-tighter px-2">Limites por Categoria</h3>
+        <div className="space-y-10 px-2">
+          {metas.map(meta => {
+            const gastoCat = transacoes.filter(t => t.type === "saida" && t.category?.toLowerCase() === meta.category?.toLowerCase()).reduce((acc, t) => acc + Number(t.amount), 0);
+            const progresso = Math.min((gastoCat / Number(meta.amount)) * 100, 100);
+            const catInfo = MASTER_CATS.find(c => c.nome.toLowerCase() === meta.category?.toLowerCase());
+            return (
+              <div key={meta.id} className="space-y-4">
+                <div className="flex justify-between items-end">
+                  <span className="text-[10px] font-black uppercase italic text-white">{catInfo?.emoji} {meta.category}</span>
+                  <span className="text-[10px] font-black text-zinc-400">R$ {gastoCat.toLocaleString('pt-BR')} / {Number(meta.amount).toLocaleString('pt-BR')}</span>
+                </div>
+                <div className="w-full bg-white/5 h-2.5 rounded-full overflow-hidden border border-white/5">
+                  <div className={`h-full transition-all duration-1000 ${progresso >= 90 ? "bg-red-500" : "bg-yellow-400"}`} style={{ width: `${progresso}%` }} />
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      </div>
+
+      <div className="bg-[#111] pt-12 pb-8 px-8 rounded-[1.5rem] border border-white/5 space-y-8 w-full md:col-span-2">
+        <div className="flex justify-between items-center px-2">
+          <h3 className="text-xl font-black italic uppercase text-white tracking-tighter">Atividade</h3>
+        </div>
+        <div className="space-y-4 px-2">
+          {transacoes.slice(0, 4).map((t) => {
+            const catInfo = MASTER_CATS.find(c => c.nome.toLowerCase() === t.category?.toLowerCase());
+            return (
+              <div key={t.id} className="flex justify-between items-center bg-black/40 p-5 rounded-2xl border border-white/5">
+                <div className="flex items-center gap-4">
+                  <span className="text-2xl">{t.type === 'entrada' ? "💰" : (catInfo?.emoji || "💸")}</span>
+                  <div>
+                    <p className="text-white font-black italic uppercase text-[10px] leading-none">{t.category}</p>
+                    <p className="text-zinc-600 text-[8px] font-bold uppercase mt-1">{new Date(t.created_at).toLocaleDateString('pt-BR')}</p>
+                  </div>
+                </div>
+                <span className={`text-sm font-black italic ${t.type === 'entrada' ? 'text-green-500' : 'text-white'}`}>
+                  {t.type === 'entrada' ? '+' : '-'} R$ {Number(t.amount).toLocaleString('pt-BR')}
+                </span>
+              </div>
+            );
+          })}
+        </div>
+      </div>
+
+      {showModal && (
+        <div className="fixed inset-0 bg-black/95 backdrop-blur-md z-[100] flex items-center justify-center p-6">
+          <div className="bg-[#111] w-full max-w-sm rounded-[1.5rem] pt-12 pb-8 px-8 border border-white/10 shadow-2xl text-white">
+            <h2 className="text-2xl font-black italic uppercase text-white mb-6 px-2">Novo Registro</h2>
+            <div className="grid grid-cols-2 gap-2 bg-black p-1 rounded-2xl mb-6 border border-white/5">
+              <button onClick={() => setTipo("saida")} className={`py-3 rounded-xl font-black text-[10px] uppercase transition ${tipo === "saida" ? "bg-red-500 text-white" : "text-zinc-500"}`}>Saída</button>
+              <button onClick={() => setTipo("entrada")} className={`py-3 rounded-xl font-black text-[10px] uppercase transition ${tipo === "entrada" ? "bg-green-500 text-white" : "text-zinc-500"}`}>Entrada</button>
+            </div>
+            <div className="space-y-1 mb-8 px-2">
+              <label className="text-[9px] font-black uppercase text-zinc-500 ml-1 italic">Valor (R$)</label>
+              <input type="text" inputMode="decimal" placeholder="0.00" value={valor} onChange={(e) => setValor(e.target.value)} className="w-full bg-black border border-white/10 p-5 rounded-2xl text-4xl font-black italic outline-none text-white focus:border-yellow-400" />
+            </div>
+            <div className="flex flex-col gap-3">
+              <button onClick={async () => {
+                if(!valor) return;
+                const valorLimpo = valor.toString().replace(/\./g, "").replace(",", ".");
+                const { data: { user } } = await supabase.auth.getUser();
+                await supabase.from("transactions").insert({ user_id: user?.id, type: tipo, category: tipo === 'saida' ? 'Geral' : 'Receita', amount: parseFloat(valorLimpo) });
+                setShowModal(false); setValor(""); loadData();
+              }} className="w-full bg-yellow-400 text-black py-5 rounded-2xl font-black uppercase text-[10px] tracking-widest transition">Confirmar</button>
+              <button onClick={() => setShowModal(false)} className="w-full py-4 text-zinc-500 font-black text-[9px] uppercase tracking-widest">Cancelar</button>
+            </div>
+          </div>
+        </div>
+      )}
     </>
   );
 }
