@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabase";
-import { AlertTriangle, Hourglass, Zap, X, Trash2 } from "lucide-material";
+import { AlertTriangle, Hourglass, Zap, X, Trash2 } from "lucide-react";
 
 const MASTER_CATS = [
   { nome: "Alimentação", emoji: "🍔", cor: "#FF007A" },
@@ -65,7 +65,6 @@ export default function DashboardPage() {
   async function handleAddFixed() {
     if(!newFixed.name || !newFixed.amount || !newFixed.due_day) return alert("Preencha tudo!");
     
-    // Lógica para aceitar ponto e vírgula
     const valorLimpo = newFixed.amount.toString().replace(/\./g, "").replace(",", ".");
     const valorNumerico = parseFloat(valorLimpo);
     
@@ -188,7 +187,7 @@ export default function DashboardPage() {
           </div>
       </div>
 
-      {/* --- CARD: GESTÃO DE GASTOS FIXOS (AJUSTADO) --- */}
+      {/* --- CARD: GESTÃO DE GASTOS FIXOS --- */}
       <div className="bg-[#111] pt-10 pb-8 px-8 rounded-[1.5rem] border border-white/5 w-full md:col-span-2 relative">
         <button onClick={() => setShowFixedModal(true)} className="absolute top-8 right-8 bg-yellow-400 text-black px-4 py-2 rounded-xl font-black text-[9px] uppercase tracking-widest active:scale-95 transition flex items-center gap-2">
           <Zap size={12} fill="black" /> ADICIONAR
@@ -224,7 +223,7 @@ export default function DashboardPage() {
         </div>
       </div>
 
-      {/* GRÁFICO DONUT */}
+      {/* RESTANTE DO DASHBOARD... */}
       <div className="bg-[#111] pt-12 pb-8 px-8 rounded-[1.5rem] border border-white/5 flex flex-col items-center w-full">
         <span className="text-zinc-500 text-[10px] font-black uppercase tracking-[0.2em] mb-10 self-start italic px-2">Uso do Orçamento</span>
         <div className="relative w-64 h-64 flex items-center justify-center mb-10">
@@ -250,7 +249,6 @@ export default function DashboardPage() {
         </p>
       </div>
 
-      {/* LIMITES POR CATEGORIA */}
       <div className="bg-[#111] pt-12 pb-8 px-8 rounded-[1.5rem] border border-white/5 space-y-10 w-full">
         <h3 className="text-xl font-black italic uppercase text-white tracking-tighter px-2">Limites por Categoria</h3>
         <div className="space-y-10 px-2">
@@ -273,7 +271,6 @@ export default function DashboardPage() {
         </div>
       </div>
 
-      {/* ATIVIDADE RECENTE */}
       <div className="bg-[#111] pt-12 pb-8 px-8 rounded-[1.5rem] border border-white/5 space-y-8 w-full md:col-span-2">
         <div className="flex justify-between items-center px-2">
           <h3 className="text-xl font-black italic uppercase text-white tracking-tighter">Atividade</h3>
@@ -311,7 +308,7 @@ export default function DashboardPage() {
         </div>
       </div>
 
-      {/* MODAL GASTO FIXO (MÁSCARA DE PONTO/VÍRGULA AJUSTADA) */}
+      {/* MODAL GASTO FIXO */}
       {showFixedModal && (
         <div className="fixed inset-0 bg-black/95 backdrop-blur-md z-[120] flex items-center justify-center p-6">
           <div className="bg-[#111] w-full max-w-sm rounded-[1.5rem] pt-12 pb-8 px-8 border border-white/10 shadow-2xl text-white italic">
@@ -329,7 +326,7 @@ export default function DashboardPage() {
         </div>
       )}
 
-      {/* MODAL TRANSAÇÃO ORIGINAL */}
+      {/* MODAL TRANSAÇÃO */}
       {showModal && (
         <div className="fixed inset-0 bg-black/95 backdrop-blur-md z-[100] flex items-center justify-center p-6">
           <div className="bg-[#111] w-full max-w-sm rounded-[1.5rem] pt-12 pb-8 px-8 border border-white/10 shadow-2xl text-white">
