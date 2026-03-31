@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabase";
+import { AlertTriangle, Hourglass, Zap, X } from "lucide-react"; // Importação de ícones para os alertas
 
 const MASTER_CATS = [
   { nome: "Alimentação", emoji: "🍔", cor: "#FF007A" },
@@ -22,6 +23,12 @@ export default function DashboardPage() {
   const [metas, setMetas] = useState<any[]>([]);
   const [transacoes, setTransacoes] = useState<any[]>([]);
   
+  // --- NOVOS ESTADOS (GASTOS FIXOS) ---
+  const [fixedExpenses, setFixedExpenses] = useState<any[]>([]);
+  const [ignoredExpenses, setIgnoredExpenses] = useState<string[]>([]);
+  const [showFixedModal, setShowFixedModal] = useState(false);
+  const [newFixed, setNewFixed] = useState({ name: '', amount: '', due_day: '' });
+
   const [tipo, setTipo] = useState<"entrada" | "saida">("saida");
   const [catSel, setCatSel] = useState("");
   const [valor, setValor] = useState("");
@@ -38,19 +45,35 @@ export default function DashboardPage() {
       const agora = new Date();
       const inicioMes = new Date(agora.getFullYear(), agora.getMonth(), 1).toISOString();
 
-      const [m, t] = await Promise.all([
+      const [m, t, f] = await Promise.all([
         supabase.from("goals").select("*").eq("user_id", user.id),
         supabase.from("transactions")
           .select("*")
           .eq("user_id", user.id)
           .gte("created_at", inicioMes)
-          .order("created_at", { ascending: false })
+          .order("created_at", { ascending: false }),
+        // Busca os Gastos Fixos
+        supabase.from("fixed_expenses").select("*").eq("user_id", user.id)
       ]);
 
       setMetas(m.data || []);
       setTransacoes(t.data || []);
+      setFixedExpenses(f.data || []);
     } catch (e) { console.error(e); }
     setLoading(false);
+  }
+
+  // FUNÇÃO PARA SALVAR GASTO FIXO
+  async function handleAddFixed() {
+    if(!newFixed.name || !newFixed.amount || !newFixed.due_day) return alert("Preencha tudo!");
+    const { data: { user } } = await supabase.auth.getUser();
+    const { error } = await supabase.from("fixed_expenses").insert({
+      user_id: user?.id,
+      name: newFixed.name.toUpperCase(),
+      amount: parseFloat(newFixed.amount),
+      due_day: parseInt(newFixed.due_day)
+    });
+    if(!error) { setShowFixedModal(false); setNewFixed({name:'', amount:'', due_day:''}); loadData(); }
   }
 
   const entradas = transacoes.filter(t => t.type === "entrada").reduce((acc, t) => acc + Number(t.amount), 0);
@@ -92,6 +115,32 @@ export default function DashboardPage() {
 
   return (
     <>
+      {/* 1. SISTEMA DE NOTIFICAÇÕES PUSH (FLUTUANTE NO TOPO) */}
+      <div className="fixed top-6 left-4 right-4 z-[110] space-y-3 pointer-events-none">
+        {fixedExpenses.map((expense) => {
+          if (ignoredExpenses.includes(expense.id)) return null;
+          const hoje = new Date().getDate();
+          const faltaPouco = expense.due_day - hoje <= 3 && expense.due_day - hoje > 0;
+          const venceHoje = expense.due_day === hoje;
+
+          if (!venceHoje && !faltaPouco) return null;
+
+          return (
+            <div key={expense.id} className={`pointer-events-auto p-4 rounded-[2rem] border backdrop-blur-xl shadow-2xl flex items-center gap-4 animate-in slide-in-from-top-10 relative ${venceHoje ? "bg-red-500/20 border-red-500/50" : "bg-zinc-900/90 border-white/10"}`}>
+              <button onClick={() => setIgnoredExpenses([...ignoredExpenses, expense.id])} className="absolute top-4 right-4 text-zinc-500"><X size={14}/></button>
+              <div className={`p-3 rounded-2xl ${venceHoje ? "bg-red-500" : "bg-yellow-400"}`}>
+                {venceHoje ? <AlertTriangle size={18} className="text-white" /> : <Hourglass size={18} className="text-black" />}
+              </div>
+              <div className="flex-1 pr-6">
+                <p className={`text-[8px] font-black tracking-widest ${venceHoje ? "text-red-500" : "text-yellow-400"}`}>{venceHoje ? "BLOQUEIO IMINENTE" : "SENTENÇA PRÓXIMA"}</p>
+                <p className="text-xs font-black text-white italic leading-tight uppercase">{expense.name} | R$ {expense.amount}</p>
+                <p className="text-[9px] text-zinc-400 mt-0.5">{venceHoje ? "Prazo encerra hoje." : `Vence em ${expense.due_day - hoje} dias.`}</p>
+              </div>
+            </div>
+          );
+        })}
+      </div>
+
       <div className="flex flex-col gap-2 w-full md:col-span-2">
         <h1 className="text-5xl font-black italic uppercase tracking-tighter leading-none text-white">DASHBOARD</h1>
         <p className="text-zinc-500 text-[10px] font-black tracking-[0.4em] uppercase italic px-1">Inteligência Financeira</p>
@@ -100,9 +149,10 @@ export default function DashboardPage() {
           <button onClick={() => router.push("/metas")} className="bg-zinc-900 border border-white/5 py-4 rounded-2xl font-black text-[10px] uppercase tracking-widest active:scale-95 transition text-white">LIMITES 🎯</button>
           <button onClick={() => setShowModal(true)} className="bg-yellow-400 text-black py-4 rounded-2xl font-black text-[10px] uppercase tracking-widest active:scale-95 transition">+ Nova Transação</button>
         </div>
+        {/* BOTÃO PARA GASTO FIXO ABAIXO DOS PRINCIPAIS */}
+        <button onClick={() => setShowFixedModal(true)} className="w-full md:max-w-sm mt-2 bg-white/5 border border-white/10 text-white py-3 rounded-2xl font-black text-[9px] uppercase tracking-[0.2em] italic active:scale-95 transition">⚙️ Gerenciar Gastos Fixos</button>
       </div>
 
-      {/* CARD SALDO - Ajuste de borda e respiro superior */}
       <div className="bg-[#111] pt-12 pb-8 px-8 rounded-[1.5rem] border border-white/5 w-full md:col-span-2">
         <div className="px-2"> 
           <p className="text-zinc-500 text-[9px] font-black uppercase tracking-widest mb-1 italic">Saldo Disponível</p>
@@ -210,6 +260,25 @@ export default function DashboardPage() {
         </div>
       </div>
 
+      {/* MODAL GASTO FIXO (ADICIONADO) */}
+      {showFixedModal && (
+        <div className="fixed inset-0 bg-black/95 backdrop-blur-md z-[110] flex items-center justify-center p-6">
+          <div className="bg-[#111] w-full max-w-sm rounded-[1.5rem] pt-12 pb-8 px-8 border border-white/10 shadow-2xl text-white">
+            <h2 className="text-2xl font-black italic uppercase text-yellow-400 mb-6">Nova Sentença Fixa</h2>
+            <div className="space-y-4 mb-8">
+              <input placeholder="NOME DO GASTO" value={newFixed.name} onChange={(e)=>setNewFixed({...newFixed, name: e.target.value})} className="w-full bg-black border border-white/10 p-4 rounded-2xl text-xs font-black italic outline-none focus:border-yellow-400 uppercase" />
+              <input placeholder="VALOR (R$)" type="number" value={newFixed.amount} onChange={(e)=>setNewFixed({...newFixed, amount: e.target.value})} className="w-full bg-black border border-white/10 p-4 rounded-2xl text-xs font-black italic outline-none focus:border-yellow-400" />
+              <input placeholder="DIA DO VENCIMENTO (1-31)" type="number" value={newFixed.due_day} onChange={(e)=>setNewFixed({...newFixed, due_day: e.target.value})} className="w-full bg-black border border-white/10 p-4 rounded-2xl text-xs font-black italic outline-none focus:border-yellow-400" />
+            </div>
+            <div className="flex flex-col gap-3">
+              <button onClick={handleAddFixed} className="w-full bg-yellow-400 text-black py-4 rounded-2xl font-black uppercase text-[10px] tracking-widest">Confirmar</button>
+              <button onClick={() => setShowFixedModal(false)} className="w-full py-4 text-zinc-500 font-black text-[9px] uppercase tracking-widest">Cancelar</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* SEU MODAL ORIGINAL (MANTIDO) */}
       {showModal && (
         <div className="fixed inset-0 bg-black/95 backdrop-blur-md z-[100] flex items-center justify-center p-6">
           <div className="bg-[#111] w-full max-w-sm rounded-[1.5rem] pt-12 pb-8 px-8 border border-white/10 shadow-2xl text-white">
