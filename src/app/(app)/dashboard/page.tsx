@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabase";
-import { AlertTriangle, Hourglass, Zap, X, Trash2 } from "lucide-react";
+import { AlertTriangle, Hourglass, Zap, X, Trash2 } from "lucide-material";
 
 const MASTER_CATS = [
   { nome: "Alimentação", emoji: "🍔", cor: "#FF007A" },
@@ -64,17 +64,27 @@ export default function DashboardPage() {
 
   async function handleAddFixed() {
     if(!newFixed.name || !newFixed.amount || !newFixed.due_day) return alert("Preencha tudo!");
+    
+    // Lógica para aceitar ponto e vírgula
+    const valorLimpo = newFixed.amount.toString().replace(/\./g, "").replace(",", ".");
+    const valorNumerico = parseFloat(valorLimpo);
+    
     const { data: { user } } = await supabase.auth.getUser();
     
     const { error } = await supabase.from("fixed_expenses").insert({
       user_id: user?.id,
       name: newFixed.name.toUpperCase(),
-      amount: parseFloat(newFixed.amount.replace(',', '.')),
+      amount: valorNumerico,
       due_day: parseInt(newFixed.due_day)
     });
 
-    if(!error) { setShowFixedModal(false); setNewFixed({name:'', amount:'', due_day:''}); loadData(); }
-    else { alert("Erro ao cadastrar. Verifique o banco."); }
+    if(!error) { 
+      setShowFixedModal(false); 
+      setNewFixed({name:'', amount:'', due_day:''}); 
+      loadData(); 
+    } else {
+      alert("Erro ao cadastrar sentença.");
+    }
   }
 
   async function handleDeleteFixed(id: string) {
@@ -134,7 +144,7 @@ export default function DashboardPage() {
           return (
             <div key={expense.id} className={`pointer-events-auto p-4 rounded-[2rem] border backdrop-blur-xl shadow-2xl flex items-center gap-4 animate-in slide-in-from-top-10 relative ${venceHoje ? "bg-red-500/20 border-red-500/50" : "bg-zinc-900/90 border-white/10"}`}>
               <button onClick={() => setIgnoredExpenses([...ignoredExpenses, expense.id])} className="absolute top-4 right-4 text-zinc-500"><X size={14}/></button>
-              <div className={`p-3 rounded-2xl ${venceHoje ? "bg-red-500" : "bg-yellow-400"}`}>
+              <div className={`p-3 rounded-2xl ${venceHoje ? "bg-red-500 shadow-[0_0_15px_rgba(239,68,68,0.5)]" : "bg-yellow-400"}`}>
                 {venceHoje ? <AlertTriangle size={18} className="text-white" /> : <Hourglass size={18} className="text-black" />}
               </div>
               <div className="flex-1 pr-6">
@@ -178,34 +188,38 @@ export default function DashboardPage() {
           </div>
       </div>
 
-      {/* --- NOVO CARD: GESTÃO DE GASTOS FIXOS --- */}
-      <div className="bg-[#111] pt-10 pb-8 px-8 rounded-[1.5rem] border border-white/5 w-full md:col-span-2">
-        <div className="flex justify-between items-center px-2 mb-8">
+      {/* --- CARD: GESTÃO DE GASTOS FIXOS (AJUSTADO) --- */}
+      <div className="bg-[#111] pt-10 pb-8 px-8 rounded-[1.5rem] border border-white/5 w-full md:col-span-2 relative">
+        <button onClick={() => setShowFixedModal(true)} className="absolute top-8 right-8 bg-yellow-400 text-black px-4 py-2 rounded-xl font-black text-[9px] uppercase tracking-widest active:scale-95 transition flex items-center gap-2">
+          <Zap size={12} fill="black" /> ADICIONAR
+        </button>
+
+        <div className="px-2 mb-8">
           <h3 className="text-xl font-black italic uppercase text-white tracking-tighter">Gastos Fixos</h3>
-          <button onClick={() => setShowFixedModal(true)} className="bg-white/5 border border-white/10 text-white p-3 rounded-xl active:scale-95 transition">
-            <Zap size={16} fill="white" />
-          </button>
+          <p className="text-[8px] font-black text-zinc-500 uppercase tracking-widest italic">Veredito Mensal</p>
         </div>
 
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 px-2">
           {fixedExpenses.length > 0 ? fixedExpenses.map(expense => (
-            <div key={expense.id} className="bg-black/40 border border-white/5 p-5 rounded-[1.8rem] flex justify-between items-center">
+            <div key={expense.id} className="bg-black/40 border border-white/5 p-5 rounded-[1.8rem] flex justify-between items-center group">
               <div className="flex items-center gap-4">
-                <div className="w-10 h-10 rounded-full bg-zinc-900 border border-white/5 flex items-center justify-center">
-                  <span className="text-[10px] font-black text-yellow-400 italic">{expense.due_day}</span>
+                <div className="flex items-center gap-1 bg-zinc-900 border border-white/5 px-2 py-2 rounded-xl">
+                  <span className="text-[8px] font-black text-zinc-700">//</span>
+                  <span className="text-xs font-black text-yellow-400 italic">{expense.due_day.toString().padStart(2, '0')}</span>
+                  <span className="text-[8px] font-black text-zinc-700">//</span>
                 </div>
                 <div>
-                  <p className="text-white font-black italic uppercase text-[10px] leading-none">{expense.name}</p>
-                  <p className="text-zinc-600 text-[8px] font-bold uppercase mt-1">Vence dia {expense.due_day}</p>
+                  <p className="text-white font-black italic uppercase text-[10px] leading-none mb-1">{expense.name}</p>
+                  <p className="text-zinc-600 text-[8px] font-bold uppercase mt-1 tracking-tighter">Sentença Fixa</p>
                 </div>
               </div>
               <div className="flex items-center gap-4">
-                <span className="text-xs font-black italic text-white">R$ {Number(expense.amount).toLocaleString('pt-BR')}</span>
+                <span className="text-sm font-black italic text-white">R$ {Number(expense.amount).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span>
                 <button onClick={() => handleDeleteFixed(expense.id)} className="text-zinc-800 hover:text-red-500 transition"><Trash2 size={14}/></button>
               </div>
             </div>
           )) : (
-            <p className="text-zinc-600 text-center py-6 font-black uppercase text-[10px] italic w-full col-span-2">Nenhum gasto registrado</p>
+            <p className="text-zinc-600 text-center py-6 font-black uppercase text-[10px] italic w-full col-span-2">Sem gastos registrados</p>
           )}
         </div>
       </div>
@@ -297,14 +311,14 @@ export default function DashboardPage() {
         </div>
       </div>
 
-      {/* MODAL GASTO FIXO */}
+      {/* MODAL GASTO FIXO (MÁSCARA DE PONTO/VÍRGULA AJUSTADA) */}
       {showFixedModal && (
         <div className="fixed inset-0 bg-black/95 backdrop-blur-md z-[120] flex items-center justify-center p-6">
           <div className="bg-[#111] w-full max-w-sm rounded-[1.5rem] pt-12 pb-8 px-8 border border-white/10 shadow-2xl text-white italic">
             <h2 className="text-2xl font-black italic uppercase text-yellow-400 mb-6 px-2">Nova Sentença Fixa</h2>
             <div className="space-y-4 mb-8 px-2">
               <input placeholder="NOME DO GASTO" value={newFixed.name} onChange={(e)=>setNewFixed({...newFixed, name: e.target.value})} className="w-full bg-black border border-white/10 p-4 rounded-2xl text-xs font-black italic outline-none focus:border-yellow-400 uppercase" />
-              <input placeholder="VALOR (R$)" type="text" value={newFixed.amount} onChange={(e)=>setNewFixed({...newFixed, amount: e.target.value})} className="w-full bg-black border border-white/10 p-4 rounded-2xl text-xs font-black italic outline-none focus:border-yellow-400" />
+              <input placeholder="VALOR (R$)" inputMode="numeric" value={newFixed.amount} onChange={(e)=>setNewFixed({...newFixed, amount: e.target.value})} className="w-full bg-black border border-white/10 p-4 rounded-2xl text-xs font-black italic outline-none focus:border-yellow-400" />
               <input placeholder="DIA DO VENCIMENTO (1-31)" type="number" value={newFixed.due_day} onChange={(e)=>setNewFixed({...newFixed, due_day: e.target.value})} className="w-full bg-black border border-white/10 p-4 rounded-2xl text-xs font-black italic outline-none focus:border-yellow-400" />
             </div>
             <div className="flex flex-col gap-3">
