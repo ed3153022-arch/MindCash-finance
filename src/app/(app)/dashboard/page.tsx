@@ -62,7 +62,6 @@ export default function DashboardPage() {
     setLoading(false);
   }
 
-  // Máscara DD/MM/AAAA
   const maskDate = (value: string) => {
     return value
       .replace(/\D/g, "")
@@ -93,8 +92,6 @@ export default function DashboardPage() {
       setShowFixedModal(false); 
       setNewFixed({name:'', amount:'', due_date:''}); 
       loadData(); 
-    } else {
-      alert("Erro ao cadastrar sentença.");
     }
   }
 
@@ -104,7 +101,6 @@ export default function DashboardPage() {
     loadData();
   }
 
-  // Cálculos do Dashboard
   const entradas = transacoes.filter(t => t.type === "entrada").reduce((acc, t) => acc + Number(t.amount), 0);
   const saídas = transacoes.filter(t => t.type === "saida").reduce((acc, t) => acc + Number(t.amount), 0);
   const saldo = entradas - saídas;
@@ -140,7 +136,7 @@ export default function DashboardPage() {
 
   return (
     <>
-      {/* 1. NOTIFICAÇÕES (LÓGICA DD/MM/AAAA) */}
+      {/* NOTIFICAÇÕES */}
       <div className="fixed top-6 left-4 right-4 z-[110] space-y-3 pointer-events-none">
         {fixedExpenses.map((expense) => {
           if (ignoredExpenses.includes(expense.id)) return null;
@@ -171,7 +167,6 @@ export default function DashboardPage() {
         })}
       </div>
 
-      {/* HEADER */}
       <div className="flex flex-col gap-2 w-full md:col-span-2">
         <h1 className="text-5xl font-black italic uppercase tracking-tighter leading-none text-white">DASHBOARD</h1>
         <p className="text-zinc-500 text-[10px] font-black tracking-[0.4em] uppercase italic px-1">Inteligência Financeira</p>
@@ -181,7 +176,6 @@ export default function DashboardPage() {
         </div>
       </div>
 
-      {/* CARD SALDO ATUAL */}
       <div className="bg-[#111] pt-12 pb-8 px-8 rounded-[1.5rem] border border-white/5 w-full md:col-span-2">
         <div className="px-2"> 
           <p className="text-zinc-500 text-[9px] font-black uppercase tracking-widest mb-1 italic">Saldo Disponível</p>
@@ -189,7 +183,6 @@ export default function DashboardPage() {
         </div>
       </div>
       
-      {/* CARDS ENTRADAS E SAÍDAS */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6 md:col-span-2 w-full">
           <div className="bg-[#111] pt-12 pb-8 px-8 rounded-[1.5rem] border border-white/5 w-full">
             <div className="px-2">
@@ -205,7 +198,6 @@ export default function DashboardPage() {
           </div>
       </div>
 
-      {/* CARD GASTOS FIXOS */}
       <div className="bg-[#111] pt-10 pb-8 px-8 rounded-[1.5rem] border border-white/5 w-full md:col-span-2 relative">
         <button onClick={() => setShowFixedModal(true)} className="absolute top-8 right-8 bg-yellow-400 text-black px-4 py-2 rounded-xl font-black text-[9px] uppercase tracking-widest active:scale-95 transition flex items-center gap-2">
           <Zap size={12} fill="black" /> ADICIONAR
@@ -239,7 +231,6 @@ export default function DashboardPage() {
         </div>
       </div>
 
-      {/* GRÁFICO DONUT */}
       <div className="bg-[#111] pt-12 pb-8 px-8 rounded-[1.5rem] border border-white/5 flex flex-col items-center w-full">
         <span className="text-zinc-500 text-[10px] font-black uppercase tracking-[0.2em] mb-10 self-start italic px-2">Uso do Orçamento</span>
         <div className="relative w-64 h-64 flex items-center justify-center mb-10">
@@ -252,17 +243,8 @@ export default function DashboardPage() {
             <span className="text-[10px] text-zinc-500 font-black tracking-widest uppercase italic mt-2">Gasto</span>
           </div>
         </div>
-        <div className="flex flex-wrap justify-center gap-6 mb-8 w-full px-2">
-          {categoriasAtivas.map(c => (
-            <div key={c.nome} className="flex flex-col items-center gap-1">
-              <div className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: c.cor }} />
-              <span className="text-2xl">{c.emoji}</span>
-            </div>
-          ))}
-        </div>
       </div>
 
-      {/* LIMITES POR CATEGORIA */}
       <div className="bg-[#111] pt-12 pb-8 px-8 rounded-[1.5rem] border border-white/5 space-y-10 w-full">
         <h3 className="text-xl font-black italic uppercase text-white tracking-tighter px-2">Limites por Categoria</h3>
         <div className="space-y-10 px-2">
@@ -285,7 +267,7 @@ export default function DashboardPage() {
         </div>
       </div>
 
-      {/* ATIVIDADE RECENTE */}
+      {/* ATIVIDADE RECENTE COM O BOTÃO DE VOLTA */}
       <div className="bg-[#111] pt-12 pb-8 px-8 rounded-[1.5rem] border border-white/5 space-y-8 w-full md:col-span-2">
         <div className="flex justify-between items-center px-2">
           <h3 className="text-xl font-black italic uppercase text-white tracking-tighter">Atividade</h3>
@@ -309,10 +291,14 @@ export default function DashboardPage() {
               </div>
             );
           })}
+          {/* BOTÃO REINTEGRADO ABAIXO */}
+          <button onClick={() => router.push("/historico")} className="w-full py-5 mt-4 bg-zinc-900/50 border border-white/5 rounded-2xl text-[10px] font-black uppercase text-white tracking-[0.2em]">
+            Ver atividade Completa →
+          </button>
         </div>
       </div>
 
-      {/* MODAL GASTO FIXO (DD/MM/AAAA) */}
+      {/* MODAL GASTO FIXO */}
       {showFixedModal && (
         <div className="fixed inset-0 bg-black/95 backdrop-blur-md z-[120] flex items-center justify-center p-6">
           <div className="bg-[#111] w-full max-w-sm rounded-[1.5rem] pt-12 pb-8 px-8 border border-white/10 shadow-2xl text-white italic">
@@ -332,14 +318,14 @@ export default function DashboardPage() {
               </div>
             </div>
             <div className="flex flex-col gap-3">
-              <button onClick={handleAddFixed} className="w-full bg-yellow-400 text-black py-4 rounded-2xl font-black uppercase text-[10px] tracking-widest active:scale-95 transition">Confirmar Sentença</button>
+              <button onClick={handleAddFixed} className="w-full bg-yellow-400 text-black py-4 rounded-2xl font-black uppercase text-[10px] tracking-widest">Confirmar Sentença</button>
               <button onClick={() => setShowFixedModal(false)} className="w-full py-4 text-zinc-500 font-black text-[9px] uppercase tracking-widest">Cancelar</button>
             </div>
           </div>
         </div>
       )}
 
-      {/* MODAL NOVA TRANSAÇÃO */}
+      {/* MODAL TRANSAÇÃO */}
       {showModal && (
         <div className="fixed inset-0 bg-black/95 backdrop-blur-md z-[100] flex items-center justify-center p-6">
           <div className="bg-[#111] w-full max-w-sm rounded-[1.5rem] pt-12 pb-8 px-8 border border-white/10 shadow-2xl text-white">
