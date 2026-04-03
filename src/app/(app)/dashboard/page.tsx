@@ -21,7 +21,8 @@ export default function DashboardPage() {
   async function loadData() {
     const { data: { user } } = await supabase.auth.getUser();
     if (user) {
-      const { data } = await supabase.from("fixed_expenses").select("*").eq("user_id", user.id).order("due_date", { ascending: true });
+      // Ajustado para buscar da coluna correta: due_day
+      const { data } = await supabase.from("fixed_expenses").select("*").eq("user_id", user.id).order("due_day", { ascending: true });
       setGastosFixos(data || []);
     }
     setLoading(false);
@@ -35,6 +36,7 @@ export default function DashboardPage() {
 
   const maskMoney = (v: string) => {
     const onlyNums = v.replace(/\D/g, "");
+    if (!onlyNums) return "";
     return (Number(onlyNums) / 100).toFixed(2).replace(".", ",");
   };
 
@@ -45,7 +47,6 @@ export default function DashboardPage() {
     return onlyNums;
   };
 
-  // FUNÇÃO DE SALVAMENTO REVISADA
   async function handleAddFixed() {
     try {
       if (!fixoNome || !fixoValor || fixoData.length < 10) {
@@ -54,37 +55,45 @@ export default function DashboardPage() {
       }
 
       const { data: { user } } = await supabase.auth.getUser();
-      if (!user) return notify("Usuário não logado", "error");
+      if (!user) return notify("Usuário não encontrado", "error");
 
-      // PREPARAÇÃO DOS DADOS (O segredo está aqui)
       const valorNumerico = parseFloat(fixoValor.replace(",", "."));
-      const dataParaBadge = fixoData.replace(/\/+/g, ""); // "03/04/2026" vira "03042026"
+      const dataLimpa = fixoData.replace(/\D/g, ""); // "03042026"
 
+      // AQUI ESTÁ A CORREÇÃO: Coluna 'due_day' conforme o seu Supabase
       const { error: dbError } = await supabase.from("fixed_expenses").insert({
         user_id: user.id,
         name: fixoNome.trim().toUpperCase(),
         amount: valorNumerico,
-        due_date: dataParaBadge
+        due_day: dataLimpa 
       });
 
       if (dbError) throw dbError;
 
-      notify("Salvo com sucesso!", "success");
+      notify("Sentença Fixa Salva!", "success");
       setShowFixedModal(false);
       setFixoNome(""); setFixoValor(""); setFixoData("");
       loadData();
     } catch (e: any) {
-      console.error("ERRO COMPLETO:", e);
+      console.error(e);
       notify(e.message || "Erro ao salvar", "error");
+    }
+  }
+
+  async function deleteFixed(id: string) {
+    const { error } = await supabase.from("fixed_expenses").delete().eq("id", id);
+    if (!error) {
+      notify("Sentença Removida");
+      loadData();
     }
   }
 
   if (loading) return null;
 
   return (
-    <div className="flex flex-col gap-6 w-full max-w-4xl mx-auto p-4 pb-24 text-white bg-black min-h-screen font-sans">
+    <div className="flex flex-col gap-6 w-full max-w-4xl mx-auto p-4 pb-24 text-white bg-black min-h-screen">
       
-      {/* ALERTAS */}
+      {/* 3: SISTEMA DE ALERTAS (NOTIFICAÇÕES) */}
       <div className="fixed top-6 right-6 z-[200] flex flex-col gap-2">
         {notifications.map(n => (
           <div key={n.id} className={`flex items-center gap-3 px-6 py-4 rounded-2xl border-l-4 font-black italic uppercase text-[10px] shadow-2xl animate-in fade-in slide-in-from-top-4 ${n.type === 'success' ? 'bg-[#111] border-green-500' : 'bg-[#111] border-red-500'}`}>
@@ -94,10 +103,11 @@ export default function DashboardPage() {
         ))}
       </div>
 
+      {/* SEÇÃO GASTOS FIXOS */}
       <div className="bg-[#111] p-6 rounded-[1.5rem] border border-white/5 space-y-4">
         <div className="flex justify-between items-center">
-          <h3 className="text-lg font-black italic uppercase">Gastos Fixos</h3>
-          <button onClick={() => setShowFixedModal(true)} className="bg-yellow-400 text-black px-4 py-2 rounded-xl font-black text-[9px] uppercase flex items-center gap-1">
+          <h3 className="text-lg font-black italic uppercase tracking-tighter">Gastos Fixos</h3>
+          <button onClick={() => setShowFixedModal(true)} className="bg-yellow-400 text-black px-4 py-2 rounded-xl font-black text-[9px] uppercase flex items-center gap-1 shadow-lg shadow-yellow-400/20">
             <Zap size={12} fill="black" /> ADICIONAR
           </button>
         </div>
@@ -106,14 +116,19 @@ export default function DashboardPage() {
           {gastosFixos.map(gasto => (
             <div key={gasto.id} className="flex justify-between items-center bg-black/40 p-4 rounded-2xl border border-white/5">
               <div className="flex items-center gap-3">
+                {/* 2: BARRAS DA DATA DE VENCIMENTO */}
                 <div className="bg-zinc-800 px-2 py-1 rounded-lg border border-yellow-400/20 text-yellow-400 text-[9px] font-black italic">
-                  {gasto.due_date}
+                  {gasto.due_day}
                 </div>
-                <p className="text-[10px] font-black uppercase italic">{gasto.name}</p>
+                <div>
+                  <p className="text-[10px] font-black uppercase italic">{gasto.name}</p>
+                  <p className="text-[7px] text-zinc-600 font-bold uppercase tracking-widest mt-1 italic">Sentença Fixa</p>
+                </div>
               </div>
               <div className="flex items-center gap-4">
                 <p className="text-xs font-black italic">R$ {Number(gasto.amount).toLocaleString('pt-BR')}</p>
-                <button onClick={async () => { await supabase.from("fixed_expenses").delete().eq("id", gasto.id); loadData(); }} className="text-zinc-700 hover:text-red-500">
+                {/* 1: BOTÃO X PARA RETIRAR */}
+                <button onClick={() => deleteFixed(gasto.id)} className="text-zinc-700 hover:text-red-500 transition-colors">
                   <X size={16} strokeWidth={3} />
                 </button>
               </div>
@@ -122,16 +137,27 @@ export default function DashboardPage() {
         </div>
       </div>
 
+      {/* 1 e 2: MODAL COM MÁSCARA E BOTÃO CONFIRMAR */}
       {showFixedModal && (
         <div className="fixed inset-0 bg-black/95 backdrop-blur-md z-[150] flex items-center justify-center p-6">
           <div className="bg-[#111] w-full max-w-sm rounded-[2rem] p-8 border border-white/10 shadow-2xl">
-            <h2 className="text-2xl font-black italic uppercase mb-8 text-yellow-400">Nova Sentença Fixa</h2>
+            <h2 className="text-2xl font-black italic uppercase mb-8 text-yellow-400 italic">Nova Sentença Fixa</h2>
+            
             <div className="space-y-6">
               <input type="text" placeholder="NOME DO GASTO" value={fixoNome} onChange={e => setFixoNome(e.target.value)} className="w-full bg-black border border-white/5 p-5 rounded-2xl text-[11px] font-black italic text-white outline-none focus:border-yellow-400" />
+              
               <input type="text" inputMode="numeric" placeholder="VALOR (0,00)" value={fixoValor} onChange={e => setFixoValor(maskMoney(e.target.value))} className="w-full bg-black border border-white/5 p-5 rounded-2xl text-[11px] font-black italic text-white outline-none focus:border-yellow-400" />
-              <input type="text" inputMode="numeric" placeholder="00/00/0000" value={fixoData} onChange={e => setFixoData(maskDate(e.target.value))} className="w-full bg-black border border-white/10 p-5 rounded-2xl text-[11px] font-black italic text-white outline-none focus:border-yellow-400" />
+              
+              {/* 2: INPUT COM BARRAS 00/00/0000 */}
+              <div className="space-y-1">
+                <input type="text" inputMode="numeric" placeholder="00/00/0000" value={fixoData} onChange={e => setFixoData(maskDate(e.target.value))} className="w-full bg-black border border-white/10 p-5 rounded-2xl text-[11px] font-black italic text-white outline-none focus:border-yellow-400" />
+                <p className="text-[7px] text-zinc-600 font-bold italic ml-2 mt-2 uppercase tracking-widest">*Insira o dia, mês e ano</p>
+              </div>
             </div>
-            <button onClick={handleAddFixed} className="w-full bg-yellow-400 text-black py-5 rounded-2xl font-black uppercase text-[10px] mt-10 active:scale-95 transition-all">Confirmar</button>
+
+            <button onClick={handleAddFixed} className="w-full bg-yellow-400 text-black py-5 rounded-2xl font-black uppercase text-[10px] mt-10 active:scale-95 transition-all shadow-lg shadow-yellow-400/10">
+              Confirmar
+            </button>
             <button onClick={() => setShowFixedModal(false)} className="w-full py-4 text-zinc-500 font-black text-[9px] uppercase mt-2">Cancelar</button>
           </div>
         </div>
