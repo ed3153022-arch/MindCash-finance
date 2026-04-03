@@ -22,11 +22,13 @@ export default function DashboardPage() {
     try {
       const { data: { user } } = await supabase.auth.getUser();
       if (user) {
-        const { data } = await supabase.from("fixed_expenses").select("*").eq("user_id", user.id).order("due_day", { ascending: true });
+        // Busca os dados da coluna due_day
+        const { data, error } = await supabase.from("fixed_expenses").select("*").eq("user_id", user.id).order("due_day", { ascending: true });
+        if (error) throw error;
         setGastosFixos(data || []);
       }
     } catch (e) {
-      console.error(e);
+      console.error("Erro ao carregar:", e);
     } finally {
       setLoading(false);
     }
@@ -38,11 +40,17 @@ export default function DashboardPage() {
     setTimeout(() => setNotifications(prev => prev.filter(n => n.id !== id)), 3000);
   };
 
-  // ESTA FUNÇÃO FOI CORRIGIDA PARA EXIBIR AS BARRAS SEM QUEBRAR O APP
+  // FUNÇÃO DE FORMATAÇÃO ULTRA SEGURA
   const formatDisplayDate = (d: any) => {
-    if (!d || typeof d !== 'string' || d.length < 8) return d || ""; 
-    // Transforma 03042026 em 03/04/2026
-    return d.replace(/(\d{2})(\d{2})(\d{4})/, "$1/$2/$3");
+    if (!d) return "";
+    const clean = String(d).replace(/\D/g, "");
+    // Se a data salva for tipo 3042026 (7 dígitos), adiciona um zero na frente
+    const padded = clean.length === 7 ? "0" + clean : clean;
+    
+    if (padded.length === 8) {
+      return padded.replace(/(\d{2})(\d{2})(\d{4})/, "$1/$2/$3");
+    }
+    return d; // Retorna o original se não conseguir formatar
   };
 
   const maskMoney = (v: string) => {
@@ -61,25 +69,25 @@ export default function DashboardPage() {
   async function handleAddFixed() {
     try {
       if (!fixoNome || !fixoValor || fixoData.length < 10) {
-        notify("Preencha todos os campos", "error");
+        notify("Preencha os campos!", "error");
         return;
       }
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) return;
 
       const valorNumerico = parseFloat(fixoValor.replace(",", "."));
-      const dataLimpa = fixoData.replace(/\D/g, ""); 
+      const dataParaSalvar = fixoData.replace(/\D/g, ""); 
 
-      const { error: dbError } = await supabase.from("fixed_expenses").insert({
+      const { error } = await supabase.from("fixed_expenses").insert({
         user_id: user.id,
         name: fixoNome.trim().toUpperCase(),
         amount: valorNumerico,
-        due_day: dataLimpa 
+        due_day: dataParaSalvar // Coluna confirmada
       });
 
-      if (dbError) throw dbError;
+      if (error) throw error;
 
-      notify("Salvo com sucesso!", "success");
+      notify("Salvo!", "success");
       setShowFixedModal(false);
       setFixoNome(""); setFixoValor(""); setFixoData("");
       loadData();
@@ -91,7 +99,7 @@ export default function DashboardPage() {
   if (loading) return <div className="bg-black min-h-screen" />;
 
   return (
-    <div className="flex flex-col gap-6 w-full max-w-4xl mx-auto p-4 pb-24 text-white bg-black min-h-screen font-sans">
+    <div className="flex flex-col gap-6 w-full max-w-4xl mx-auto p-4 pb-24 text-white bg-black min-h-screen">
       
       {/* NOTIFICAÇÕES */}
       <div className="fixed top-6 right-6 z-[200] flex flex-col gap-2">
@@ -113,26 +121,29 @@ export default function DashboardPage() {
         </div>
         
         <div className="space-y-3">
-          {gastosFixos.map((gasto, index) => (
-            <div key={gasto.id || index} className="flex justify-between items-center bg-black/40 p-4 rounded-2xl border border-white/5">
-              <div className="flex items-center gap-3">
-                <div className="bg-zinc-800 px-2 py-1 rounded-lg border border-yellow-400/20 text-yellow-400 text-[9px] font-black italic">
-                  {/* AQUI A DATA APARECE COM BARRAS AGORA */}
-                  {formatDisplayDate(gasto.due_day)}
+          {gastosFixos.length === 0 ? (
+            <p className="text-[10px] text-zinc-600 font-black uppercase italic text-center py-4">Nenhuma sentença encontrada</p>
+          ) : (
+            gastosFixos.map((gasto) => (
+              <div key={gasto.id} className="flex justify-between items-center bg-black/40 p-4 rounded-2xl border border-white/5">
+                <div className="flex items-center gap-3">
+                  <div className="bg-zinc-800 px-2 py-1 rounded-lg border border-yellow-400/20 text-yellow-400 text-[9px] font-black italic min-w-[75px] text-center">
+                    {formatDisplayDate(gasto.due_day)}
+                  </div>
+                  <div>
+                    <p className="text-[10px] font-black uppercase italic leading-none">{gasto.name}</p>
+                    <p className="text-[7px] text-zinc-600 font-bold uppercase tracking-widest mt-1 italic">Sentença Fixa</p>
+                  </div>
                 </div>
-                <div>
-                  <p className="text-[10px] font-black uppercase italic leading-none">{gasto.name}</p>
-                  <p className="text-[7px] text-zinc-600 font-bold uppercase tracking-widest mt-1 italic">Sentença Fixa</p>
+                <div className="flex items-center gap-4">
+                  <p className="text-xs font-black italic">R$ {Number(gasto.amount || 0).toLocaleString('pt-BR')}</p>
+                  <button onClick={async () => { await supabase.from("fixed_expenses").delete().eq("id", gasto.id); loadData(); }} className="text-zinc-700 hover:text-red-500">
+                    <X size={16} strokeWidth={3} />
+                  </button>
                 </div>
               </div>
-              <div className="flex items-center gap-4">
-                <p className="text-xs font-black italic">R$ {Number(gasto.amount || 0).toLocaleString('pt-BR')}</p>
-                <button onClick={async () => { await supabase.from("fixed_expenses").delete().eq("id", gasto.id); loadData(); }} className="text-zinc-700 hover:text-red-500">
-                  <X size={16} strokeWidth={3} />
-                </button>
-              </div>
-            </div>
-          ))}
+            ))
+          )}
         </div>
       </div>
 
@@ -146,7 +157,9 @@ export default function DashboardPage() {
               <input type="text" inputMode="numeric" placeholder="VALOR (0,00)" value={fixoValor} onChange={e => setFixoValor(maskMoney(e.target.value))} className="w-full bg-black border border-white/5 p-5 rounded-2xl text-[11px] font-black italic text-white outline-none focus:border-yellow-400" />
               <input type="text" inputMode="numeric" placeholder="00/00/0000" value={fixoData} onChange={e => setFixoData(maskDate(e.target.value))} className="w-full bg-black border border-white/10 p-5 rounded-2xl text-[11px] font-black italic text-white outline-none focus:border-yellow-400" />
             </div>
-            <button onClick={handleAddFixed} className="w-full bg-yellow-400 text-black py-5 rounded-2xl font-black uppercase text-[10px] mt-10 active:scale-95 transition-all">Confirmar</button>
+            <button onClick={handleAddFixed} className="w-full bg-yellow-400 text-black py-5 rounded-2xl font-black uppercase text-[10px] mt-10 active:scale-95 transition-all shadow-lg shadow-yellow-400/10">
+              Confirmar
+            </button>
             <button onClick={() => setShowFixedModal(false)} className="w-full py-4 text-zinc-500 font-black text-[9px] uppercase mt-2">Cancelar</button>
           </div>
         </div>
