@@ -22,7 +22,7 @@ export default function DashboardPage() {
   const [showModal, setShowModal] = useState(false);
   const [showFixedModal, setShowFixedModal] = useState(false);
   
-  // Modificado para suportar objetos complexos de notificação
+  // Estado para a Central de Notificações Inteligente
   const [notifications, setNotifications] = useState<any[]>([]);
   
   const [metas, setMetas] = useState<any[]>([]);
@@ -39,6 +39,57 @@ export default function DashboardPage() {
 
   useEffect(() => { loadData(); }, []);
 
+  // --- LÓGICA DE NOTIFICAÇÕES MINDCASH ---
+  const gerarAlertasDinamicos = (metasData: any[], transData: any[], fixosData: any[]) => {
+    const novosAlertas: any[] = [];
+    const hoje = new Date();
+    const hojeStr = hoje.toLocaleDateString('pt-BR').replace(/\//g, "");
+
+    // 1. GASTOS FIXOS (SENTENÇAS DO DIA)
+    fixosData.forEach(gasto => {
+      const dataLimpa = String(gasto.due_day).replace(/\D/g, "");
+      if (dataLimpa === hojeStr) {
+        novosAlertas.push({
+          id: `fixo-${gasto.id}-${hojeStr}`,
+          title: "SENTENÇA DE HOJE",
+          msg: `PAGAMENTO OBRIGATÓRIO: "${gasto.name}" vence hoje. Mantenha o fluxo de caixa sob controle.`,
+          severity: "warning",
+          icon: <Zap size={14} className="text-yellow-400" />
+        });
+      }
+    });
+
+    // 2. LIMITES E CATEGORIAS (PRECISÃO MATEMÁTICA)
+    metasData.forEach(meta => {
+      const gastoCat = transData
+        .filter(t => t.type === "saida" && t.category?.toLowerCase() === meta.category?.toLowerCase())
+        .reduce((acc, t) => acc + Number(t.amount), 0);
+      
+      const limite = Number(meta.amount);
+      const diferenca = gastoCat - limite;
+
+      if (gastoCat === limite) {
+        novosAlertas.push({
+          id: `meta-teto-${meta.id}-${gastoCat}`,
+          title: "TETO ALCANÇADO",
+          msg: `ALERTA DE MARGEM: Você atingiu o teto de R$ ${limite.toLocaleString('pt-BR')} em ${meta.category.toUpperCase()}. Limite de segurança ativado.`,
+          severity: "info",
+          icon: <Info size={14} className="text-blue-400" />
+        });
+      } else if (gastoCat > limite) {
+        novosAlertas.push({
+          id: `meta-excedeu-${meta.id}-${gastoCat}`,
+          title: "EXECUÇÃO DE LIMITE",
+          msg: `VEREDITO: ${meta.category.toUpperCase()} excedeu o teto em R$ ${diferenca.toLocaleString('pt-BR', {minimumFractionDigits: 2})}. Reajuste seu planejamento imediatamente.`,
+          severity: "danger",
+          icon: <AlertTriangle size={14} className="text-red-500" />
+        });
+      }
+    });
+
+    setNotifications(novosAlertas);
+  };
+
   async function loadData() {
     try {
       const { data: { user } } = await supabase.auth.getUser();
@@ -54,61 +105,12 @@ export default function DashboardPage() {
       setTransacoes(t.data || []);
       setGastosFixos(f.data || []);
 
-      // DISPARA OS ALERTAS DINÂMICOS APÓS CARREGAR OS DADOS
+      // Dispara a análise inteligente após carregar dados
       gerarAlertasDinamicos(m.data || [], t.data || [], f.data || []);
-
+      
     } catch (e) { console.error(e); }
     setLoading(false);
   }
-
-  // --- SISTEMA DE NOTIFICAÇÕES DINÂMICO ---
-  const gerarAlertasDinamicos = (metasData: any[], transData: any[], fixosData: any[]) => {
-    const novosAlertas: any[] = [];
-    const hoje = new Date();
-    const hojeStr = hoje.toLocaleDateString('pt-BR').replace(/\//g, ""); // Ex: 04042026
-
-    // 1. Alerta de Vencimento de Gasto Fixo (Hoje)
-    fixosData.forEach(gasto => {
-      const dataLimpa = String(gasto.due_day).replace(/\D/g, "");
-      if (dataLimpa === hojeStr) {
-        novosAlertas.push({
-          id: `fixo-${gasto.id}`,
-          title: "VENCIMENTO HOJE",
-          msg: `A sentença "${gasto.name}" vence hoje!`,
-          type: "warning",
-          icon: <Zap size={14} className="text-yellow-400" />
-        });
-      }
-    });
-
-    // 2. Alerta de Limite Excedido
-    metasData.forEach(meta => {
-      const gastoCat = transData
-        .filter(t => t.type === "saida" && t.category?.toLowerCase() === meta.category?.toLowerCase())
-        .reduce((acc, t) => acc + Number(t.amount), 0);
-      
-      if (gastoCat > Number(meta.amount)) {
-        novosAlertas.push({
-          id: `meta-${meta.id}`,
-          title: "LIMITE EXCEDIDO",
-          msg: `Você ultrapassou o teto de ${meta.category}!`,
-          type: "danger",
-          icon: <AlertTriangle size={14} className="text-red-500" />
-        });
-      }
-    });
-
-    // 3. Notificação de Melhoria (Sistema)
-    novosAlertas.push({
-      id: "sys-update",
-      title: "MINDCASH UPDATE",
-      msg: "Otimização de performance concluída. Novos gráficos em breve.",
-      type: "info",
-      icon: <Info size={14} className="text-blue-400" />
-    });
-
-    setNotifications(novosAlertas);
-  };
 
   const notify = (msg: string, type: 'success' | 'error' = 'success') => {
     const id = Date.now();
@@ -116,6 +118,7 @@ export default function DashboardPage() {
       id, 
       msg, 
       title: type === 'success' ? "SUCESSO" : "ERRO",
+      severity: type === 'success' ? "success" : "danger",
       icon: <Bell size={14} className={type === 'success' ? 'text-green-500' : 'text-red-500'} /> 
     }]);
     setTimeout(() => setNotifications(prev => prev.filter(n => n.id !== id)), 4000);
@@ -153,7 +156,6 @@ export default function DashboardPage() {
     metas.some(m => m.category?.toLowerCase() === cat.nome.toLowerCase())
   );
 
-  // Ações de Banco
   async function handleAddFixed() {
     try {
       if (!fixoNome || !fixoValor || fixoData.length < 10) return notify("Preencha tudo!", "error");
@@ -200,26 +202,41 @@ export default function DashboardPage() {
   return (
     <div className="flex flex-col gap-6 w-full max-w-4xl mx-auto p-4 pb-24 text-white bg-black min-h-screen font-sans overflow-x-hidden">
       
-      {/* CENTRAL DE NOTIFICAÇÕES (ESTILO SMARTPHONE) */}
+      {/* CENTRAL DE NOTIFICAÇÕES MINDCASH */}
       <div className="fixed top-4 right-4 left-4 z-[999] flex flex-col gap-3 pointer-events-none">
-        {notifications.map((n, i) => (
-          <div 
-            key={n.id} 
-            className="pointer-events-auto animate-in slide-in-from-top-10 duration-500 bg-[#111]/80 backdrop-blur-2xl border border-white/10 p-4 rounded-[2rem] shadow-2xl flex gap-4 items-start active:scale-95 transition-transform"
-            style={{ zIndex: 100 - i }}
-          >
-            <div className="p-3 rounded-2xl bg-black border border-white/5 flex-shrink-0">
-              {n.icon}
+        {notifications.map((n, i) => {
+          const borderColors = {
+            danger: "border-red-500/50 shadow-red-500/20",
+            warning: "border-yellow-500/50 shadow-yellow-500/20",
+            info: "border-blue-500/50 shadow-blue-500/20",
+            success: "border-green-500/50 shadow-green-500/20"
+          };
+
+          return (
+            <div 
+              key={n.id} 
+              className={`pointer-events-auto animate-in slide-in-from-top-10 duration-500 bg-[#0a0a0a]/90 backdrop-blur-2xl border-2 p-4 rounded-[2rem] shadow-2xl flex gap-4 items-start active:scale-[0.98] transition-all ${borderColors[n.severity as keyof typeof borderColors] || "border-white/10"}`}
+              style={{ 
+                zIndex: 100 - i,
+                transform: `scale(${1 - i * 0.02}) translateY(${i * 4}px)` 
+              }}
+            >
+              <div className="p-3 rounded-2xl bg-black border border-white/5 flex-shrink-0">
+                {n.icon}
+              </div>
+              <div className="flex-1">
+                <div className="flex justify-between items-center mb-0.5">
+                  <h4 className="text-[9px] font-black italic uppercase tracking-[0.15em] text-zinc-500">{n.title}</h4>
+                  <span className="text-[8px] font-bold text-zinc-700 uppercase tracking-tighter">Agora</span>
+                </div>
+                <p className="text-[11px] font-black italic uppercase leading-tight text-white/95">{n.msg}</p>
+              </div>
+              <button onClick={() => setNotifications(prev => prev.filter(x => x.id !== n.id))} className="text-zinc-600 p-1 hover:text-white">
+                <X size={16} strokeWidth={3} />
+              </button>
             </div>
-            <div className="flex-1">
-              <h4 className="text-[9px] font-black italic uppercase tracking-widest text-zinc-500">{n.title}</h4>
-              <p className="text-[11px] font-bold italic uppercase leading-tight mt-1 text-white/90">{n.msg}</p>
-            </div>
-            <button onClick={() => setNotifications(prev => prev.filter(x => x.id !== n.id))} className="text-zinc-600 p-1">
-              <X size={16} />
-            </button>
-          </div>
-        ))}
+          );
+        })}
       </div>
 
       {/* HEADER */}
