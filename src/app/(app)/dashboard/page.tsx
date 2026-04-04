@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabase";
-import { Plus, Zap, X, Bell, AlertTriangle, Info } from "lucide-react";
+import { Plus, Zap, Trash2, X, Bell, AlertTriangle, Info } from "lucide-react";
 
 const MASTER_CATS = [
   { nome: "Alimentação", emoji: "🍔", cor: "#FF007A" },
@@ -21,6 +21,8 @@ export default function DashboardPage() {
   const [loading, setLoading] = useState(true);
   const [showModal, setShowModal] = useState(false);
   const [showFixedModal, setShowFixedModal] = useState(false);
+  
+  // Modificado para suportar objetos complexos de notificação
   const [notifications, setNotifications] = useState<any[]>([]);
   
   const [metas, setMetas] = useState<any[]>([]);
@@ -30,6 +32,7 @@ export default function DashboardPage() {
   const [tipo, setTipo] = useState<"saida" | "entrada">("saida");
   const [catSel, setCatSel] = useState("");
   const [valor, setValor] = useState("");
+
   const [fixoNome, setFixoNome] = useState("");
   const [fixoValor, setFixoValor] = useState("");
   const [fixoData, setFixoData] = useState("");
@@ -50,26 +53,28 @@ export default function DashboardPage() {
       setMetas(m.data || []);
       setTransacoes(t.data || []);
       setGastosFixos(f.data || []);
-      
-      // Gera os alertas automáticos após carregar
-      gerarAlertasSincronizados(m.data || [], t.data || [], f.data || []);
+
+      // DISPARA OS ALERTAS DINÂMICOS APÓS CARREGAR OS DADOS
+      gerarAlertasDinamicos(m.data || [], t.data || [], f.data || []);
+
     } catch (e) { console.error(e); }
     setLoading(false);
   }
 
-  // Lógica de Alertas estilo Celular
-  const gerarAlertasSincronizados = (metasData: any[], transData: any[], fixosData: any[]) => {
+  // --- SISTEMA DE NOTIFICAÇÕES DINÂMICO ---
+  const gerarAlertasDinamicos = (metasData: any[], transData: any[], fixosData: any[]) => {
     const novosAlertas: any[] = [];
     const hoje = new Date();
-    const hojeStr = hoje.toLocaleDateString('pt-BR').replace(/\//g, ""); // "03042026"
+    const hojeStr = hoje.toLocaleDateString('pt-BR').replace(/\//g, ""); // Ex: 04042026
 
-    // 1. Alerta de Gasto Fixo (Vence Hoje)
+    // 1. Alerta de Vencimento de Gasto Fixo (Hoje)
     fixosData.forEach(gasto => {
-      if (gasto.due_day === hojeStr) {
+      const dataLimpa = String(gasto.due_day).replace(/\D/g, "");
+      if (dataLimpa === hojeStr) {
         novosAlertas.push({
           id: `fixo-${gasto.id}`,
           title: "VENCIMENTO HOJE",
-          msg: `Sua sentença "${gasto.name}" vence hoje!`,
+          msg: `A sentença "${gasto.name}" vence hoje!`,
           type: "warning",
           icon: <Zap size={14} className="text-yellow-400" />
         });
@@ -86,7 +91,7 @@ export default function DashboardPage() {
         novosAlertas.push({
           id: `meta-${meta.id}`,
           title: "LIMITE EXCEDIDO",
-          msg: `Você ultrapassou o limite de ${meta.category}!`,
+          msg: `Você ultrapassou o teto de ${meta.category}!`,
           type: "danger",
           icon: <AlertTriangle size={14} className="text-red-500" />
         });
@@ -95,9 +100,9 @@ export default function DashboardPage() {
 
     // 3. Notificação de Melhoria (Sistema)
     novosAlertas.push({
-      id: "update-1",
+      id: "sys-update",
       title: "MINDCASH UPDATE",
-      msg: "Sistema de monitoramento de sentenças fixas ativado.",
+      msg: "Otimização de performance concluída. Novos gráficos em breve.",
       type: "info",
       icon: <Info size={14} className="text-blue-400" />
     });
@@ -105,14 +110,22 @@ export default function DashboardPage() {
     setNotifications(novosAlertas);
   };
 
-  const removeNotification = (id: string) => {
-    setNotifications(prev => prev.filter(n => n.id !== id));
+  const notify = (msg: string, type: 'success' | 'error' = 'success') => {
+    const id = Date.now();
+    setNotifications(prev => [...prev, { 
+      id, 
+      msg, 
+      title: type === 'success' ? "SUCESSO" : "ERRO",
+      icon: <Bell size={14} className={type === 'success' ? 'text-green-500' : 'text-red-500'} /> 
+    }]);
+    setTimeout(() => setNotifications(prev => prev.filter(n => n.id !== id)), 4000);
   };
 
-  // Máscaras e Helpers
+  // Funções de Máscara e Formatação
   const maskMoney = (v: string) => {
     const onlyNums = v.replace(/\D/g, "");
-    return onlyNums ? (Number(onlyNums) / 100).toFixed(2).replace(".", ",") : "";
+    if (!onlyNums) return "";
+    return (Number(onlyNums) / 100).toFixed(2).replace(".", ",");
   };
 
   const maskDate = (v: string) => {
@@ -123,136 +136,281 @@ export default function DashboardPage() {
   };
 
   const formatDisplayDate = (d: any) => {
-    const clean = String(d || "").replace(/\D/g, "");
+    if (!d) return "";
+    const clean = String(d).replace(/\D/g, "");
     const padded = clean.length === 7 ? "0" + clean : clean;
     return padded.length === 8 ? padded.replace(/(\d{2})(\d{2})(\d{4})/, "$1/$2/$3") : d;
   };
 
-  const saídas = transacoes.filter(t => t.type === "saida").reduce((acc, t) => acc + Number(t.amount), 0);
+  // Lógica de Cálculos
   const entradas = transacoes.filter(t => t.type === "entrada").reduce((acc, t) => acc + Number(t.amount), 0);
+  const saídas = transacoes.filter(t => t.type === "saida").reduce((acc, t) => acc + Number(t.amount), 0);
   const saldo = entradas - saídas;
+  const orcamentoTotal = metas.reduce((acc, m) => acc + Number(m.amount), 0) || 1;
+  const porcentagemGeral = Math.min(Math.round((saídas / orcamentoTotal) * 100), 100);
+
+  const categoriasDosLimites = MASTER_CATS.filter(cat => 
+    metas.some(m => m.category?.toLowerCase() === cat.nome.toLowerCase())
+  );
+
+  // Ações de Banco
+  async function handleAddFixed() {
+    try {
+      if (!fixoNome || !fixoValor || fixoData.length < 10) return notify("Preencha tudo!", "error");
+      const { data: { user } } = await supabase.auth.getUser();
+      const valorNum = parseFloat(fixoValor.replace(",", "."));
+      const dataLimpa = fixoData.replace(/\D/g, "");
+
+      const { error } = await supabase.from("fixed_expenses").insert({
+        user_id: user?.id, name: fixoNome.trim().toUpperCase(), amount: valorNum, due_day: dataLimpa
+      });
+
+      if (error) throw error;
+      notify("Sentença Fixa Salva!");
+      setShowFixedModal(false); setFixoNome(""); setFixoValor(""); setFixoData("");
+      loadData();
+    } catch (e) { notify("Erro ao salvar", "error"); }
+  }
+
+  async function deleteFixed(id: string) {
+    await supabase.from("fixed_expenses").delete().eq("id", id);
+    loadData();
+    notify("Sentença removida");
+  }
+
+  const renderDonutChartSegments = () => {
+    const raio = 70;
+    const circunferencia = 2 * Math.PI * raio;
+    let acumulado = 0;
+    if (saídas <= 0) return <circle cx="80" cy="80" r={raio} fill="none" stroke="#1a1a1a" strokeWidth="20" />;
+
+    return categoriasDosLimites.map((cat) => {
+      const gastoCat = transacoes.filter(t => t.type === "saida" && t.category?.toLowerCase() === cat.nome.toLowerCase()).reduce((acc, t) => acc + Number(t.amount), 0);
+      if (gastoCat <= 0) return null;
+      const percentual = gastoCat / saídas;
+      const strokeDasharray = `${percentual * circunferencia} ${circunferencia}`;
+      const strokeDashoffset = -acumulado * circunferencia;
+      acumulado += percentual;
+      return <circle key={cat.nome} cx="80" cy="80" r={raio} fill="none" stroke={cat.cor} strokeWidth="20" strokeDasharray={strokeDasharray} strokeDashoffset={strokeDashoffset} strokeLinecap="round" />;
+    });
+  };
 
   if (loading) return <div className="bg-black min-h-screen" />;
 
   return (
     <div className="flex flex-col gap-6 w-full max-w-4xl mx-auto p-4 pb-24 text-white bg-black min-h-screen font-sans overflow-x-hidden">
       
-      {/* CENTRAL DE NOTIFICAÇÕES (ESTILO IOS/ANDROID) */}
-      <div className="fixed top-4 right-4 left-4 z-[200] flex flex-col gap-3 pointer-events-none">
+      {/* CENTRAL DE NOTIFICAÇÕES (ESTILO SMARTPHONE) */}
+      <div className="fixed top-4 right-4 left-4 z-[999] flex flex-col gap-3 pointer-events-none">
         {notifications.map((n, i) => (
           <div 
             key={n.id} 
-            className="pointer-events-auto animate-in slide-in-from-top-10 duration-500 bg-[#111]/90 backdrop-blur-xl border border-white/10 p-4 rounded-3xl shadow-2xl flex gap-4 items-start"
-            style={{ zIndex: 200 - i }}
+            className="pointer-events-auto animate-in slide-in-from-top-10 duration-500 bg-[#111]/80 backdrop-blur-2xl border border-white/10 p-4 rounded-[2rem] shadow-2xl flex gap-4 items-start active:scale-95 transition-transform"
+            style={{ zIndex: 100 - i }}
           >
-            <div className={`p-2 rounded-2xl bg-black border border-white/5`}>
+            <div className="p-3 rounded-2xl bg-black border border-white/5 flex-shrink-0">
               {n.icon}
             </div>
             <div className="flex-1">
-              <h4 className="text-[10px] font-black italic uppercase tracking-tighter text-zinc-400">{n.title}</h4>
-              <p className="text-[11px] font-bold italic uppercase leading-tight mt-0.5">{n.msg}</p>
+              <h4 className="text-[9px] font-black italic uppercase tracking-widest text-zinc-500">{n.title}</h4>
+              <p className="text-[11px] font-bold italic uppercase leading-tight mt-1 text-white/90">{n.msg}</p>
             </div>
-            <button onClick={() => removeNotification(n.id)} className="text-zinc-600 p-1">
-              <X size={14} />
+            <button onClick={() => setNotifications(prev => prev.filter(x => x.id !== n.id))} className="text-zinc-600 p-1">
+              <X size={16} />
             </button>
           </div>
         ))}
       </div>
 
-      <h1 className="text-5xl font-black italic uppercase tracking-tighter leading-none mt-8">DASHBOARD</h1>
-
-      {/* SALDO PRINCIPAL */}
-      <div className="bg-[#111] pt-12 pb-8 px-8 rounded-[2rem] border border-white/5">
-        <p className="text-zinc-500 text-[9px] font-black uppercase tracking-widest mb-1 italic">Saldo Disponível</p>
-        <h2 className="text-4xl font-black italic">R$ {saldo.toLocaleString('pt-BR')}</h2>
-        <div className="flex gap-4 mt-6">
-          <button onClick={() => setShowModal(true)} className="flex-1 bg-yellow-400 text-black py-4 rounded-2xl font-black text-[10px] uppercase italic flex items-center justify-center gap-2">
-            <Plus size={14} strokeWidth={3} /> Nova Transação
+      {/* HEADER */}
+      <div className="flex flex-col gap-2 w-full pt-4">
+        <h1 className="text-5xl font-black italic uppercase tracking-tighter leading-none">DASHBOARD</h1>
+        <div className="grid grid-cols-2 gap-3 mt-4">
+          <button onClick={() => router.push("/metas")} className="bg-zinc-900 border border-white/5 py-4 rounded-2xl font-black text-[10px] uppercase tracking-widest italic">LIMITES 🎯</button>
+          <button onClick={() => setShowModal(true)} className="bg-yellow-400 text-black py-4 rounded-2xl font-black text-[10px] uppercase tracking-widest flex items-center justify-center gap-2 italic">
+            <Plus size={14} strokeWidth={3} /> NOVA TRANSAÇÃO
           </button>
-          <button onClick={() => router.push("/metas")} className="bg-zinc-900 px-6 rounded-2xl border border-white/5 font-black text-[10px] uppercase italic">🎯 Limites</button>
         </div>
       </div>
 
+      {/* SALDO & RESUMO */}
+      <div className="bg-[#111] pt-12 pb-8 px-8 rounded-[1.5rem] border border-white/5">
+        <p className="text-zinc-500 text-[9px] font-black uppercase tracking-widest mb-1 italic">Saldo Disponível</p>
+        <h2 className="text-4xl font-black italic">R$ {saldo.toLocaleString('pt-BR')}</h2>
+      </div>
+      
+      <div className="grid grid-cols-2 gap-3">
+          <div className="bg-[#111] p-6 rounded-[1.5rem] border border-white/5">
+            <p className="text-green-500 text-[8px] font-black uppercase italic mb-1">Entradas</p>
+            <h2 className="text-xl font-black italic text-green-500">R$ {entradas.toLocaleString('pt-BR')}</h2>
+          </div>
+          <div className="bg-[#111] p-6 rounded-[1.5rem] border border-white/5">
+            <p className="text-red-500 text-[8px] font-black uppercase italic mb-1">Saídas</p>
+            <h2 className="text-xl font-black italic text-red-500">R$ {saídas.toLocaleString('pt-BR')}</h2>
+          </div>
+      </div>
+
       {/* GASTOS FIXOS */}
-      <div className="bg-[#111] p-6 rounded-[2rem] border border-white/5 space-y-4">
+      <div className="bg-[#111] p-6 rounded-[1.5rem] border border-white/5 space-y-4">
         <div className="flex justify-between items-center">
-          <h3 className="text-lg font-black italic uppercase tracking-tighter">Sentenças Fixas</h3>
-          <button onClick={() => setShowFixedModal(true)} className="bg-zinc-800 text-white px-4 py-2 rounded-xl font-black text-[9px] uppercase border border-white/5 italic">
-            + Adicionar
+          <div>
+            <h3 className="text-lg font-black italic uppercase tracking-tighter">Gastos Fixos</h3>
+            <p className="text-[8px] text-zinc-500 font-black uppercase tracking-widest italic">Veredito Mensal</p>
+          </div>
+          <button onClick={() => setShowFixedModal(true)} className="bg-yellow-400 text-black px-4 py-2 rounded-xl font-black text-[9px] uppercase flex items-center gap-1">
+            <Zap size={12} fill="black" /> ADICIONAR
           </button>
         </div>
+        
         <div className="space-y-3">
           {gastosFixos.map(gasto => (
-            <div key={gasto.id} className="flex justify-between items-center bg-black/40 p-4 rounded-[1.5rem] border border-white/5">
+            <div key={gasto.id} className="flex justify-between items-center bg-black/40 p-4 rounded-2xl border border-white/5">
               <div className="flex items-center gap-3">
-                <div className="bg-zinc-900 text-[9px] font-black px-2 py-1 rounded-lg text-yellow-400 border border-yellow-400/10 italic">
+                <div className="bg-zinc-800 text-[9px] font-black px-2 py-1 rounded-md text-yellow-400 italic">
                   {formatDisplayDate(gasto.due_day)}
                 </div>
-                <p className="text-[10px] font-black uppercase italic leading-none">{gasto.name}</p>
+                <div>
+                  <p className="text-[10px] font-black uppercase italic leading-none">{gasto.name}</p>
+                  <p className="text-[7px] text-zinc-600 font-bold uppercase mt-1">Sentença Fixa</p>
+                </div>
               </div>
-              <p className="text-xs font-black italic">R$ {Number(gasto.amount).toLocaleString('pt-BR')}</p>
+              <div className="flex items-center gap-4">
+                <p className="text-xs font-black italic">R$ {Number(gasto.amount).toLocaleString('pt-BR')}</p>
+                <button onClick={() => deleteFixed(gasto.id)} className="text-zinc-800">
+                  <X size={16} strokeWidth={3} />
+                </button>
+              </div>
             </div>
           ))}
         </div>
       </div>
 
-      {/* MODAL GASTO FIXO */}
-      {showFixedModal && (
-        <div className="fixed inset-0 bg-black/95 backdrop-blur-md z-[250] flex items-end sm:items-center justify-center p-4">
-          <div className="bg-[#111] w-full max-w-sm rounded-[2.5rem] p-8 border border-white/10 shadow-2xl animate-in slide-in-from-bottom-20">
-            <h2 className="text-2xl font-black italic uppercase mb-8 text-yellow-400">Nova Sentença</h2>
-            <div className="space-y-4">
-              <input type="text" placeholder="NOME" value={fixoNome} onChange={e => setFixoNome(e.target.value)} className="w-full bg-black border border-white/5 p-5 rounded-2xl text-[11px] font-black italic text-white outline-none" />
-              <input type="text" inputMode="numeric" placeholder="R$ 0,00" value={fixoValor} onChange={e => setFixoValor(maskMoney(e.target.value))} className="w-full bg-black border border-white/5 p-5 rounded-2xl text-[11px] font-black italic text-white outline-none" />
-              <input type="text" inputMode="numeric" placeholder="DD/MM/AAAA" value={fixoData} onChange={e => setFixoData(maskDate(e.target.value))} className="w-full bg-black border border-white/10 p-5 rounded-2xl text-[11px] font-black italic text-white outline-none" />
-            </div>
-            <button 
-              onClick={async () => {
-                const { data: { user } } = await supabase.auth.getUser();
-                const valorNum = parseFloat(fixoValor.replace(",", "."));
-                const dataLimpa = fixoData.replace(/\D/g, "");
-                await supabase.from("fixed_expenses").insert({ user_id: user?.id, name: fixoNome.toUpperCase(), amount: valorNum, due_day: dataLimpa });
-                setShowFixedModal(false); setFixoNome(""); setFixoValor(""); setFixoData(""); loadData();
-              }} 
-              className="w-full bg-yellow-400 text-black py-5 rounded-2xl font-black uppercase text-[10px] mt-8"
-            >
-              Confirmar Sentença
-            </button>
-            <button onClick={() => setShowFixedModal(false)} className="w-full py-4 text-zinc-500 font-black text-[9px] uppercase mt-2">Fechar</button>
+      {/* GRÁFICO DONUT */}
+      <div className="bg-[#111] pt-12 pb-8 px-8 rounded-[1.5rem] border border-white/5 flex flex-col items-center">
+        <span className="text-zinc-500 text-[10px] font-black uppercase tracking-[0.2em] mb-10 self-start italic">Uso do Orçamento</span>
+        <div className="relative w-64 h-64 flex items-center justify-center mb-10">
+          <svg className="w-full h-full -rotate-90" viewBox="0 0 160 160">
+            <circle cx="80" cy="80" r={70} fill="none" stroke="#1a1a1a" strokeWidth="18" />
+            {renderDonutChartSegments()}
+          </svg>
+          <div className="absolute flex flex-col items-center">
+            <span className="text-6xl font-black italic leading-none">{porcentagemGeral}%</span>
+            <span className="text-[10px] text-zinc-500 font-black tracking-widest uppercase italic mt-2">Gasto</span>
           </div>
         </div>
-      )}
-
-      {/* MODAL TRANSAÇÃO (REUTILIZANDO O QUE JÁ FUNCIONA) */}
-      {showModal && (
-        <div className="fixed inset-0 bg-black/95 backdrop-blur-md z-[250] flex items-end sm:items-center justify-center p-4">
-          <div className="bg-[#111] w-full max-w-sm rounded-[2.5rem] p-8 border border-white/10 animate-in slide-in-from-bottom-20">
-            <div className="grid grid-cols-2 gap-2 bg-black p-1 rounded-2xl mb-6">
-              <button onClick={() => setTipo("saida")} className={`py-3 rounded-xl font-black text-[10px] uppercase ${tipo === "saida" ? "bg-red-500 text-white" : "text-zinc-500"}`}>Saída</button>
-              <button onClick={() => setTipo("entrada")} className={`py-3 rounded-xl font-black text-[10px] uppercase ${tipo === "entrada" ? "bg-green-500 text-white" : "text-zinc-500"}`}>Entrada</button>
+        <div className="flex flex-wrap justify-center gap-6 mb-8 w-full">
+          {categoriasDosLimites.map(c => (
+            <div key={c.nome} className="flex flex-col items-center gap-1">
+              <div className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: c.cor }} />
+              <span className="text-2xl">{c.emoji}</span>
             </div>
-            <input type="text" inputMode="numeric" placeholder="R$ 0,00" value={valor} onChange={e => setValor(maskMoney(e.target.value))} className="w-full bg-black border border-white/10 p-6 rounded-2xl text-4xl font-black italic outline-none text-center mb-6" />
+          ))}
+        </div>
+        <p className="text-zinc-500 font-black text-[11px] uppercase italic tracking-tight text-center">
+          <span className="text-white text-base">R$ {saídas.toLocaleString('pt-BR')}</span> DE R$ {orcamentoTotal.toLocaleString('pt-BR')}
+        </p>
+      </div>
+
+      {/* LIMITES */}
+      <div className="bg-[#111] pt-12 pb-8 px-8 rounded-[1.5rem] border border-white/5 space-y-8">
+        <h3 className="text-xl font-black italic uppercase tracking-tighter">Limites por Categoria</h3>
+        <div className="space-y-6">
+          {metas.map(meta => {
+            const gastoCat = transacoes.filter(t => t.type === "saida" && t.category?.toLowerCase() === meta.category?.toLowerCase()).reduce((acc, t) => acc + Number(t.amount), 0);
+            const progresso = Math.min((gastoCat / Number(meta.amount)) * 100, 100);
+            const excedeu = gastoCat > Number(meta.amount);
+            const catInfo = MASTER_CATS.find(c => c.nome.toLowerCase() === meta.category?.toLowerCase());
+            return (
+              <div key={meta.id} className="space-y-2">
+                <div className="flex justify-between items-end">
+                  <span className="text-[10px] font-black uppercase italic">{catInfo?.emoji} {meta.category}</span>
+                  <span className="text-[10px] font-black text-zinc-400">R$ {gastoCat.toLocaleString('pt-BR')} / {Number(meta.amount).toLocaleString('pt-BR')}</span>
+                </div>
+                <div className="w-full bg-white/5 h-1.5 rounded-full overflow-hidden">
+                  <div className={`h-full transition-all duration-1000 ${excedeu ? "bg-red-500 shadow-[0_0_8px_#ef4444]" : "bg-yellow-400"}`} style={{ width: `${progresso}%` }} />
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      </div>
+
+      {/* ATIVIDADE */}
+      <div className="bg-[#111] pt-12 pb-8 px-8 rounded-[1.5rem] border border-white/5 space-y-6">
+        <div className="flex justify-between items-center">
+          <h3 className="text-xl font-black italic uppercase tracking-tighter">Atividade</h3>
+          <span className="text-[9px] font-black text-zinc-500 uppercase tracking-widest italic">Recentes</span>
+        </div>
+        <div className="space-y-3">
+          {transacoes.slice(0, 4).map((t) => {
+            const catInfo = MASTER_CATS.find(c => c.nome.toLowerCase() === t.category?.toLowerCase());
+            return (
+              <div key={t.id} className="flex justify-between items-center bg-black/40 p-4 rounded-2xl border border-white/5">
+                <div className="flex items-center gap-3">
+                  <span className="text-xl">{t.type === 'entrada' ? "💰" : (catInfo?.emoji || "💸")}</span>
+                  <div>
+                    <p className="text-white font-black italic uppercase text-[10px] leading-none">{t.category}</p>
+                    <p className="text-zinc-600 text-[8px] font-bold uppercase mt-1">{new Date(t.created_at).toLocaleDateString('pt-BR')}</p>
+                  </div>
+                </div>
+                <span className={`text-sm font-black italic ${t.type === 'entrada' ? 'text-green-500' : 'text-white'}`}>
+                  {t.type === 'entrada' ? '+' : '-'} R$ {Number(t.amount).toLocaleString('pt-BR')}
+                </span>
+              </div>
+            );
+          })}
+          <button onClick={() => router.push("/historico")} className="w-full py-4 mt-2 bg-zinc-900 border border-white/5 rounded-2xl text-[9px] font-black uppercase tracking-[0.2em] italic">
+            Ver atividade Completa →
+          </button>
+        </div>
+      </div>
+
+      {/* MODAL NOVA TRANSAÇÃO */}
+      {showModal && (
+        <div className="fixed inset-0 bg-black/95 backdrop-blur-md z-[150] flex items-center justify-center p-6">
+          <div className="bg-[#111] w-full max-w-sm rounded-[2rem] p-8 border border-white/10">
+            <h2 className="text-2xl font-black italic uppercase mb-6 text-center">Novo Registro</h2>
+            <div className="grid grid-cols-2 gap-2 bg-black p-1 rounded-2xl mb-6">
+              <button onClick={() => setTipo("saida")} className={`py-3 rounded-xl font-black text-[10px] uppercase transition ${tipo === "saida" ? "bg-red-500 text-white" : "text-zinc-500"}`}>Saída</button>
+              <button onClick={() => setTipo("entrada")} className={`py-3 rounded-xl font-black text-[10px] uppercase transition ${tipo === "entrada" ? "bg-green-500 text-white" : "text-zinc-500"}`}>Entrada</button>
+            </div>
             {tipo === "saida" && (
-              <div className="grid grid-cols-3 gap-2 mb-6">
+              <div className="grid grid-cols-3 gap-2 mb-6 max-h-40 overflow-y-auto">
                 {MASTER_CATS.map(c => (
-                  <button key={c.nome} onClick={() => setCatSel(c.nome)} className={`p-2 rounded-xl border flex flex-col items-center ${catSel === c.nome ? "border-yellow-400 bg-yellow-400/10" : "border-white/5 bg-black"}`}>
+                  <button key={c.nome} onClick={() => setCatSel(c.nome)} className={`p-2 rounded-xl border transition-all flex flex-col items-center ${catSel === c.nome ? "border-yellow-400 bg-yellow-400/10" : "border-white/5 bg-black/40"}`}>
                     <span className="text-lg">{c.emoji}</span>
                     <span className="text-[6px] font-black uppercase">{c.nome}</span>
                   </button>
                 ))}
               </div>
             )}
+            <input type="text" inputMode="numeric" placeholder="R$ 0,00" value={valor} onChange={(e) => setValor(maskMoney(e.target.value))} className="w-full bg-black border border-white/10 p-5 rounded-2xl text-3xl font-black italic outline-none text-center focus:border-yellow-400 mb-6" />
             <button onClick={async () => {
                 const valorNum = parseFloat(valor.replace(",", "."));
                 const { data: { user } } = await supabase.auth.getUser();
                 await supabase.from("transactions").insert({ user_id: user?.id, type: tipo, category: tipo === 'saida' ? catSel : 'Receita', amount: valorNum });
-                setShowModal(false); setValor(""); loadData();
-            }} className="w-full bg-white text-black py-5 rounded-2xl font-black uppercase text-[10px]">Confirmar Registro</button>
-            <button onClick={() => setShowModal(false)} className="w-full py-4 text-zinc-500 font-black text-[9px] uppercase mt-2">Voltar</button>
+                setShowModal(false); setValor(""); loadData(); notify("Registrado!");
+            }} className="w-full bg-yellow-400 text-black py-5 rounded-2xl font-black uppercase text-[10px] mb-3">Confirmar</button>
+            <button onClick={() => setShowModal(false)} className="w-full text-zinc-500 font-black text-[9px] uppercase">Cancelar</button>
           </div>
         </div>
       )}
 
+      {/* MODAL GASTO FIXO */}
+      {showFixedModal && (
+        <div className="fixed inset-0 bg-black/95 backdrop-blur-md z-[150] flex items-center justify-center p-6">
+          <div className="bg-[#111] w-full max-w-sm rounded-[2rem] p-8 border border-white/10 shadow-2xl">
+            <h2 className="text-2xl font-black italic uppercase mb-8 text-yellow-400">Nova Sentença Fixa</h2>
+            <div className="space-y-6">
+              <input type="text" placeholder="NOME DO GASTO" value={fixoNome} onChange={e => setFixoNome(e.target.value)} className="w-full bg-black border border-white/5 p-5 rounded-2xl text-[11px] font-black italic text-white outline-none focus:border-yellow-400" />
+              <input type="text" inputMode="numeric" placeholder="VALOR (0,00)" value={fixoValor} onChange={e => setFixoValor(maskMoney(e.target.value))} className="w-full bg-black border border-white/5 p-5 rounded-2xl text-[11px] font-black italic text-white outline-none focus:border-yellow-400" />
+              <input type="text" inputMode="numeric" placeholder="00/00/0000" value={fixoData} onChange={e => setFixoData(maskDate(e.target.value))} className="w-full bg-black border border-white/10 p-5 rounded-2xl text-[11px] font-black italic text-white outline-none focus:border-yellow-400" />
+            </div>
+            <button onClick={handleAddFixed} className="w-full bg-yellow-400 text-black py-5 rounded-2xl font-black uppercase text-[10px] mt-10 active:scale-95">Confirmar</button>
+            <button onClick={() => setShowFixedModal(false)} className="w-full py-4 text-zinc-500 font-black text-[9px] uppercase mt-2">Cancelar</button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
