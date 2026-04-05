@@ -22,7 +22,6 @@ export default function DashboardPage() {
   const [showModal, setShowModal] = useState(false);
   const [showFixedModal, setShowFixedModal] = useState(false);
   
-  // ESTADOS DE NOTIFICAÇÃO COM MEMÓRIA
   const [notifications, setNotifications] = useState<any[]>([]);
   const [closedNotifications, setClosedNotifications] = useState<string[]>([]);
   
@@ -44,47 +43,63 @@ export default function DashboardPage() {
     const novosAlertas: any[] = [];
     const hoje = new Date();
     
-    // 1. FORMATANDO A DATA DE HOJE PARA COMPARAÇÃO LIMPA
+    // EXTRAÇÃO MANUAL PARA PRECISÃO TOTAL (DDMMYYYY)
     const dia = String(hoje.getDate()).padStart(2, '0');
     const mes = String(hoje.getMonth() + 1).padStart(2, '0');
     const ano = hoje.getFullYear();
-    
-    const mesAnoAtual = `${mes}-${ano}`;
-    const hojeLimpo = `${dia}${mes}${ano}`; // Ex: "05042026"
+    const hojeStr = `${dia}${mes}${ano}`;
+    const mesAnoCompetencia = `${mes}-${ano}`;
 
-    // 2. GASTOS FIXOS (Vence hoje - Com Limpeza de String)
+    // --- 1. GASTOS FIXOS (SENTENÇAS DO DIA) ---
     fixosData.forEach(gasto => {
-      // Remove barras ou traços da data do banco
       const dataBancoLimpa = String(gasto.due_day).replace(/\D/g, "");
       
-      if (dataBancoLimpa === hojeLimpo) {
+      if (dataBancoLimpa === hojeStr) {
         novosAlertas.push({
-          id: `fixo-${gasto.id}-${hojeLimpo}`, // ID único por dia
+          id: `fixo-${gasto.id}-${hojeStr}`,
           title: "SENTENÇA DE HOJE",
-          msg: `PAGAMENTO OBRIGATÓRIO: "${gasto.name}" vence hoje.`,
+          msg: `PAGAMENTO OBRIGATÓRIO: "${gasto.name}" vence hoje. Mantenha o fluxo de caixa sob controle.`,
           severity: "warning",
           icon: <Zap size={14} className="text-yellow-400" />
         });
       }
     });
 
-    // 3. LIMITES POR CATEGORIA (Sistema de Memória do X)
+    // --- 2. LIMITES E CATEGORIAS (VEREDITOS) ---
     metasData.forEach(meta => {
       const gastoCat = transData
         .filter(t => t.type === "saida" && t.category?.toLowerCase() === meta.category?.toLowerCase())
         .reduce((acc, t) => acc + Number(t.amount), 0);
       
       const limite = Number(meta.amount);
+      const diferenca = gastoCat - limite;
 
-      if (gastoCat >= limite) {
+      if (gastoCat === limite) {
         novosAlertas.push({
-          id: `meta-${meta.id}-${gastoCat}-${mesAnoAtual}`, 
-          title: gastoCat > limite ? "EXECUÇÃO DE LIMITE" : "TETO ALCANÇADO",
-          msg: `CATEGORIA ${meta.category.toUpperCase()}: R$ ${gastoCat.toLocaleString('pt-BR')}`,
-          severity: gastoCat > limite ? "danger" : "info",
-          icon: gastoCat > limite ? <AlertTriangle size={14} /> : <Info size={14} />
+          id: `meta-${meta.id}-${gastoCat}-${mesAnoCompetencia}`,
+          title: "TETO ALCANÇADO",
+          msg: `ALERTA DE MARGEM: Você atingiu o teto de R$ ${limite.toLocaleString('pt-BR')} em ${meta.category.toUpperCase()}. Limite de segurança ativado.`,
+          severity: "info",
+          icon: <Info size={14} className="text-blue-400" />
+        });
+      } else if (gastoCat > limite) {
+        novosAlertas.push({
+          id: `meta-${meta.id}-${gastoCat}-${mesAnoCompetencia}`,
+          title: "EXECUÇÃO DE LIMITE",
+          msg: `VEREDITO: ${meta.category.toUpperCase()} excedeu o teto em R$ ${diferenca.toLocaleString('pt-BR', {minimumFractionDigits: 2})}. Reajuste seu planejamento imediatamente.`,
+          severity: "danger",
+          icon: <AlertTriangle size={14} className="text-red-500" />
         });
       }
+    });
+
+    // --- 3. SYSTEM UPDATE (EXCLUSIVIDADE) ---
+    novosAlertas.push({
+      id: "sys-update-2026",
+      title: "MINDCASH INTELLIGENCE",
+      msg: "SISTEMA ATUALIZADO: Algoritmos de análise de sentenças fixas aplicados. Performance high-end.",
+      severity: "success",
+      icon: <Zap size={14} className="text-green-400" />
     });
 
     setNotifications(prev => {
@@ -132,7 +147,6 @@ export default function DashboardPage() {
     setClosedNotifications(prev => [...prev, id]);
   };
 
-  // Funções de Máscara e Formatação
   const maskMoney = (v: string) => {
     const onlyNums = v.replace(/\D/g, "");
     if (!onlyNums) return "";
@@ -149,8 +163,7 @@ export default function DashboardPage() {
   const formatDisplayDate = (d: any) => {
     if (!d) return "";
     const clean = String(d).replace(/\D/g, "");
-    const padded = clean.length === 7 ? "0" + clean : clean;
-    return padded.length === 8 ? padded.replace(/(\d{2})(\d{2})(\d{4})/, "$1/$2/$3") : d;
+    return clean.length === 8 ? clean.replace(/(\d{2})(\d{2})(\d{4})/, "$1/$2/$3") : d;
   };
 
   const entradas = transacoes.filter(t => t.type === "entrada").reduce((acc, t) => acc + Number(t.amount), 0);
@@ -165,7 +178,7 @@ export default function DashboardPage() {
 
   async function handleAddFixed() {
     try {
-      if (!fixoNome || !fixoValor || fixoData.length < 10) return notify("Preencha tudo!", "error");
+      if (!fixoNome || !fixoValor || fixoData.length < 10) return notify("PREENCHA OS DADOS", "error");
       const { data: { user } } = await supabase.auth.getUser();
       const valorNum = parseFloat(fixoValor.replace(",", "."));
       const dataLimpa = fixoData.replace(/\D/g, "");
@@ -175,16 +188,16 @@ export default function DashboardPage() {
       });
 
       if (error) throw error;
-      notify("Sentença Fixa Salva!");
+      notify("SENTENÇA FIXA REGISTRADA");
       setShowFixedModal(false); setFixoNome(""); setFixoValor(""); setFixoData("");
       loadData();
-    } catch (e) { notify("Erro ao salvar", "error"); }
+    } catch (e) { notify("ERRO NA OPERAÇÃO", "error"); }
   }
 
   async function deleteFixed(id: string) {
     await supabase.from("fixed_expenses").delete().eq("id", id);
     loadData();
-    notify("Sentença removida");
+    notify("SENTENÇA REMOVIDA");
   }
 
   const renderDonutChartSegments = () => {
@@ -364,7 +377,7 @@ export default function DashboardPage() {
         </div>
       </div>
 
-      {/* MODAL NOVA TRANSAÇÃO */}
+      {/* MODAIS (MANTIDOS) */}
       {showModal && (
         <div className="fixed inset-0 bg-black/95 backdrop-blur-md z-[150] flex items-center justify-center p-6">
           <div className="bg-[#111] w-full max-w-sm rounded-[2rem] p-8 border border-white/10">
@@ -388,14 +401,13 @@ export default function DashboardPage() {
                 const valorNum = parseFloat(valor.replace(",", "."));
                 const { data: { user } } = await supabase.auth.getUser();
                 await supabase.from("transactions").insert({ user_id: user?.id, type: tipo, category: tipo === 'saida' ? catSel : 'Receita', amount: valorNum });
-                setShowModal(false); setValor(""); loadData(); notify("Registrado!");
+                setShowModal(false); setValor(""); loadData(); notify("OPERADO COM SUCESSO");
             }} className="w-full bg-yellow-400 text-black py-5 rounded-2xl font-black uppercase text-[10px] mb-3">Confirmar</button>
             <button onClick={() => setShowModal(false)} className="w-full text-zinc-500 font-black text-[9px] uppercase">Cancelar</button>
           </div>
         </div>
       )}
 
-      {/* MODAL GASTO FIXO */}
       {showFixedModal && (
         <div className="fixed inset-0 bg-black/95 backdrop-blur-md z-[150] flex items-center justify-center p-6">
           <div className="bg-[#111] w-full max-w-sm rounded-[2rem] p-8 border border-white/10 shadow-2xl">
