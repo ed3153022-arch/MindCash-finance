@@ -44,16 +44,22 @@ export default function DashboardPage() {
     const novosAlertas: any[] = [];
     const hoje = new Date();
     
-    // Chaves de tempo para garantir que o "X" resete no mês que vem
-    const mesAnoAtual = `${hoje.getMonth() + 1}-${hoje.getFullYear()}`;
-    const hojeStr = `${String(hoje.getDate()).padStart(2, '0')}${String(hoje.getMonth() + 1).padStart(2, '0')}${hoje.getFullYear()}`;
+    // 1. FORMATANDO A DATA DE HOJE PARA COMPARAÇÃO LIMPA
+    const dia = String(hoje.getDate()).padStart(2, '0');
+    const mes = String(hoje.getMonth() + 1).padStart(2, '0');
+    const ano = hoje.getFullYear();
+    
+    const mesAnoAtual = `${mes}-${ano}`;
+    const hojeLimpo = `${dia}${mes}${ano}`; // Ex: "05042026"
 
-    // 1. GASTOS FIXOS (Vence hoje)
+    // 2. GASTOS FIXOS (Vence hoje - Com Limpeza de String)
     fixosData.forEach(gasto => {
-      const dataLimpa = String(gasto.due_day).replace(/\D/g, "");
-      if (dataLimpa === hojeStr) {
+      // Remove barras ou traços da data do banco
+      const dataBancoLimpa = String(gasto.due_day).replace(/\D/g, "");
+      
+      if (dataBancoLimpa === hojeLimpo) {
         novosAlertas.push({
-          id: `fixo-${gasto.id}-${hojeStr}`, // ID único por dia
+          id: `fixo-${gasto.id}-${hojeLimpo}`, // ID único por dia
           title: "SENTENÇA DE HOJE",
           msg: `PAGAMENTO OBRIGATÓRIO: "${gasto.name}" vence hoje.`,
           severity: "warning",
@@ -62,7 +68,7 @@ export default function DashboardPage() {
       }
     });
 
-    // 2. LIMITES POR CATEGORIA
+    // 3. LIMITES POR CATEGORIA (Sistema de Memória do X)
     metasData.forEach(meta => {
       const gastoCat = transData
         .filter(t => t.type === "saida" && t.category?.toLowerCase() === meta.category?.toLowerCase())
@@ -72,8 +78,6 @@ export default function DashboardPage() {
 
       if (gastoCat >= limite) {
         novosAlertas.push({
-          // O ID agora é blindado: Meta + Valor + Mês/Ano. 
-          // Se o valor mudar ou o mês virar, a notificação reaparece.
           id: `meta-${meta.id}-${gastoCat}-${mesAnoAtual}`, 
           title: gastoCat > limite ? "EXECUÇÃO DE LIMITE" : "TETO ALCANÇADO",
           msg: `CATEGORIA ${meta.category.toUpperCase()}: R$ ${gastoCat.toLocaleString('pt-BR')}`,
