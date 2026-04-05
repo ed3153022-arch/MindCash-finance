@@ -29,27 +29,29 @@ export default function DashboardPage() {
   const [transacoes, setTransacoes] = useState<any[]>([]);
   const [gastosFixos, setGastosFixos] = useState<any[]>([]);
   
+  // States para Nova Transação
   const [tipo, setTipo] = useState<"saida" | "entrada">("saida");
   const [catSel, setCatSel] = useState("");
   const [valor, setValor] = useState("");
 
+  // States para Gasto Fixo
   const [fixoNome, setFixoNome] = useState("");
   const [fixoValor, setFixoValor] = useState("");
   const [fixoData, setFixoData] = useState("");
 
   useEffect(() => { loadData(); }, []);
 
-  // --- LÓGICA DE NOTIFICAÇÕES MINDCASH ---
+  // --- LÓGICA DE NOTIFICAÇÕES MINDCASH CORRIGIDA ---
   const gerarAlertasDinamicos = (metasData: any[], transData: any[], fixosData: any[]) => {
-    const novosAlertas: any[] = [];
+    const alertasCalculados: any[] = [];
     const hoje = new Date();
     const hojeStr = hoje.toLocaleDateString('pt-BR').replace(/\//g, "");
 
-    // 1. GASTOS FIXOS (SENTENÇAS DO DIA)
+    // 1. GASTOS FIXOS
     fixosData.forEach(gasto => {
       const dataLimpa = String(gasto.due_day).replace(/\D/g, "");
       if (dataLimpa === hojeStr) {
-        novosAlertas.push({
+        alertasCalculados.push({
           id: `fixo-${gasto.id}-${hojeStr}`,
           title: "SENTENÇA DE HOJE",
           msg: `PAGAMENTO OBRIGATÓRIO: "${gasto.name}" vence hoje. Mantenha o fluxo de caixa sob controle.`,
@@ -59,7 +61,7 @@ export default function DashboardPage() {
       }
     });
 
-    // 2. LIMITES E CATEGORIAS (PRECISÃO MATEMÁTICA)
+    // 2. LIMITES E CATEGORIAS
     metasData.forEach(meta => {
       const gastoCat = transData
         .filter(t => t.type === "saida" && t.category?.toLowerCase() === meta.category?.toLowerCase())
@@ -69,7 +71,7 @@ export default function DashboardPage() {
       const diferenca = gastoCat - limite;
 
       if (gastoCat === limite) {
-        novosAlertas.push({
+        alertasCalculados.push({
           id: `meta-teto-${meta.id}-${gastoCat}`,
           title: "TETO ALCANÇADO",
           msg: `ALERTA DE MARGEM: Você atingiu o teto de R$ ${limite.toLocaleString('pt-BR')} em ${meta.category.toUpperCase()}. Limite de segurança ativado.`,
@@ -77,7 +79,7 @@ export default function DashboardPage() {
           icon: <Info size={14} className="text-blue-400" />
         });
       } else if (gastoCat > limite) {
-        novosAlertas.push({
+        alertasCalculados.push({
           id: `meta-excedeu-${meta.id}-${gastoCat}`,
           title: "EXECUÇÃO DE LIMITE",
           msg: `VEREDITO: ${meta.category.toUpperCase()} excedeu o teto em R$ ${diferenca.toLocaleString('pt-BR', {minimumFractionDigits: 2})}. Reajuste seu planejamento imediatamente.`,
@@ -87,7 +89,13 @@ export default function DashboardPage() {
       }
     });
 
-    setNotifications(novosAlertas);
+    // SÓ ADICIONA O QUE É NOVO (Evita que as fechadas voltem)
+    setNotifications(prev => {
+      const novosParaAdicionar = alertasCalculados.filter(novo => 
+        !prev.some(atual => atual.id === novo.id)
+      );
+      return [...prev, ...novosParaAdicionar];
+    });
   };
 
   async function loadData() {
@@ -105,7 +113,6 @@ export default function DashboardPage() {
       setTransacoes(t.data || []);
       setGastosFixos(f.data || []);
 
-      // Dispara a análise inteligente após carregar dados
       gerarAlertasDinamicos(m.data || [], t.data || [], f.data || []);
       
     } catch (e) { console.error(e); }
@@ -113,15 +120,19 @@ export default function DashboardPage() {
   }
 
   const notify = (msg: string, type: 'success' | 'error' = 'success') => {
-    const id = Date.now();
-    setNotifications(prev => [...prev, { 
+    const id = `manual-${Date.now()}`;
+    const novoAlerta = { 
       id, 
       msg, 
       title: type === 'success' ? "SUCESSO" : "ERRO",
       severity: type === 'success' ? "success" : "danger",
       icon: <Bell size={14} className={type === 'success' ? 'text-green-500' : 'text-red-500'} /> 
-    }]);
-    setTimeout(() => setNotifications(prev => prev.filter(n => n.id !== id)), 4000);
+    };
+
+    setNotifications(prev => [...prev, novoAlerta]);
+    setTimeout(() => {
+      setNotifications(prev => prev.filter(n => n.id !== id));
+    }, 4000);
   };
 
   // Funções de Máscara e Formatação
@@ -200,7 +211,7 @@ export default function DashboardPage() {
   if (loading) return <div className="bg-black min-h-screen" />;
 
   return (
-    <div className="flex flex-col gap-6 w-full max-w-4xl mx-auto p-4 pb-24 text-white bg-black min-h-screen font-sans overflow-x-hidden">
+    <div className="flex flex-col gap-6 w-full max-w-4xl mx-auto p-4 pb-24 text-white bg-black min-h-screen font-sans">
       
       {/* CENTRAL DE NOTIFICAÇÕES MINDCASH */}
       <div className="fixed top-4 right-4 left-4 z-[999] flex flex-col gap-3 pointer-events-none">
