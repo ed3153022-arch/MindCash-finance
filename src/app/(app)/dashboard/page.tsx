@@ -22,6 +22,7 @@ export default function DashboardPage() {
   const [showModal, setShowModal] = useState(false);
   const [showFixedModal, setShowFixedModal] = useState(false);
   
+  // ESTADOS DE NOTIFICAÇÃO MINDCASH
   const [notifications, setNotifications] = useState<any[]>([]);
   const [closedNotifications, setClosedNotifications] = useState<string[]>([]);
   
@@ -43,7 +44,7 @@ export default function DashboardPage() {
     const novosAlertas: any[] = [];
     const hoje = new Date();
     
-    // EXTRAÇÃO MANUAL PARA PRECISÃO TOTAL (DDMMYYYY)
+    // Extração de Precisão MindCash
     const dia = String(hoje.getDate()).padStart(2, '0');
     const mes = String(hoje.getMonth() + 1).padStart(2, '0');
     const ano = hoje.getFullYear();
@@ -53,12 +54,11 @@ export default function DashboardPage() {
     // --- 1. GASTOS FIXOS (SENTENÇAS DO DIA) ---
     fixosData.forEach(gasto => {
       const dataBancoLimpa = String(gasto.due_day).replace(/\D/g, "");
-      
       if (dataBancoLimpa === hojeStr) {
         novosAlertas.push({
           id: `fixo-${gasto.id}-${hojeStr}`,
           title: "SENTENÇA DE HOJE",
-          msg: `PAGAMENTO OBRIGATÓRIO: "${gasto.name}" vence hoje. Mantenha o fluxo de caixa sob controle.`,
+          msg: `PAGAMENTO OBRIGATÓRIO: "${gasto.name.toUpperCase()}" vence hoje. Mantenha o fluxo de caixa sob controle.`,
           severity: "warning",
           icon: <Zap size={14} className="text-yellow-400" />
         });
@@ -93,7 +93,7 @@ export default function DashboardPage() {
       }
     });
 
-    // --- 3. SYSTEM UPDATE (EXCLUSIVIDADE) ---
+    // --- 3. STATUS DO SISTEMA ---
     novosAlertas.push({
       id: "sys-update-2026",
       title: "MINDCASH INTELLIGENCE",
@@ -147,6 +147,7 @@ export default function DashboardPage() {
     setClosedNotifications(prev => [...prev, id]);
   };
 
+  // Máscaras e Formatação
   const maskMoney = (v: string) => {
     const onlyNums = v.replace(/\D/g, "");
     if (!onlyNums) return "";
@@ -178,7 +179,7 @@ export default function DashboardPage() {
 
   async function handleAddFixed() {
     try {
-      if (!fixoNome || !fixoValor || fixoData.length < 10) return notify("PREENCHA OS DADOS", "error");
+      if (!fixoNome || !fixoValor || fixoData.length < 10) return notify("PREENCHA TODOS OS CAMPOS", "error");
       const { data: { user } } = await supabase.auth.getUser();
       const valorNum = parseFloat(fixoValor.replace(",", "."));
       const dataLimpa = fixoData.replace(/\D/g, "");
@@ -222,7 +223,7 @@ export default function DashboardPage() {
   return (
     <div className="flex flex-col gap-6 w-full max-w-4xl mx-auto p-4 pb-24 text-white bg-black min-h-screen font-sans">
       
-      {/* NOTIFICAÇÕES HUD */}
+      {/* NOTIFICAÇÕES HUD (ESTILO HIGH-END) */}
       <div className="fixed top-4 right-4 left-4 z-[999] flex flex-col gap-3 pointer-events-none">
         {notifications.map((n, i) => (
           <div 
