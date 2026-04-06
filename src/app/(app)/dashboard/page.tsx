@@ -22,7 +22,7 @@ export default function DashboardPage() {
   const [showModal, setShowModal] = useState(false);
   const [showFixedModal, setShowFixedModal] = useState(false);
   
-  // --- NOVOS ESTADOS DE NOTIFICAÇÃO ---
+  // --- SISTEMA DE NOTIFICAÇÕES ---
   const [notifications, setNotifications] = useState<any[]>([]);
   const [closedNotifications, setClosedNotifications] = useState<string[]>([]);
   
@@ -40,22 +40,23 @@ export default function DashboardPage() {
 
   useEffect(() => { loadData(); }, []);
 
-  // --- NOVA LÓGICA DE ALERTAS DINÂMICOS ---
+  // Lógica de Alertas Dinâmicos
   const gerarAlertasDinamicos = (metasData: any[], transData: any[], fixosData: any[]) => {
     const novosAlertas: any[] = [];
     const hoje = new Date();
-    
-    // Formatação para bater com o int4 do banco (DDMMYYYY)
-    const dia = hoje.getDate();
+    const dia = hoje.getDate(); 
     const mes = hoje.getMonth() + 1;
     const ano = hoje.getFullYear();
-    const hojeNum = Number(`${dia}${String(mes).padStart(2, '0')}${ano}`);
+    
+    const hojeId = Number(`${dia}${String(mes).padStart(2, '0')}${ano}`);
+    const mesAnoId = `${mes}-${ano}`;
 
-    // 1. Verificação de Gastos Fixos
+    // 1. Gastos Fixos
     fixosData.forEach(gasto => {
-      if (Number(gasto.due_day) === hojeNum) {
+      const vencimentoBanco = Number(gasto.due_day);
+      if (vencimentoBanco === hojeId) {
         novosAlertas.push({
-          id: `fixo-${gasto.id}-${hojeNum}`,
+          id: `fixo-${gasto.id}-${hojeId}`,
           title: "SENTENÇA DE HOJE",
           msg: `PAGAMENTO OBRIGATÓRIO: "${gasto.name.toUpperCase()}" vence hoje.`,
           severity: "warning",
@@ -64,7 +65,7 @@ export default function DashboardPage() {
       }
     });
 
-    // 2. Verificação de Limites (Metas)
+    // 2. Metas/Limites
     metasData.forEach(meta => {
       const gastoCat = transData
         .filter(t => t.type === "saida" && t.category?.toLowerCase() === meta.category?.toLowerCase())
@@ -73,7 +74,7 @@ export default function DashboardPage() {
       const limite = Number(meta.amount);
       if (gastoCat >= limite) {
         novosAlertas.push({
-          id: `meta-${meta.id}-${hoje.getMonth()}`,
+          id: `meta-${meta.id}-${mesAnoId}`,
           title: gastoCat > limite ? "EXECUÇÃO DE LIMITE" : "TETO ALCANÇADO",
           msg: gastoCat > limite 
             ? `VEREDITO: ${meta.category.toUpperCase()} excedeu o teto em R$ ${(gastoCat - limite).toLocaleString('pt-BR')}.`
@@ -107,8 +108,8 @@ export default function DashboardPage() {
       setMetas(m.data || []);
       setTransacoes(t.data || []);
       setGastosFixos(f.data || []);
-      
-      // DISPARA OS ALERTAS APÓS CARREGAR
+
+      // Dispara a verificação de alertas
       gerarAlertasDinamicos(m.data || [], t.data || [], f.data || []);
     } catch (e) { console.error(e); }
     setLoading(false);
@@ -117,12 +118,12 @@ export default function DashboardPage() {
   const notify = (msg: string, type: 'success' | 'error' = 'success') => {
     const id = `manual-${Date.now()}`;
     setNotifications(prev => [...prev, { 
-        id, msg, 
-        title: type === 'success' ? 'SUCESSO' : 'ERRO', 
-        severity: type === 'success' ? 'success' : 'danger', 
-        icon: <Bell size={14} /> 
+      id, msg, 
+      title: type === 'success' ? 'SUCESSO' : 'ALERTA',
+      severity: type === 'success' ? 'success' : 'danger',
+      icon: <Bell size={14} />
     }]);
-    setTimeout(() => setNotifications(prev => prev.filter(n => n.id !== id)), 4000);
+    setTimeout(() => setNotifications(prev => prev.filter(n => n.id !== id)), 3000);
   };
 
   const closeNotification = (id: string) => {
@@ -130,7 +131,7 @@ export default function DashboardPage() {
     setClosedNotifications(prev => [...prev, id]);
   };
 
-  // Funções de Máscara e Formatação (MANTIDAS)
+  // Funções de Máscara e Formatação
   const maskMoney = (v: string) => {
     const onlyNums = v.replace(/\D/g, "");
     if (!onlyNums) return "";
@@ -151,7 +152,7 @@ export default function DashboardPage() {
     return padded.length === 8 ? padded.replace(/(\d{2})(\d{2})(\d{4})/, "$1/$2/$3") : d;
   };
 
-  // Lógica de Cálculos (MANTIDA)
+  // Lógica de Cálculos
   const entradas = transacoes.filter(t => t.type === "entrada").reduce((acc, t) => acc + Number(t.amount), 0);
   const saídas = transacoes.filter(t => t.type === "saida").reduce((acc, t) => acc + Number(t.amount), 0);
   const saldo = entradas - saídas;
@@ -167,7 +168,7 @@ export default function DashboardPage() {
       if (!fixoNome || !fixoValor || fixoData.length < 10) return notify("Preencha tudo!", "error");
       const { data: { user } } = await supabase.auth.getUser();
       const valorNum = parseFloat(fixoValor.replace(",", "."));
-      const dataLimpa = Number(fixoData.replace(/\D/g, "")); // Salva como número para int4
+      const dataLimpa = Number(fixoData.replace(/\D/g, ""));
 
       const { error } = await supabase.from("fixed_expenses").insert({
         user_id: user?.id, name: fixoNome.trim().toUpperCase(), amount: valorNum, due_day: dataLimpa
@@ -208,15 +209,15 @@ export default function DashboardPage() {
   return (
     <div className="flex flex-col gap-6 w-full max-w-4xl mx-auto p-4 pb-24 text-white bg-black min-h-screen font-sans">
       
-      {/* HUD DE NOTIFICAÇÕES (NOVO DESIGN INTEGRADO) */}
+      {/* HUD DE NOTIFICAÇÕES DINÂMICAS */}
       <div className="fixed top-4 right-4 left-4 z-[999] flex flex-col gap-3 pointer-events-none">
         {notifications.map((n, i) => (
           <div 
             key={n.id} 
             className={`pointer-events-auto animate-in slide-in-from-top-10 duration-500 bg-[#0a0a0a]/90 backdrop-blur-2xl border-2 p-4 rounded-[2rem] shadow-2xl flex gap-4 items-start transition-all
-              ${n.severity === 'danger' ? 'border-red-500/50' : 
-                n.severity === 'warning' ? 'border-yellow-500/50' : 
-                n.severity === 'info' ? 'border-blue-500/50' : 'border-green-500/50'}`}
+              ${n.severity === 'danger' ? 'border-red-500/50 shadow-red-500/20' : 
+                n.severity === 'warning' ? 'border-yellow-500/50 shadow-yellow-500/20' : 
+                n.severity === 'info' ? 'border-blue-500/50 shadow-blue-500/20' : 'border-green-500/50 shadow-green-500/20'}`}
             style={{ transform: `scale(${1 - i * 0.02}) translateY(${i * 4}px)` }}
           >
             <div className={`p-3 rounded-2xl bg-black border border-white/5 flex-shrink-0 
@@ -234,7 +235,7 @@ export default function DashboardPage() {
         ))}
       </div>
 
-      {/* HEADER (MANTIDO) */}
+      {/* HEADER */}
       <div className="flex flex-col gap-2 w-full pt-4">
         <h1 className="text-5xl font-black italic uppercase tracking-tighter leading-none">DASHBOARD</h1>
         <div className="grid grid-cols-2 gap-3 mt-4">
@@ -245,7 +246,7 @@ export default function DashboardPage() {
         </div>
       </div>
 
-      {/* SALDO & RESUMO (MANTIDO) */}
+      {/* SALDO & RESUMO */}
       <div className="bg-[#111] pt-12 pb-8 px-8 rounded-[1.5rem] border border-white/5">
         <p className="text-zinc-500 text-[9px] font-black uppercase tracking-widest mb-1 italic">Saldo Disponível</p>
         <h2 className="text-4xl font-black italic">R$ {saldo.toLocaleString('pt-BR')}</h2>
@@ -262,7 +263,7 @@ export default function DashboardPage() {
           </div>
       </div>
 
-      {/* GASTOS FIXOS (MANTIDO) */}
+      {/* GASTOS FIXOS */}
       <div className="bg-[#111] p-6 rounded-[1.5rem] border border-white/5 space-y-4">
         <div className="flex justify-between items-center">
           <div>
@@ -297,10 +298,7 @@ export default function DashboardPage() {
         </div>
       </div>
 
-      {/* RESTANTE DO CÓDIGO (GRÁFICO, LIMITES, ATIVIDADE E MODAIS MANTIDOS IGUAIS) */}
-      {/* ... (O restante do seu JSX original continua aqui) */}
-      
-      {/* GRÁFICO DONUT (MANTIDO) */}
+      {/* GRÁFICO DONUT */}
       <div className="bg-[#111] pt-12 pb-8 px-8 rounded-[1.5rem] border border-white/5 flex flex-col items-center">
         <span className="text-zinc-500 text-[10px] font-black uppercase tracking-[0.2em] mb-10 self-start italic">Uso do Orçamento</span>
         <div className="relative w-64 h-64 flex items-center justify-center mb-10">
@@ -326,7 +324,7 @@ export default function DashboardPage() {
         </p>
       </div>
 
-      {/* LIMITES (MANTIDO) */}
+      {/* LIMITES */}
       <div className="bg-[#111] pt-12 pb-8 px-8 rounded-[1.5rem] border border-white/5 space-y-8">
         <h3 className="text-xl font-black italic uppercase tracking-tighter">Limites por Categoria</h3>
         <div className="space-y-6">
@@ -350,7 +348,7 @@ export default function DashboardPage() {
         </div>
       </div>
 
-      {/* ATIVIDADE (MANTIDO) */}
+      {/* ATIVIDADE */}
       <div className="bg-[#111] pt-12 pb-8 px-8 rounded-[1.5rem] border border-white/5 space-y-6">
         <div className="flex justify-between items-center">
           <h3 className="text-xl font-black italic uppercase tracking-tighter">Atividade</h3>
@@ -380,7 +378,7 @@ export default function DashboardPage() {
         </div>
       </div>
 
-      {/* MODAL NOVA TRANSAÇÃO (MANTIDO) */}
+      {/* MODAL NOVA TRANSAÇÃO */}
       {showModal && (
         <div className="fixed inset-0 bg-black/95 backdrop-blur-md z-[150] flex items-center justify-center p-6">
           <div className="bg-[#111] w-full max-w-sm rounded-[2rem] p-8 border border-white/10">
@@ -411,7 +409,7 @@ export default function DashboardPage() {
         </div>
       )}
 
-      {/* MODAL GASTO FIXO (MANTIDO) */}
+      {/* MODAL GASTO FIXO */}
       {showFixedModal && (
         <div className="fixed inset-0 bg-black/95 backdrop-blur-md z-[150] flex items-center justify-center p-6">
           <div className="bg-[#111] w-full max-w-sm rounded-[2rem] p-8 border border-white/10 shadow-2xl">
