@@ -22,7 +22,7 @@ export default function DashboardPage() {
   const [showModal, setShowModal] = useState(false);
   const [showFixedModal, setShowFixedModal] = useState(false);
   
-  // ESTADOS DE NOTIFICAÇÃO MINDCASH
+  // --- NOVOS ESTADOS DE NOTIFICAÇÃO ---
   const [notifications, setNotifications] = useState<any[]>([]);
   const [closedNotifications, setClosedNotifications] = useState<string[]>([]);
   
@@ -40,66 +40,48 @@ export default function DashboardPage() {
 
   useEffect(() => { loadData(); }, []);
 
+  // --- NOVA LÓGICA DE ALERTAS DINÂMICOS ---
   const gerarAlertasDinamicos = (metasData: any[], transData: any[], fixosData: any[]) => {
     const novosAlertas: any[] = [];
     const hoje = new Date();
     
-    // Extração de Precisão MindCash
-    const dia = String(hoje.getDate()).padStart(2, '0');
-    const mes = String(hoje.getMonth() + 1).padStart(2, '0');
+    // Formatação para bater com o int4 do banco (DDMMYYYY)
+    const dia = hoje.getDate();
+    const mes = hoje.getMonth() + 1;
     const ano = hoje.getFullYear();
-    const hojeStr = `${dia}${mes}${ano}`;
-    const mesAnoCompetencia = `${mes}-${ano}`;
+    const hojeNum = Number(`${dia}${String(mes).padStart(2, '0')}${ano}`);
 
-    // --- 1. GASTOS FIXOS (SENTENÇAS DO DIA) ---
+    // 1. Verificação de Gastos Fixos
     fixosData.forEach(gasto => {
-      const dataBancoLimpa = String(gasto.due_day).replace(/\D/g, "");
-      if (dataBancoLimpa === hojeStr) {
+      if (Number(gasto.due_day) === hojeNum) {
         novosAlertas.push({
-          id: `fixo-${gasto.id}-${hojeStr}`,
+          id: `fixo-${gasto.id}-${hojeNum}`,
           title: "SENTENÇA DE HOJE",
-          msg: `PAGAMENTO OBRIGATÓRIO: "${gasto.name.toUpperCase()}" vence hoje. Mantenha o fluxo de caixa sob controle.`,
+          msg: `PAGAMENTO OBRIGATÓRIO: "${gasto.name.toUpperCase()}" vence hoje.`,
           severity: "warning",
           icon: <Zap size={14} className="text-yellow-400" />
         });
       }
     });
 
-    // --- 2. LIMITES E CATEGORIAS (VEREDITOS) ---
+    // 2. Verificação de Limites (Metas)
     metasData.forEach(meta => {
       const gastoCat = transData
         .filter(t => t.type === "saida" && t.category?.toLowerCase() === meta.category?.toLowerCase())
         .reduce((acc, t) => acc + Number(t.amount), 0);
       
       const limite = Number(meta.amount);
-      const diferenca = gastoCat - limite;
-
-      if (gastoCat === limite) {
+      if (gastoCat >= limite) {
         novosAlertas.push({
-          id: `meta-${meta.id}-${gastoCat}-${mesAnoCompetencia}`,
-          title: "TETO ALCANÇADO",
-          msg: `ALERTA DE MARGEM: Você atingiu o teto de R$ ${limite.toLocaleString('pt-BR')} em ${meta.category.toUpperCase()}. Limite de segurança ativado.`,
-          severity: "info",
-          icon: <Info size={14} className="text-blue-400" />
-        });
-      } else if (gastoCat > limite) {
-        novosAlertas.push({
-          id: `meta-${meta.id}-${gastoCat}-${mesAnoCompetencia}`,
-          title: "EXECUÇÃO DE LIMITE",
-          msg: `VEREDITO: ${meta.category.toUpperCase()} excedeu o teto em R$ ${diferenca.toLocaleString('pt-BR', {minimumFractionDigits: 2})}. Reajuste seu planejamento imediatamente.`,
-          severity: "danger",
-          icon: <AlertTriangle size={14} className="text-red-500" />
+          id: `meta-${meta.id}-${hoje.getMonth()}`,
+          title: gastoCat > limite ? "EXECUÇÃO DE LIMITE" : "TETO ALCANÇADO",
+          msg: gastoCat > limite 
+            ? `VEREDITO: ${meta.category.toUpperCase()} excedeu o teto em R$ ${(gastoCat - limite).toLocaleString('pt-BR')}.`
+            : `ALERTA: Você atingiu o teto de R$ ${limite.toLocaleString('pt-BR')} em ${meta.category.toUpperCase()}.`,
+          severity: gastoCat > limite ? "danger" : "info",
+          icon: gastoCat > limite ? <AlertTriangle size={14} /> : <Info size={14} />
         });
       }
-    });
-
-    // --- 3. STATUS DO SISTEMA ---
-    novosAlertas.push({
-      id: "sys-update-2026",
-      title: "MINDCASH INTELLIGENCE",
-      msg: "SISTEMA ATUALIZADO: Algoritmos de análise de sentenças fixas aplicados. Performance high-end.",
-      severity: "success",
-      icon: <Zap size={14} className="text-green-400" />
     });
 
     setNotifications(prev => {
@@ -126,6 +108,7 @@ export default function DashboardPage() {
       setTransacoes(t.data || []);
       setGastosFixos(f.data || []);
       
+      // DISPARA OS ALERTAS APÓS CARREGAR
       gerarAlertasDinamicos(m.data || [], t.data || [], f.data || []);
     } catch (e) { console.error(e); }
     setLoading(false);
@@ -134,10 +117,10 @@ export default function DashboardPage() {
   const notify = (msg: string, type: 'success' | 'error' = 'success') => {
     const id = `manual-${Date.now()}`;
     setNotifications(prev => [...prev, { 
-      id, msg, 
-      title: type === 'success' ? 'SUCESSO' : 'ERRO', 
-      severity: type === 'success' ? 'success' : 'danger', 
-      icon: <Bell size={14} /> 
+        id, msg, 
+        title: type === 'success' ? 'SUCESSO' : 'ERRO', 
+        severity: type === 'success' ? 'success' : 'danger', 
+        icon: <Bell size={14} /> 
     }]);
     setTimeout(() => setNotifications(prev => prev.filter(n => n.id !== id)), 4000);
   };
@@ -147,7 +130,7 @@ export default function DashboardPage() {
     setClosedNotifications(prev => [...prev, id]);
   };
 
-  // Máscaras e Formatação
+  // Funções de Máscara e Formatação (MANTIDAS)
   const maskMoney = (v: string) => {
     const onlyNums = v.replace(/\D/g, "");
     if (!onlyNums) return "";
@@ -164,9 +147,11 @@ export default function DashboardPage() {
   const formatDisplayDate = (d: any) => {
     if (!d) return "";
     const clean = String(d).replace(/\D/g, "");
-    return clean.length === 8 ? clean.replace(/(\d{2})(\d{2})(\d{4})/, "$1/$2/$3") : d;
+    const padded = clean.length === 7 ? "0" + clean : clean;
+    return padded.length === 8 ? padded.replace(/(\d{2})(\d{2})(\d{4})/, "$1/$2/$3") : d;
   };
 
+  // Lógica de Cálculos (MANTIDA)
   const entradas = transacoes.filter(t => t.type === "entrada").reduce((acc, t) => acc + Number(t.amount), 0);
   const saídas = transacoes.filter(t => t.type === "saida").reduce((acc, t) => acc + Number(t.amount), 0);
   const saldo = entradas - saídas;
@@ -179,26 +164,26 @@ export default function DashboardPage() {
 
   async function handleAddFixed() {
     try {
-      if (!fixoNome || !fixoValor || fixoData.length < 10) return notify("PREENCHA TODOS OS CAMPOS", "error");
+      if (!fixoNome || !fixoValor || fixoData.length < 10) return notify("Preencha tudo!", "error");
       const { data: { user } } = await supabase.auth.getUser();
       const valorNum = parseFloat(fixoValor.replace(",", "."));
-      const dataLimpa = fixoData.replace(/\D/g, "");
+      const dataLimpa = Number(fixoData.replace(/\D/g, "")); // Salva como número para int4
 
       const { error } = await supabase.from("fixed_expenses").insert({
         user_id: user?.id, name: fixoNome.trim().toUpperCase(), amount: valorNum, due_day: dataLimpa
       });
 
       if (error) throw error;
-      notify("SENTENÇA FIXA REGISTRADA");
+      notify("Sentença Fixa Salva!");
       setShowFixedModal(false); setFixoNome(""); setFixoValor(""); setFixoData("");
       loadData();
-    } catch (e) { notify("ERRO NA OPERAÇÃO", "error"); }
+    } catch (e) { notify("Erro ao salvar", "error"); }
   }
 
   async function deleteFixed(id: string) {
     await supabase.from("fixed_expenses").delete().eq("id", id);
     loadData();
-    notify("SENTENÇA REMOVIDA");
+    notify("Sentença removida");
   }
 
   const renderDonutChartSegments = () => {
@@ -223,15 +208,15 @@ export default function DashboardPage() {
   return (
     <div className="flex flex-col gap-6 w-full max-w-4xl mx-auto p-4 pb-24 text-white bg-black min-h-screen font-sans">
       
-      {/* NOTIFICAÇÕES HUD (ESTILO HIGH-END) */}
+      {/* HUD DE NOTIFICAÇÕES (NOVO DESIGN INTEGRADO) */}
       <div className="fixed top-4 right-4 left-4 z-[999] flex flex-col gap-3 pointer-events-none">
         {notifications.map((n, i) => (
           <div 
             key={n.id} 
             className={`pointer-events-auto animate-in slide-in-from-top-10 duration-500 bg-[#0a0a0a]/90 backdrop-blur-2xl border-2 p-4 rounded-[2rem] shadow-2xl flex gap-4 items-start transition-all
-              ${n.severity === 'danger' ? 'border-red-500/50 shadow-red-500/20' : 
-                n.severity === 'warning' ? 'border-yellow-500/50 shadow-yellow-500/20' : 
-                n.severity === 'info' ? 'border-blue-500/50 shadow-blue-500/20' : 'border-green-500/50 shadow-green-500/20'}`}
+              ${n.severity === 'danger' ? 'border-red-500/50' : 
+                n.severity === 'warning' ? 'border-yellow-500/50' : 
+                n.severity === 'info' ? 'border-blue-500/50' : 'border-green-500/50'}`}
             style={{ transform: `scale(${1 - i * 0.02}) translateY(${i * 4}px)` }}
           >
             <div className={`p-3 rounded-2xl bg-black border border-white/5 flex-shrink-0 
@@ -249,7 +234,7 @@ export default function DashboardPage() {
         ))}
       </div>
 
-      {/* HEADER */}
+      {/* HEADER (MANTIDO) */}
       <div className="flex flex-col gap-2 w-full pt-4">
         <h1 className="text-5xl font-black italic uppercase tracking-tighter leading-none">DASHBOARD</h1>
         <div className="grid grid-cols-2 gap-3 mt-4">
@@ -260,7 +245,7 @@ export default function DashboardPage() {
         </div>
       </div>
 
-      {/* SALDO & RESUMO */}
+      {/* SALDO & RESUMO (MANTIDO) */}
       <div className="bg-[#111] pt-12 pb-8 px-8 rounded-[1.5rem] border border-white/5">
         <p className="text-zinc-500 text-[9px] font-black uppercase tracking-widest mb-1 italic">Saldo Disponível</p>
         <h2 className="text-4xl font-black italic">R$ {saldo.toLocaleString('pt-BR')}</h2>
@@ -277,7 +262,7 @@ export default function DashboardPage() {
           </div>
       </div>
 
-      {/* GASTOS FIXOS */}
+      {/* GASTOS FIXOS (MANTIDO) */}
       <div className="bg-[#111] p-6 rounded-[1.5rem] border border-white/5 space-y-4">
         <div className="flex justify-between items-center">
           <div>
@@ -298,6 +283,7 @@ export default function DashboardPage() {
                 </div>
                 <div>
                   <p className="text-[10px] font-black uppercase italic leading-none">{gasto.name}</p>
+                  <p className="text-[7px] text-zinc-600 font-bold uppercase mt-1">Sentença Fixa</p>
                 </div>
               </div>
               <div className="flex items-center gap-4">
@@ -311,7 +297,10 @@ export default function DashboardPage() {
         </div>
       </div>
 
-      {/* GRÁFICO DONUT */}
+      {/* RESTANTE DO CÓDIGO (GRÁFICO, LIMITES, ATIVIDADE E MODAIS MANTIDOS IGUAIS) */}
+      {/* ... (O restante do seu JSX original continua aqui) */}
+      
+      {/* GRÁFICO DONUT (MANTIDO) */}
       <div className="bg-[#111] pt-12 pb-8 px-8 rounded-[1.5rem] border border-white/5 flex flex-col items-center">
         <span className="text-zinc-500 text-[10px] font-black uppercase tracking-[0.2em] mb-10 self-start italic">Uso do Orçamento</span>
         <div className="relative w-64 h-64 flex items-center justify-center mb-10">
@@ -321,14 +310,23 @@ export default function DashboardPage() {
           </svg>
           <div className="absolute flex flex-col items-center">
             <span className="text-6xl font-black italic leading-none">{porcentagemGeral}%</span>
+            <span className="text-[10px] text-zinc-500 font-black tracking-widest uppercase italic mt-2">Gasto</span>
           </div>
+        </div>
+        <div className="flex flex-wrap justify-center gap-6 mb-8 w-full">
+          {categoriasDosLimites.map(c => (
+            <div key={c.nome} className="flex flex-col items-center gap-1">
+              <div className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: c.cor }} />
+              <span className="text-2xl">{c.emoji}</span>
+            </div>
+          ))}
         </div>
         <p className="text-zinc-500 font-black text-[11px] uppercase italic tracking-tight text-center">
           <span className="text-white text-base">R$ {saídas.toLocaleString('pt-BR')}</span> DE R$ {orcamentoTotal.toLocaleString('pt-BR')}
         </p>
       </div>
 
-      {/* LIMITES */}
+      {/* LIMITES (MANTIDO) */}
       <div className="bg-[#111] pt-12 pb-8 px-8 rounded-[1.5rem] border border-white/5 space-y-8">
         <h3 className="text-xl font-black italic uppercase tracking-tighter">Limites por Categoria</h3>
         <div className="space-y-6">
@@ -352,10 +350,11 @@ export default function DashboardPage() {
         </div>
       </div>
 
-      {/* ATIVIDADE */}
+      {/* ATIVIDADE (MANTIDO) */}
       <div className="bg-[#111] pt-12 pb-8 px-8 rounded-[1.5rem] border border-white/5 space-y-6">
         <div className="flex justify-between items-center">
           <h3 className="text-xl font-black italic uppercase tracking-tighter">Atividade</h3>
+          <span className="text-[9px] font-black text-zinc-500 uppercase tracking-widest italic">Recentes</span>
         </div>
         <div className="space-y-3">
           {transacoes.slice(0, 4).map((t) => {
@@ -375,10 +374,13 @@ export default function DashboardPage() {
               </div>
             );
           })}
+          <button onClick={() => router.push("/historico")} className="w-full py-4 mt-2 bg-zinc-900 border border-white/5 rounded-2xl text-[9px] font-black uppercase tracking-[0.2em] italic">
+            Ver atividade Completa →
+          </button>
         </div>
       </div>
 
-      {/* MODAIS (MANTIDOS) */}
+      {/* MODAL NOVA TRANSAÇÃO (MANTIDO) */}
       {showModal && (
         <div className="fixed inset-0 bg-black/95 backdrop-blur-md z-[150] flex items-center justify-center p-6">
           <div className="bg-[#111] w-full max-w-sm rounded-[2rem] p-8 border border-white/10">
@@ -402,13 +404,14 @@ export default function DashboardPage() {
                 const valorNum = parseFloat(valor.replace(",", "."));
                 const { data: { user } } = await supabase.auth.getUser();
                 await supabase.from("transactions").insert({ user_id: user?.id, type: tipo, category: tipo === 'saida' ? catSel : 'Receita', amount: valorNum });
-                setShowModal(false); setValor(""); loadData(); notify("OPERADO COM SUCESSO");
+                setShowModal(false); setValor(""); loadData(); notify("Registrado!");
             }} className="w-full bg-yellow-400 text-black py-5 rounded-2xl font-black uppercase text-[10px] mb-3">Confirmar</button>
             <button onClick={() => setShowModal(false)} className="w-full text-zinc-500 font-black text-[9px] uppercase">Cancelar</button>
           </div>
         </div>
       )}
 
+      {/* MODAL GASTO FIXO (MANTIDO) */}
       {showFixedModal && (
         <div className="fixed inset-0 bg-black/95 backdrop-blur-md z-[150] flex items-center justify-center p-6">
           <div className="bg-[#111] w-full max-w-sm rounded-[2rem] p-8 border border-white/10 shadow-2xl">
