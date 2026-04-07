@@ -22,9 +22,20 @@ export default function DashboardPage() {
   const [showModal, setShowModal] = useState(false);
   const [showFixedModal, setShowFixedModal] = useState(false);
   
-  // --- SISTEMA DE NOTIFICAÇÕES ---
+  // --- SISTEMA DE NOTIFICAÇÕES PERSISTENTE ---
   const [notifications, setNotifications] = useState<any[]>([]);
   const [closedNotifications, setClosedNotifications] = useState<string[]>([]);
+
+  // Carrega IDs silenciados do LocalStorage ao iniciar
+  useEffect(() => {
+    const saved = localStorage.getItem("alertas_silenciados");
+    if (saved) setClosedNotifications(JSON.parse(saved));
+  }, []);
+
+  // Salva no LocalStorage sempre que um novo ID for silenciado
+  useEffect(() => {
+    localStorage.setItem("alertas_silenciados", JSON.stringify(closedNotifications));
+  }, [closedNotifications]);
   
   const [metas, setMetas] = useState<any[]>([]);
   const [transacoes, setTransacoes] = useState<any[]>([]);
@@ -40,23 +51,17 @@ export default function DashboardPage() {
 
   useEffect(() => { loadData(); }, []);
 
-  // Lógica de Alertas Dinâmicos
+  // Lógica de Geração de Alertas Dinâmicos
   const gerarAlertasDinamicos = (metasData: any[], transData: any[], fixosData: any[]) => {
     const novosAlertas: any[] = [];
     const hoje = new Date();
-    const dia = hoje.getDate(); 
-    const mes = hoje.getMonth() + 1;
-    const ano = hoje.getFullYear();
-    
-    const hojeId = Number(`${dia}${String(mes).padStart(2, '0')}${ano}`);
-    const mesAnoId = `${mes}-${ano}`;
+    const hojeStr = `${hoje.getDate()}${hoje.getMonth() + 1}${hoje.getFullYear()}`;
 
-    // 1. Gastos Fixos
+    // 1. Gastos Fixos (ID por Data)
     fixosData.forEach(gasto => {
-      const vencimentoBanco = Number(gasto.due_day);
-      if (vencimentoBanco === hojeId) {
+      if (Number(gasto.due_day) === Number(hojeStr)) {
         novosAlertas.push({
-          id: `fixo-${gasto.id}-${hojeId}`,
+          id: `fixo-${gasto.id}-${hojeStr}`,
           title: "SENTENÇA DE HOJE",
           msg: `PAGAMENTO OBRIGATÓRIO: "${gasto.name.toUpperCase()}" vence hoje.`,
           severity: "warning",
@@ -65,7 +70,7 @@ export default function DashboardPage() {
       }
     });
 
-    // 2. Metas/Limites
+    // 2. Metas (ID por Valor Acumulado)
     metasData.forEach(meta => {
       const gastoCat = transData
         .filter(t => t.type === "saida" && t.category?.toLowerCase() === meta.category?.toLowerCase())
@@ -74,7 +79,7 @@ export default function DashboardPage() {
       const limite = Number(meta.amount);
       if (gastoCat >= limite) {
         novosAlertas.push({
-          id: `meta-${meta.id}-${mesAnoId}`,
+          id: `meta-${meta.id}-${gastoCat}`, 
           title: gastoCat > limite ? "EXECUÇÃO DE LIMITE" : "TETO ALCANÇADO",
           msg: gastoCat > limite 
             ? `VEREDITO: ${meta.category.toUpperCase()} excedeu o teto em R$ ${(gastoCat - limite).toLocaleString('pt-BR')}.`
@@ -108,8 +113,7 @@ export default function DashboardPage() {
       setMetas(m.data || []);
       setTransacoes(t.data || []);
       setGastosFixos(f.data || []);
-
-      // Dispara a verificação de alertas
+      
       gerarAlertasDinamicos(m.data || [], t.data || [], f.data || []);
     } catch (e) { console.error(e); }
     setLoading(false);
@@ -119,11 +123,13 @@ export default function DashboardPage() {
     const id = `manual-${Date.now()}`;
     setNotifications(prev => [...prev, { 
       id, msg, 
-      title: type === 'success' ? 'SUCESSO' : 'ALERTA',
+      title: type === 'success' ? 'SUCESSO' : 'ERRO',
       severity: type === 'success' ? 'success' : 'danger',
       icon: <Bell size={14} />
     }]);
-    setTimeout(() => setNotifications(prev => prev.filter(n => n.id !== id)), 3000);
+    if (type === 'success') {
+      setTimeout(() => setNotifications(prev => prev.filter(n => n.id !== id)), 3000);
+    }
   };
 
   const closeNotification = (id: string) => {
@@ -168,7 +174,7 @@ export default function DashboardPage() {
       if (!fixoNome || !fixoValor || fixoData.length < 10) return notify("Preencha tudo!", "error");
       const { data: { user } } = await supabase.auth.getUser();
       const valorNum = parseFloat(fixoValor.replace(",", "."));
-      const dataLimpa = Number(fixoData.replace(/\D/g, ""));
+      const dataLimpa = fixoData.replace(/\D/g, "");
 
       const { error } = await supabase.from("fixed_expenses").insert({
         user_id: user?.id, name: fixoNome.trim().toUpperCase(), amount: valorNum, due_day: dataLimpa
