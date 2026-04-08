@@ -247,15 +247,15 @@ export default function DashboardPage() {
       
       {/* CARDS EMPILHADOS (ENTRADAS E SAÍDAS) */}
       <div className="flex flex-col gap-3">
-          {/* CARD ENTRADAS */}
-          <div className="bg-[#111] pt-12 pb-8 px-8 rounded-[1.5rem] border border-white/5 relative">
+          {/* CARD ENTRADAS - ALTURA FIXA E RELATIVE PARA OS BOTÕES */}
+          <div className="bg-[#111] h-[140px] px-8 rounded-[1.5rem] border border-white/5 relative flex flex-col justify-center">
             <p className="text-green-500 text-[9px] font-black uppercase tracking-widest mb-1 italic">
                 Entradas ({viewMode === 'mes' ? 'Mês' : 'Ano'})
             </p>
             <h2 className="text-4xl font-black italic text-green-500">R$ {entradasCard.toLocaleString('pt-BR')}</h2>
             
-            {/* BOTÕES DE FILTRO NO CANTO DIREITO SEM ESTICAR O CARD */}
-            <div className="absolute top-8 right-8 flex gap-1.5">
+            {/* BOTÕES POSICIONADOS NO CANTO DIREITO DO CARD */}
+            <div className="absolute right-6 top-1/2 -translate-y-1/2 flex gap-1.5">
               <button 
                 onClick={() => setViewMode("mes")} 
                 className={`flex items-center gap-1.5 px-3 py-2 rounded-lg border-2 transition-all duration-200 font-black text-[7px] uppercase italic ${
@@ -280,8 +280,8 @@ export default function DashboardPage() {
             </div>
           </div>
 
-          {/* CARD SAÍDAS */}
-          <div className="bg-[#111] pt-12 pb-8 px-8 rounded-[1.5rem] border border-white/5">
+          {/* CARD SAÍDAS - MESMA ALTURA PARA MANTER O PADRÃO */}
+          <div className="bg-[#111] h-[140px] px-8 rounded-[1.5rem] border border-white/5 flex flex-col justify-center">
             <p className="text-red-500 text-[9px] font-black uppercase tracking-widest mb-1 italic">
                 Saídas ({viewMode === 'mes' ? 'Mês' : 'Ano'})
             </p>
@@ -443,5 +443,3 @@ export default function DashboardPage() {
     </div>
   );
 }
-
-    
