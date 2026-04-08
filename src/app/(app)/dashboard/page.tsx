@@ -21,8 +21,14 @@ export default function DashboardPage() {
   const [loading, setLoading] = useState(true);
   const [showModal, setShowModal] = useState(false);
   const [showFixedModal, setShowFixedModal] = useState(false);
-  const [viewMode, setViewMode] = useState<"mes" | "ano">("mes"); // Controle de visão Entradas/Saídas
   
+  // --- NOVOS ESTADOS PARA FILTRO ---
+  const [viewMode, setViewMode] = useState<"mes" | "ano">("mes");
+  const agora = new Date();
+  const mesAtual = agora.getMonth();
+  const anoAtual = agora.getFullYear();
+
+  // --- SISTEMA DE NOTIFICAÇÕES (ESTADOS) ---
   const [notifications, setNotifications] = useState<any[]>([]);
   const [closedNotifications, setClosedNotifications] = useState<string[]>(() => {
     if (typeof window !== 'undefined') {
@@ -41,29 +47,17 @@ export default function DashboardPage() {
     setClosedNotifications(prev => [...prev, id]);
   };
 
-  // --- LÓGICA DE TEMPO ---
-  const agora = new Date();
-  const mesAtual = agora.getMonth();
-  const anoAtual = agora.getFullYear();
-
-  // Função para filtrar transações do mês atual para o reset das categorias
-  const filtrarMesAtual = (trans: any[]) => trans.filter(t => {
-    const d = new Date(t.created_at);
-    return d.getMonth() === mesAtual && d.getFullYear() === anoAtual;
-  });
-
+  // --- LÓGICA DE ALERTAS DINÂMICOS ---
   const gerarAlertasDinamicos = (metasData: any[], transData: any[], fixosData: any[]) => {
     const novosAlertas: any[] = [];
     const hoje = new Date();
     const hojeStr = `${hoje.getDate()}${hoje.getMonth() + 1}${hoje.getFullYear()}`;
     const diaHoje = String(hoje.getDate()).padStart(2, '0');
 
-    // Transações do mês para o cálculo das metas
-    const transMes = filtrarMesAtual(transData);
-
     fixosData.forEach(gasto => {
       const dataCompleta = String(gasto.due_day).padStart(8, '0');
       const diaGasto = dataCompleta.slice(0, 2);
+
       if (diaGasto === diaHoje) {
         novosAlertas.push({
           id: `fixo-${gasto.id}-${hojeStr}`,
@@ -76,7 +70,7 @@ export default function DashboardPage() {
     });
 
     metasData.forEach(meta => {
-      const gastoCat = transMes
+      const gastoCat = transData
         .filter(t => t.type === "saida" && t.category?.toLowerCase() === meta.category?.toLowerCase())
         .reduce((acc, t) => acc + Number(t.amount), 0);
       const limite = Number(meta.amount);
@@ -127,6 +121,7 @@ export default function DashboardPage() {
       setMetas(m.data || []);
       setTransacoes(t.data || []);
       setGastosFixos(f.data || []);
+
       gerarAlertasDinamicos(m.data || [], t.data || [], f.data || []);
     } catch (e) { console.error(e); }
     setLoading(false);
@@ -134,9 +129,47 @@ export default function DashboardPage() {
 
   const notify = (msg: string, type: 'success' | 'error' = 'success') => {
     const id = Date.now().toString();
-    setNotifications(prev => [...prev, { id, msg, title: type === 'success' ? 'SUCESSO' : 'ERRO', severity: type === 'success' ? 'success' : 'danger', icon: <Bell size={14} /> }]);
+    setNotifications(prev => [...prev, { 
+      id, 
+      msg, 
+      title: type === 'success' ? 'SUCESSO' : 'ERRO', 
+      severity: type === 'success' ? 'success' : 'danger',
+      icon: <Bell size={14} />
+    }]);
     setTimeout(() => setNotifications(prev => prev.filter(n => n.id !== id)), 3000);
   };
+
+  // --- LÓGICA DE CÁLCULOS FILTRADOS ---
+  const saldoTotalPatrimonio = transacoes.reduce((acc, t) => 
+    t.type === "entrada" ? acc + Number(t.amount) : acc - Number(t.amount), 0
+  );
+
+  const transacoesFiltradasResumo = transacoes.filter(t => {
+    const d = new Date(t.created_at);
+    if (viewMode === "mes") return d.getMonth() === mesAtual && d.getFullYear() === anoAtual;
+    return d.getFullYear() === anoAtual;
+  });
+
+  const entradasResumo = transacoesFiltradasResumo
+    .filter(t => t.type === "entrada")
+    .reduce((acc, t) => acc + Number(t.amount), 0);
+
+  const saídasResumo = transacoesFiltradasResumo
+    .filter(t => t.type === "saida")
+    .reduce((acc, t) => acc + Number(t.amount), 0);
+
+  // Mantemos o gráfico e progresso olhando apenas o Mês Atual (Reset Mensal)
+  const transacoesMesAtual = transacoes.filter(t => {
+    const d = new Date(t.created_at);
+    return d.getMonth() === mesAtual && d.getFullYear() === anoAtual;
+  });
+
+  const saídasMesAtual = transacoesMesAtual
+    .filter(t => t.type === "saida")
+    .reduce((acc, t) => acc + Number(t.amount), 0);
+
+  const orcamentoTotal = metas.reduce((acc, m) => acc + Number(m.amount), 0) || 1;
+  const porcentagemGeral = Math.min(Math.round((saídasMesAtual / orcamentoTotal) * 100), 100);
 
   const maskMoney = (v: string) => {
     const onlyNums = v.replace(/\D/g, "");
@@ -158,26 +191,9 @@ export default function DashboardPage() {
     return padded.replace(/(\d{2})(\d{2})(\d{4})/, "$1/$2/$3");
   };
 
-  // --- CÁLCULOS TOTAIS E FILTRADOS ---
-  const saldoTotal = transacoes.reduce((acc, t) => t.type === "entrada" ? acc + Number(t.amount) : acc - Number(t.amount), 0);
-
-  // Filtro de transações para Entradas/Saídas (Baseado no botão Mes/Ano)
-  const transacoesFiltradas = transacoes.filter(t => {
-    const d = new Date(t.created_at);
-    if (viewMode === "mes") return d.getMonth() === mesAtual && d.getFullYear() === anoAtual;
-    return d.getFullYear() === anoAtual;
-  });
-
-  const entradasResumo = transacoesFiltradas.filter(t => t.type === "entrada").reduce((acc, t) => acc + Number(t.amount), 0);
-  const saídasResumo = transacoesFiltradas.filter(t => t.type === "saida").reduce((acc, t) => acc + Number(t.amount), 0);
-
-  // Lógica de reset mensal para o gráfico e categorias
-  const transacoesMesReset = filtrarMesAtual(transacoes);
-  const saídasMesReset = transacoesMesReset.filter(t => t.type === "saida").reduce((acc, t) => acc + Number(t.amount), 0);
-  const orcamentoTotal = metas.reduce((acc, m) => acc + Number(m.amount), 0) || 1;
-  const porcentagemGeral = Math.min(Math.round((saídasMesReset / orcamentoTotal) * 100), 100);
-
-  const categoriasDosLimites = MASTER_CATS.filter(cat => metas.some(m => m.category?.toLowerCase() === cat.nome.toLowerCase()));
+  const categoriasDosLimites = MASTER_CATS.filter(cat => 
+    metas.some(m => m.category?.toLowerCase() === cat.nome.toLowerCase())
+  );
 
   async function handleAddFixed() {
     try {
@@ -185,7 +201,11 @@ export default function DashboardPage() {
       const { data: { user } } = await supabase.auth.getUser();
       const valorNum = parseFloat(fixoValor.replace(",", "."));
       const dataLimpa = fixoData.replace(/\D/g, "");
-      const { error } = await supabase.from("fixed_expenses").insert({ user_id: user?.id, name: fixoNome.trim().toUpperCase(), amount: valorNum, due_day: dataLimpa });
+
+      const { error } = await supabase.from("fixed_expenses").insert({
+        user_id: user?.id, name: fixoNome.trim().toUpperCase(), amount: valorNum, due_day: dataLimpa
+      });
+
       if (error) throw error;
       notify("Sentença Fixa Salva!");
       setShowFixedModal(false); setFixoNome(""); setFixoValor(""); setFixoData("");
@@ -203,12 +223,12 @@ export default function DashboardPage() {
     const raio = 70;
     const circunferencia = 2 * Math.PI * raio;
     let acumulado = 0;
-    if (saídasMesReset <= 0) return <circle cx="80" cy="80" r={raio} fill="none" stroke="#1a1a1a" strokeWidth="20" />;
+    if (saídasMesAtual <= 0) return <circle cx="80" cy="80" r={raio} fill="none" stroke="#1a1a1a" strokeWidth="20" />;
 
     return categoriasDosLimites.map((cat) => {
-      const gastoCat = transacoesMesReset.filter(t => t.type === "saida" && t.category?.toLowerCase() === cat.nome.toLowerCase()).reduce((acc, t) => acc + Number(t.amount), 0);
+      const gastoCat = transacoesMesAtual.filter(t => t.type === "saida" && t.category?.toLowerCase() === cat.nome.toLowerCase()).reduce((acc, t) => acc + Number(t.amount), 0);
       if (gastoCat <= 0) return null;
-      const percentual = gastoCat / saídasMesReset;
+      const percentual = gastoCat / saídasMesAtual;
       const strokeDasharray = `${percentual * circunferencia} ${circunferencia}`;
       const strokeDashoffset = -acumulado * circunferencia;
       acumulado += percentual;
@@ -221,16 +241,20 @@ export default function DashboardPage() {
   return (
     <div className="flex flex-col gap-6 w-full max-w-4xl mx-auto p-4 pb-24 text-white bg-black min-h-screen font-sans">
       
-      {/* HUD DE NOTIFICAÇÕES */}
+      {/* HUD DE NOTIFICAÇÕES DINÂMICAS */}
       <div className="fixed top-4 right-4 left-4 z-[999] flex flex-col gap-3 pointer-events-none">
         {notifications.map((n) => (
           <div key={n.id} className={`pointer-events-auto bg-[#0a0a0a]/95 backdrop-blur-xl border-2 p-4 rounded-[2rem] shadow-2xl flex gap-4 items-start transition-all ${n.severity === 'danger' ? 'border-red-500/50' : n.severity === 'warning' ? 'border-yellow-500/50' : n.severity === 'info' ? 'border-blue-500/50' : 'border-green-500/50'}`}>
-            <div className={`p-3 rounded-2xl bg-black border border-white/5 flex-shrink-0 ${n.severity === 'danger' ? 'text-red-500' : n.severity === 'warning' ? 'text-yellow-400' : n.severity === 'info' ? 'text-blue-400' : 'text-green-500'}`}>{n.icon || <Bell size={14} />}</div>
+            <div className={`p-3 rounded-2xl bg-black border border-white/5 flex-shrink-0 ${n.severity === 'danger' ? 'text-red-500' : n.severity === 'warning' ? 'text-yellow-400' : n.severity === 'info' ? 'text-blue-400' : 'text-green-500'}`}>
+              {n.icon || <Bell size={14} />}
+            </div>
             <div className="flex-1">
               <h4 className="text-[9px] font-black italic uppercase tracking-[0.15em] text-zinc-500 mb-0.5">{n.title}</h4>
               <p className="text-[11px] font-black italic uppercase leading-tight text-white/95">{n.msg}</p>
             </div>
-            <button onClick={() => closeNotification(n.id)} className="text-zinc-600 p-1 hover:text-white transition-colors"><X size={16} strokeWidth={3} /></button>
+            <button onClick={() => closeNotification(n.id)} className="text-zinc-600 p-1 hover:text-white transition-colors">
+              <X size={16} strokeWidth={3} />
+            </button>
           </div>
         ))}
       </div>
@@ -246,26 +270,34 @@ export default function DashboardPage() {
         </div>
       </div>
 
-      {/* SALDO & RESUMO */}
+      {/* SALDO TOTAL (PATRIMÔNIO HISTÓRICO) */}
       <div className="bg-[#111] pt-12 pb-8 px-8 rounded-[1.5rem] border border-white/5">
-        <p className="text-zinc-500 text-[9px] font-black uppercase tracking-widest mb-1 italic">Saldo Disponível</p>
-        <h2 className="text-4xl font-black italic">R$ {saldoTotal.toLocaleString('pt-BR')}</h2>
-      </div>
-
-      {/* SELETOR DE PERÍODO (MÊS/ANO) */}
-      <div className="flex justify-end gap-2 -mb-3">
-        <button onClick={() => setViewMode("mes")} className={`px-4 py-1.5 rounded-full text-[9px] font-black uppercase italic transition ${viewMode === 'mes' ? 'bg-white text-black' : 'bg-[#111] text-zinc-500 border border-white/5'}`}>Mês</button>
-        <button onClick={() => setViewMode("ano")} className={`px-4 py-1.5 rounded-full text-[9px] font-black uppercase italic transition ${viewMode === 'ano' ? 'bg-white text-black' : 'bg-[#111] text-zinc-500 border border-white/5'}`}>Ano</button>
+        <p className="text-zinc-500 text-[9px] font-black uppercase tracking-widest mb-1 italic">Saldo Disponível (Total)</p>
+        <h2 className="text-4xl font-black italic">R$ {saldoTotalPatrimonio.toLocaleString('pt-BR')}</h2>
       </div>
       
+      {/* CARDS COM BOTÕES INTERNOS */}
       <div className="grid grid-cols-2 gap-3">
-          <div className="bg-[#111] p-6 rounded-[1.5rem] border border-white/5">
-            <p className="text-green-500 text-[8px] font-black uppercase italic mb-1">Entradas {viewMode === 'mes' ? '(Mês)' : '(Ano)'}</p>
-            <h2 className="text-xl font-black italic text-green-500">R$ {entradasResumo.toLocaleString('pt-BR')}</h2>
+          <div className="bg-[#111] p-6 rounded-[1.5rem] border border-white/5 flex flex-col justify-between min-h-[140px]">
+            <div className="flex justify-between items-start">
+              <p className="text-green-500 text-[8px] font-black uppercase italic mb-1">Entradas</p>
+              <div className="flex bg-black/40 p-1 rounded-full border border-white/5">
+                <button onClick={() => setViewMode("mes")} className={`px-2 py-0.5 rounded-full text-[7px] font-black uppercase italic transition ${viewMode === 'mes' ? 'bg-white text-black' : 'text-zinc-500'}`}>Mês</button>
+                <button onClick={() => setViewMode("ano")} className={`px-2 py-0.5 rounded-full text-[7px] font-black uppercase italic transition ${viewMode === 'ano' ? 'bg-white text-black' : 'text-zinc-500'}`}>Ano</button>
+              </div>
+            </div>
+            <h2 className="text-xl font-black italic text-green-500 mt-4">R$ {entradasResumo.toLocaleString('pt-BR')}</h2>
           </div>
-          <div className="bg-[#111] p-6 rounded-[1.5rem] border border-white/5">
-            <p className="text-red-500 text-[8px] font-black uppercase italic mb-1">Saídas {viewMode === 'mes' ? '(Mês)' : '(Ano)'}</p>
-            <h2 className="text-xl font-black italic text-red-500">R$ {saídasResumo.toLocaleString('pt-BR')}</h2>
+
+          <div className="bg-[#111] p-6 rounded-[1.5rem] border border-white/5 flex flex-col justify-between min-h-[140px]">
+            <div className="flex justify-between items-start">
+              <p className="text-red-500 text-[8px] font-black uppercase italic mb-1">Saídas</p>
+              <div className="flex bg-black/40 p-1 rounded-full border border-white/5">
+                <button onClick={() => setViewMode("mes")} className={`px-2 py-0.5 rounded-full text-[7px] font-black uppercase italic transition ${viewMode === 'mes' ? 'bg-white text-black' : 'text-zinc-500'}`}>Mês</button>
+                <button onClick={() => setViewMode("ano")} className={`px-2 py-0.5 rounded-full text-[7px] font-black uppercase italic transition ${viewMode === 'ano' ? 'bg-white text-black' : 'text-zinc-500'}`}>Ano</button>
+              </div>
+            </div>
+            <h2 className="text-xl font-black italic text-red-500 mt-4">R$ {saídasResumo.toLocaleString('pt-BR')}</h2>
           </div>
       </div>
 
@@ -276,27 +308,36 @@ export default function DashboardPage() {
             <h3 className="text-lg font-black italic uppercase tracking-tighter">Gastos Fixos</h3>
             <p className="text-[8px] text-zinc-500 font-black uppercase tracking-widest italic">Veredito Mensal</p>
           </div>
-          <button onClick={() => setShowFixedModal(true)} className="bg-yellow-400 text-black px-4 py-2 rounded-xl font-black text-[9px] uppercase flex items-center gap-1"><Zap size={12} fill="black" /> ADICIONAR</button>
+          <button onClick={() => setShowFixedModal(true)} className="bg-yellow-400 text-black px-4 py-2 rounded-xl font-black text-[9px] uppercase flex items-center gap-1">
+            <Zap size={12} fill="black" /> ADICIONAR
+          </button>
         </div>
+        
         <div className="space-y-3">
           {gastosFixos.map(gasto => (
             <div key={gasto.id} className="flex justify-between items-center bg-black/40 p-4 rounded-2xl border border-white/5">
               <div className="flex items-center gap-3">
-                <div className="bg-zinc-800 text-[9px] font-black px-2 py-1 rounded-md text-yellow-400 italic">{formatDisplayDate(gasto.due_day)}</div>
-                <p className="text-[10px] font-black uppercase italic leading-none">{gasto.name}</p>
+                <div className="bg-zinc-800 text-[9px] font-black px-2 py-1 rounded-md text-yellow-400 italic">
+                  {formatDisplayDate(gasto.due_day)}
+                </div>
+                <div>
+                  <p className="text-[10px] font-black uppercase italic leading-none">{gasto.name}</p>
+                </div>
               </div>
               <div className="flex items-center gap-4">
                 <p className="text-xs font-black italic">R$ {Number(gasto.amount).toLocaleString('pt-BR')}</p>
-                <button onClick={() => deleteFixed(gasto.id)} className="text-zinc-800"><X size={16} strokeWidth={3} /></button>
+                <button onClick={() => deleteFixed(gasto.id)} className="text-zinc-800">
+                  <X size={16} strokeWidth={3} />
+                </button>
               </div>
             </div>
           ))}
         </div>
       </div>
 
-      {/* GRÁFICO DONUT (RESETA TODO MÊS) */}
+      {/* GRÁFICO DONUT (MANTIDO MENSAL) */}
       <div className="bg-[#111] pt-12 pb-8 px-8 rounded-[1.5rem] border border-white/5 flex flex-col items-center">
-        <span className="text-zinc-500 text-[10px] font-black uppercase tracking-[0.2em] mb-10 self-start italic">Orçamento de {agora.toLocaleString('pt-BR', { month: 'long' }).toUpperCase()}</span>
+        <span className="text-zinc-500 text-[10px] font-black uppercase tracking-[0.2em] mb-10 self-start italic">Uso do Orçamento (Mês)</span>
         <div className="relative w-64 h-64 flex items-center justify-center mb-10">
           <svg className="w-full h-full -rotate-90" viewBox="0 0 160 160">
             <circle cx="80" cy="80" r={70} fill="none" stroke="#1a1a1a" strokeWidth="18" />
@@ -304,20 +345,28 @@ export default function DashboardPage() {
           </svg>
           <div className="absolute flex flex-col items-center">
             <span className="text-6xl font-black italic leading-none">{porcentagemGeral}%</span>
-            <span className="text-[10px] text-zinc-500 font-black tracking-widest uppercase italic mt-2">Gasto Mês</span>
+            <span className="text-[10px] text-zinc-500 font-black tracking-widest uppercase italic mt-2">Gasto</span>
           </div>
         </div>
+        <div className="flex flex-wrap justify-center gap-6 mb-8 w-full">
+          {categoriasDosLimites.map(c => (
+            <div key={c.nome} className="flex flex-col items-center gap-1">
+              <div className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: c.cor }} />
+              <span className="text-2xl">{c.emoji}</span>
+            </div>
+          ))}
+        </div>
         <p className="text-zinc-500 font-black text-[11px] uppercase italic tracking-tight text-center">
-          <span className="text-white text-base">R$ {saídasMesReset.toLocaleString('pt-BR')}</span> DE R$ {orcamentoTotal.toLocaleString('pt-BR')}
+          <span className="text-white text-base">R$ {saídasMesAtual.toLocaleString('pt-BR')}</span> DE R$ {orcamentoTotal.toLocaleString('pt-BR')}
         </p>
       </div>
 
-      {/* LIMITES (RESETA TODO MÊS) */}
+      {/* LIMITES */}
       <div className="bg-[#111] pt-12 pb-8 px-8 rounded-[1.5rem] border border-white/5 space-y-8">
-        <h3 className="text-xl font-black italic uppercase tracking-tighter">Status dos Limites</h3>
+        <h3 className="text-xl font-black italic uppercase tracking-tighter">Limites por Categoria</h3>
         <div className="space-y-6">
           {metas.map(meta => {
-            const gastoCat = transacoesMesReset.filter(t => t.type === "saida" && t.category?.toLowerCase() === meta.category?.toLowerCase()).reduce((acc, t) => acc + Number(t.amount), 0);
+            const gastoCat = transacoesMesAtual.filter(t => t.type === "saida" && t.category?.toLowerCase() === meta.category?.toLowerCase()).reduce((acc, t) => acc + Number(t.amount), 0);
             const progresso = Math.min((gastoCat / Number(meta.amount)) * 100, 100);
             const excedeu = gastoCat > Number(meta.amount);
             const catInfo = MASTER_CATS.find(c => c.nome.toLowerCase() === meta.category?.toLowerCase());
@@ -336,7 +385,7 @@ export default function DashboardPage() {
         </div>
       </div>
 
-      {/* ATIVIDADE (Últimas 4 de todo o tempo) */}
+      {/* ATIVIDADE */}
       <div className="bg-[#111] pt-12 pb-8 px-8 rounded-[1.5rem] border border-white/5 space-y-6">
         <div className="flex justify-between items-center">
           <h3 className="text-xl font-black italic uppercase tracking-tighter">Atividade</h3>
@@ -354,11 +403,15 @@ export default function DashboardPage() {
                     <p className="text-zinc-600 text-[8px] font-bold uppercase mt-1">{new Date(t.created_at).toLocaleDateString('pt-BR')}</p>
                   </div>
                 </div>
-                <span className={`text-sm font-black italic ${t.type === 'entrada' ? 'text-green-500' : 'text-white'}`}>{t.type === 'entrada' ? '+' : '-'} R$ {Number(t.amount).toLocaleString('pt-BR')}</span>
+                <span className={`text-sm font-black italic ${t.type === 'entrada' ? 'text-green-500' : 'text-white'}`}>
+                  {t.type === 'entrada' ? '+' : '-'} R$ {Number(t.amount).toLocaleString('pt-BR')}
+                </span>
               </div>
             );
           })}
-          <button onClick={() => router.push("/historico")} className="w-full py-4 mt-2 bg-zinc-900 border border-white/5 rounded-2xl text-[9px] font-black uppercase tracking-[0.2em] italic">Ver atividade Completa →</button>
+          <button onClick={() => router.push("/historico")} className="w-full py-4 mt-2 bg-zinc-900 border border-white/5 rounded-2xl text-[9px] font-black uppercase tracking-[0.2em] italic">
+            Ver atividade Completa →
+          </button>
         </div>
       </div>
 
