@@ -22,13 +22,11 @@ export default function DashboardPage() {
   const [showModal, setShowModal] = useState(false);
   const [showFixedModal, setShowFixedModal] = useState(false);
   
-  // --- FILTRO TEMPORAL APENAS PARA OS CARDS ---
   const [viewMode, setViewMode] = useState<"mes" | "ano">("mes");
   const agora = new Date();
   const mesAtual = agora.getMonth();
   const anoAtual = agora.getFullYear();
 
-  // --- SISTEMA DE NOTIFICAÇÕES ---
   const [notifications, setNotifications] = useState<any[]>([]);
   const [closedNotifications, setClosedNotifications] = useState<string[]>(() => {
     if (typeof window !== 'undefined') {
@@ -239,28 +237,29 @@ export default function DashboardPage() {
         </div>
       </div>
 
-      {/* SALDO (VISUAL BASE) */}
+      {/* SALDO (MODELO PARA OS OUTROS) */}
       <div className="bg-[#111] pt-12 pb-8 px-8 rounded-[1.5rem] border border-white/5">
         <p className="text-zinc-500 text-[9px] font-black uppercase tracking-widest mb-1 italic">Saldo Disponível (Total)</p>
         <h2 className="text-4xl font-black italic">R$ {saldoGeral.toLocaleString('pt-BR')}</h2>
       </div>
       
-      {/* CARDS EMPILHADOS (ENTRADAS E SAÍDAS) */}
+      {/* CARDS EMPILHADOS */}
       <div className="flex flex-col gap-3">
-          {/* CARD ENTRADAS - ALTURA FIXA E RELATIVE PARA OS BOTÕES */}
-          <div className="bg-[#111] h-[140px] px-8 rounded-[1.5rem] border border-white/5 relative flex flex-col justify-center">
+          
+          {/* CARD ENTRADAS - REMOVIDO H-FIXO PARA NÃO ESTICAR, USANDO PT/PB IGUAL AO SALDO */}
+          <div className="bg-[#111] pt-12 pb-8 px-8 rounded-[1.5rem] border border-white/5 relative">
             <p className="text-green-500 text-[9px] font-black uppercase tracking-widest mb-1 italic">
                 Entradas ({viewMode === 'mes' ? 'Mês' : 'Ano'})
             </p>
             <h2 className="text-4xl font-black italic text-green-500">R$ {entradasCard.toLocaleString('pt-BR')}</h2>
             
-            {/* BOTÕES POSICIONADOS NO CANTO DIREITO DO CARD */}
-            <div className="absolute right-6 top-1/2 -translate-y-1/2 flex gap-1.5">
+            {/* BOTÕES DE FILTRO - AJUSTADOS PARA NÃO CRIAR ESPAÇO EXTRA */}
+            <div className="absolute right-6 top-[55%] -translate-y-1/2 flex gap-1.5">
               <button 
                 onClick={() => setViewMode("mes")} 
                 className={`flex items-center gap-1.5 px-3 py-2 rounded-lg border-2 transition-all duration-200 font-black text-[7px] uppercase italic ${
                   viewMode === 'mes' 
-                  ? 'border-yellow-400 text-yellow-400 bg-yellow-400/5 shadow-[0_0_10px_rgba(250,204,21,0.1)]' 
+                  ? 'border-yellow-400 text-yellow-400 bg-yellow-400/5' 
                   : 'border-zinc-800 text-zinc-500 bg-transparent'
                 }`}
               >
@@ -271,7 +270,7 @@ export default function DashboardPage() {
                 onClick={() => setViewMode("ano")} 
                 className={`flex items-center gap-1.5 px-3 py-2 rounded-lg border-2 transition-all duration-200 font-black text-[7px] uppercase italic ${
                   viewMode === 'ano' 
-                  ? 'border-yellow-400 text-yellow-400 bg-yellow-400/5 shadow-[0_0_10px_rgba(250,204,21,0.1)]' 
+                  ? 'border-yellow-400 text-yellow-400 bg-yellow-400/5' 
                   : 'border-zinc-800 text-zinc-500 bg-transparent'
                 }`}
               >
@@ -280,8 +279,8 @@ export default function DashboardPage() {
             </div>
           </div>
 
-          {/* CARD SAÍDAS - MESMA ALTURA PARA MANTER O PADRÃO */}
-          <div className="bg-[#111] h-[140px] px-8 rounded-[1.5rem] border border-white/5 flex flex-col justify-center">
+          {/* CARD SAÍDAS - IDENTICO AO DE ENTRADAS EM PADDING */}
+          <div className="bg-[#111] pt-12 pb-8 px-8 rounded-[1.5rem] border border-white/5">
             <p className="text-red-500 text-[9px] font-black uppercase tracking-widest mb-1 italic">
                 Saídas ({viewMode === 'mes' ? 'Mês' : 'Ano'})
             </p>
@@ -316,7 +315,7 @@ export default function DashboardPage() {
         </div>
       </div>
 
-      {/* GRÁFICO DONUT (ESTRITAMENTE MENSAL) */}
+      {/* GRÁFICO DONUT */}
       <div className="bg-[#111] pt-12 pb-8 px-8 rounded-[1.5rem] border border-white/5 flex flex-col items-center">
         <span className="text-zinc-500 text-[10px] font-black uppercase tracking-[0.2em] mb-10 self-start italic">Uso do Orçamento (Mês)</span>
         <div className="relative w-64 h-64 flex items-center justify-center mb-10">
@@ -342,7 +341,7 @@ export default function DashboardPage() {
         </p>
       </div>
 
-      {/* LIMITES POR CATEGORIA (ESTRITAMENTE MENSAL) */}
+      {/* LIMITES POR CATEGORIA */}
       <div className="bg-[#111] pt-12 pb-8 px-8 rounded-[1.5rem] border border-white/5 space-y-8">
         <h3 className="text-xl font-black italic uppercase tracking-tighter">Limites por Categoria</h3>
         <div className="space-y-6">
