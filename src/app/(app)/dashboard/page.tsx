@@ -1,4 +1,4 @@
-"use client";
+  "use client";
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
@@ -248,40 +248,49 @@ export default function DashboardPage() {
       {/* CARDS EMPILHADOS (ENTRADAS E SAÍDAS) */}
       <div className="flex flex-col gap-3">
           {/* CARD ENTRADAS */}
-          <div className="bg-[#111] pt-12 pb-8 px-8 rounded-[1.5rem] border border-white/5 relative">
-            <p className="text-green-500 text-[9px] font-black uppercase tracking-widest mb-1 italic">Entradas ({viewMode === 'mes' ? 'Mês' : 'Ano'})</p>
-            <h2 className="text-4xl font-black italic text-green-500">R$ {entradasCard.toLocaleString('pt-BR')}</h2>
-            
-            {/* BOTÕES DE FILTRO HORIZONTAIS E RETANGULARES (CONTIDOS NO CARD) */}
-            <div className="absolute top-4 right-4 flex gap-1.5">
-              <button 
-                onClick={() => setViewMode("mes")} 
-                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg border-2 transition-all duration-200 font-black text-[7px] uppercase italic ${
-                  viewMode === 'mes' 
-                  ? 'border-yellow-400 text-yellow-400 bg-yellow-400/5 shadow-[0_0_10px_rgba(250,204,21,0.1)]' 
-                  : 'border-zinc-800 text-zinc-500 bg-transparent'
-                }`}
-              >
-                <Calendar size={9} strokeWidth={3} className={viewMode === 'mes' ? 'text-yellow-400' : 'text-zinc-500'} /> MÊS
-              </button>
+          <div className="bg-[#111] p-8 rounded-[1.5rem] border border-white/5 flex flex-col gap-6">
+            <div className="flex justify-between items-center w-full">
+              <p className="text-green-500 text-[9px] font-black uppercase tracking-widest italic leading-none">
+                Entradas ({viewMode === 'mes' ? 'Mês' : 'Ano'})
+              </p>
               
-              <button 
-                onClick={() => setViewMode("ano")} 
-                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg border-2 transition-all duration-200 font-black text-[7px] uppercase italic ${
-                  viewMode === 'ano' 
-                  ? 'border-yellow-400 text-yellow-400 bg-yellow-400/5 shadow-[0_0_10px_rgba(250,204,21,0.1)]' 
-                  : 'border-zinc-800 text-zinc-500 bg-transparent'
-                }`}
-              >
-                <Calendar size={9} strokeWidth={3} className={viewMode === 'ano' ? 'text-yellow-400' : 'text-zinc-500'} /> ANO
-              </button>
+              {/* BOTÕES NO CANTO SUPERIOR DIREITO DENTRO DO CARD */}
+              <div className="flex gap-1.5">
+                <button 
+                  onClick={() => setViewMode("mes")} 
+                  className={`flex items-center gap-1.5 px-3 py-2 rounded-lg border-2 transition-all duration-200 font-black text-[7px] uppercase italic ${
+                    viewMode === 'mes' 
+                    ? 'border-yellow-400 text-yellow-400 bg-yellow-400/5 shadow-[0_0_10px_rgba(250,204,21,0.1)]' 
+                    : 'border-zinc-800 text-zinc-500 bg-transparent'
+                  }`}
+                >
+                  <Calendar size={9} strokeWidth={3} /> MÊS
+                </button>
+                
+                <button 
+                  onClick={() => setViewMode("ano")} 
+                  className={`flex items-center gap-1.5 px-3 py-2 rounded-lg border-2 transition-all duration-200 font-black text-[7px] uppercase italic ${
+                    viewMode === 'ano' 
+                    ? 'border-yellow-400 text-yellow-400 bg-yellow-400/5 shadow-[0_0_10px_rgba(250,204,21,0.1)]' 
+                    : 'border-zinc-800 text-zinc-500 bg-transparent'
+                  }`}
+                >
+                  <Calendar size={9} strokeWidth={3} /> ANO
+                </button>
+              </div>
             </div>
+            
+            <h2 className="text-4xl font-black italic text-green-500 leading-none">R$ {entradasCard.toLocaleString('pt-BR')}</h2>
           </div>
 
           {/* CARD SAÍDAS */}
-          <div className="bg-[#111] pt-12 pb-8 px-8 rounded-[1.5rem] border border-white/5">
-            <p className="text-red-500 text-[9px] font-black uppercase tracking-widest mb-1 italic">Saídas ({viewMode === 'mes' ? 'Mês' : 'Ano'})</p>
-            <h2 className="text-4xl font-black italic text-red-500">R$ {saidasCard.toLocaleString('pt-BR')}</h2>
+          <div className="bg-[#111] p-8 rounded-[1.5rem] border border-white/5 flex flex-col gap-6">
+            <div className="flex justify-between items-center w-full">
+              <p className="text-red-500 text-[9px] font-black uppercase tracking-widest italic leading-none">
+                Saídas ({viewMode === 'mes' ? 'Mês' : 'Ano'})
+              </p>
+            </div>
+            <h2 className="text-4xl font-black italic text-red-500 leading-none">R$ {saidasCard.toLocaleString('pt-BR')}</h2>
           </div>
       </div>
 
