@@ -245,20 +245,20 @@ export default function DashboardPage() {
         <h2 className="text-4xl font-black italic">R$ {saldoGeral.toLocaleString('pt-BR')}</h2>
       </div>
       
-      {/* CARDS EMPILHADOS */}
+      {/* CARDS EMPILHADOS (ENTRADAS E SAÍDAS) */}
       <div className="flex flex-col gap-3">
           {/* CARD ENTRADAS */}
           <div className="bg-[#111] pt-12 pb-8 px-8 rounded-[1.5rem] border border-white/5 relative">
             <p className="text-green-500 text-[9px] font-black uppercase tracking-widest mb-1 italic">Entradas ({viewMode === 'mes' ? 'Mês' : 'Ano'})</p>
             <h2 className="text-4xl font-black italic text-green-500">R$ {entradasCard.toLocaleString('pt-BR')}</h2>
             
-            {/* BOTÕES DE FILTRO INTEGRADOS */}
+            {/* BOTÕES DE FILTRO HORIZONTAIS E RETANGULARES (CONTIDOS NO CARD) */}
             <div className="absolute top-4 right-4 flex gap-1.5">
               <button 
                 onClick={() => setViewMode("mes")} 
-                className={`flex items-center gap-1 px-2.5 py-1.5 rounded-xl border-2 transition-all duration-200 font-black text-[7px] uppercase italic ${
+                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg border-2 transition-all duration-200 font-black text-[7px] uppercase italic ${
                   viewMode === 'mes' 
-                  ? 'border-yellow-400 text-yellow-400 bg-yellow-400/5' 
+                  ? 'border-yellow-400 text-yellow-400 bg-yellow-400/5 shadow-[0_0_10px_rgba(250,204,21,0.1)]' 
                   : 'border-zinc-800 text-zinc-500 bg-transparent'
                 }`}
               >
@@ -267,9 +267,9 @@ export default function DashboardPage() {
               
               <button 
                 onClick={() => setViewMode("ano")} 
-                className={`flex items-center gap-1 px-2.5 py-1.5 rounded-xl border-2 transition-all duration-200 font-black text-[7px] uppercase italic ${
+                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg border-2 transition-all duration-200 font-black text-[7px] uppercase italic ${
                   viewMode === 'ano' 
-                  ? 'border-yellow-400 text-yellow-400 bg-yellow-400/5' 
+                  ? 'border-yellow-400 text-yellow-400 bg-yellow-400/5 shadow-[0_0_10px_rgba(250,204,21,0.1)]' 
                   : 'border-zinc-800 text-zinc-500 bg-transparent'
                 }`}
               >
