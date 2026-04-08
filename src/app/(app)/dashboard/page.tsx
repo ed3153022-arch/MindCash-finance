@@ -22,6 +22,7 @@ export default function DashboardPage() {
   const [showModal, setShowModal] = useState(false);
   const [showFixedModal, setShowFixedModal] = useState(false);
   
+  // --- SISTEMA DE NOTIFICAÇÕES INTEGRADO ---
   const [notifications, setNotifications] = useState<any[]>([]);
   const [closedNotifications, setClosedNotifications] = useState<string[]>(() => {
     if (typeof window !== 'undefined') {
@@ -44,26 +45,14 @@ export default function DashboardPage() {
     const novosAlertas: any[] = [];
     const hoje = new Date();
     const hojeStr = `${hoje.getDate()}${hoje.getMonth() + 1}${hoje.getFullYear()}`;
-    
-    // Dia atual como número (Ex: 7)
-    const diaHojeNumero = hoje.getDate();
+    const diaHoje = String(hoje.getDate()).padStart(2, '0');
 
-    // --- LÓGICA PARA INT4 (NÚMERO INTEIRO) ---
+    // Alertas de Gastos Fixos (Lógica p/ int4 salvando data completa)
     fixosData.forEach(gasto => {
-      // Como o banco é int4, o valor vem como número puro (ex: 7 ou 7042026)
-      let diaDoGasto = 0;
-      const valorBanco = Number(gasto.due_day);
+      const dataCompleta = String(gasto.due_day).padStart(8, '0');
+      const diaGasto = dataCompleta.slice(0, 2);
 
-      if (valorBanco > 31) {
-        // Caso você esteja salvando a data toda como 07042026 no int4
-        // Pegamos os dois primeiros dígitos
-        diaDoGasto = Number(String(valorBanco).padStart(8, '0').slice(0, 2));
-      } else {
-        // Caso você salve apenas o dia do vencimento (ex: 7)
-        diaDoGasto = valorBanco;
-      }
-
-      if (diaDoGasto === diaHojeNumero) {
+      if (diaGasto === diaHoje) {
         novosAlertas.push({
           id: `fixo-${gasto.id}-${hojeStr}`,
           title: "SENTENÇA DE HOJE",
@@ -74,6 +63,7 @@ export default function DashboardPage() {
       }
     });
 
+    // Alertas de Metas
     metasData.forEach(meta => {
       const gastoCat = transData
         .filter(t => t.type === "saida" && t.category?.toLowerCase() === meta.category?.toLowerCase())
@@ -97,10 +87,12 @@ export default function DashboardPage() {
       return [...prev, ...filtrar];
     });
   };
+  // ------------------------------------------
 
   const [metas, setMetas] = useState<any[]>([]);
   const [transacoes, setTransacoes] = useState<any[]>([]);
   const [gastosFixos, setGastosFixos] = useState<any[]>([]);
+  
   const [tipo, setTipo] = useState<"saida" | "entrada">("saida");
   const [catSel, setCatSel] = useState("");
   const [valor, setValor] = useState("");
@@ -122,6 +114,8 @@ export default function DashboardPage() {
       setMetas(m.data || []);
       setTransacoes(t.data || []);
       setGastosFixos(f.data || []);
+      
+      // DISPARA A GERAÇÃO DE ALERTAS APÓS CARREGAR
       gerarAlertasDinamicos(m.data || [], t.data || [], f.data || []);
     } catch (e) { console.error(e); }
     setLoading(false);
@@ -147,9 +141,10 @@ export default function DashboardPage() {
   };
 
   const formatDisplayDate = (d: any) => {
-    const s = String(d);
-    if (s.length <= 2) return `Dia ${s}`; // Se for só o dia
-    return s.replace(/(\d{2})(\d{2})(\d{4})/, "$1/$2/$3"); // Se for data cheia
+    if (!d) return "";
+    const clean = String(d).replace(/\D/g, "");
+    const padded = clean.padStart(8, '0');
+    return padded.replace(/(\d{2})(\d{2})(\d{4})/, "$1/$2/$3");
   };
 
   const entradas = transacoes.filter(t => t.type === "entrada").reduce((acc, t) => acc + Number(t.amount), 0);
@@ -162,17 +157,13 @@ export default function DashboardPage() {
 
   async function handleAddFixed() {
     try {
-      if (!fixoNome || !fixoValor || !fixoData) return notify("Preencha tudo!", "error");
+      if (!fixoNome || !fixoValor || fixoData.length < 10) return notify("Preencha tudo!", "error");
       const { data: { user } } = await supabase.auth.getUser();
       const valorNum = parseFloat(fixoValor.replace(",", "."));
-      
-      // Converte a data para número para o banco int4
-      const dataNumerica = parseInt(fixoData.replace(/\D/g, ""));
-
+      const dataLimpa = fixoData.replace(/\D/g, "");
       const { error } = await supabase.from("fixed_expenses").insert({
-        user_id: user?.id, name: fixoNome.trim().toUpperCase(), amount: valorNum, due_day: dataNumerica
+        user_id: user?.id, name: fixoNome.trim().toUpperCase(), amount: valorNum, due_day: dataLimpa
       });
-
       if (error) throw error;
       notify("Sentença Fixa Salva!");
       setShowFixedModal(false); setFixoNome(""); setFixoValor(""); setFixoData("");
@@ -207,7 +198,7 @@ export default function DashboardPage() {
   return (
     <div className="flex flex-col gap-6 w-full max-w-4xl mx-auto p-4 pb-24 text-white bg-black min-h-screen font-sans">
       
-      {/* HUD DE NOTIFICAÇÕES */}
+      {/* HUD DE NOTIFICAÇÕES (NOVO DESIGN) */}
       <div className="fixed top-4 right-4 left-4 z-[999] flex flex-col gap-3 pointer-events-none">
         {notifications.map((n) => (
           <div key={n.id} className={`pointer-events-auto bg-[#0a0a0a]/95 backdrop-blur-xl border-2 p-4 rounded-[2rem] shadow-2xl flex gap-4 items-start transition-all ${n.severity === 'danger' ? 'border-red-500/50' : n.severity === 'warning' ? 'border-yellow-500/50' : n.severity === 'info' ? 'border-blue-500/50' : 'border-green-500/50'}`}>
@@ -282,7 +273,7 @@ export default function DashboardPage() {
         </div>
       </div>
 
-      {/* RESTO DO DASHBOARD (GRÁFICO, LIMITES, ATIVIDADE) */}
+      {/* GRÁFICO & USO */}
       <div className="bg-[#111] pt-12 pb-8 px-8 rounded-[1.5rem] border border-white/5 flex flex-col items-center">
         <span className="text-zinc-500 text-[10px] font-black uppercase tracking-[0.2em] mb-10 self-start italic">Uso do Orçamento</span>
         <div className="relative w-64 h-64 flex items-center justify-center mb-10">
@@ -308,23 +299,58 @@ export default function DashboardPage() {
         </p>
       </div>
 
-      {/* MODAL GASTO FIXO (CORRIGIDO PARA SALVAR INT) */}
-      {showFixedModal && (
-        <div className="fixed inset-0 bg-black/95 backdrop-blur-md z-[150] flex items-center justify-center p-6">
-          <div className="bg-[#111] w-full max-w-sm rounded-[2rem] p-8 border border-white/10 shadow-2xl">
-            <h2 className="text-2xl font-black italic uppercase mb-8 text-yellow-400">Nova Sentença Fixa</h2>
-            <div className="space-y-6">
-              <input type="text" placeholder="NOME DO GASTO" value={fixoNome} onChange={e => setFixoNome(e.target.value)} className="w-full bg-black border border-white/5 p-5 rounded-2xl text-[11px] font-black italic text-white outline-none focus:border-yellow-400" />
-              <input type="text" inputMode="numeric" placeholder="VALOR (0,00)" value={fixoValor} onChange={e => setFixoValor(maskMoney(e.target.value))} className="w-full bg-black border border-white/5 p-5 rounded-2xl text-[11px] font-black italic text-white outline-none focus:border-yellow-400" />
-              <input type="text" inputMode="numeric" placeholder="DIA DO VENCIMENTO (07)" value={fixoData} onChange={e => setFixoData(e.target.value.replace(/\D/g, "").slice(0,2))} className="w-full bg-black border border-white/10 p-5 rounded-2xl text-[11px] font-black italic text-white outline-none focus:border-yellow-400" />
-            </div>
-            <button onClick={handleAddFixed} className="w-full bg-yellow-400 text-black py-5 rounded-2xl font-black uppercase text-[10px] mt-10 active:scale-95">Confirmar</button>
-            <button onClick={() => setShowFixedModal(false)} className="w-full py-4 text-zinc-500 font-black text-[9px] uppercase mt-2">Cancelar</button>
-          </div>
+      {/* LIMITES */}
+      <div className="bg-[#111] pt-12 pb-8 px-8 rounded-[1.5rem] border border-white/5 space-y-8">
+        <h3 className="text-xl font-black italic uppercase tracking-tighter">Limites por Categoria</h3>
+        <div className="space-y-6">
+          {metas.map(meta => {
+            const gastoCat = transacoes.filter(t => t.type === "saida" && t.category?.toLowerCase() === meta.category?.toLowerCase()).reduce((acc, t) => acc + Number(t.amount), 0);
+            const progresso = Math.min((gastoCat / Number(meta.amount)) * 100, 100);
+            const excedeu = gastoCat > Number(meta.amount);
+            const catInfo = MASTER_CATS.find(c => c.nome.toLowerCase() === meta.category?.toLowerCase());
+            return (
+              <div key={meta.id} className="space-y-2">
+                <div className="flex justify-between items-end">
+                  <span className="text-[10px] font-black uppercase italic">{catInfo?.emoji} {meta.category}</span>
+                  <span className="text-[10px] font-black text-zinc-400">R$ {gastoCat.toLocaleString('pt-BR')} / {Number(meta.amount).toLocaleString('pt-BR')}</span>
+                </div>
+                <div className="w-full bg-white/5 h-1.5 rounded-full overflow-hidden">
+                  <div className={`h-full transition-all duration-1000 ${excedeu ? "bg-red-500 shadow-[0_0_8px_#ef4444]" : "bg-yellow-400"}`} style={{ width: `${progresso}%` }} />
+                </div>
+              </div>
+            );
+          })}
         </div>
-      )}
+      </div>
 
-      {/* MODAL TRANSAÇÃO (ADICIONAL) */}
+      {/* ATIVIDADE */}
+      <div className="bg-[#111] pt-12 pb-8 px-8 rounded-[1.5rem] border border-white/5 space-y-6">
+        <div className="flex justify-between items-center">
+          <h3 className="text-xl font-black italic uppercase tracking-tighter">Atividade</h3>
+          <span className="text-[9px] font-black text-zinc-500 uppercase tracking-widest italic">Recentes</span>
+        </div>
+        <div className="space-y-3">
+          {transacoes.slice(0, 4).map((t) => {
+            const catInfo = MASTER_CATS.find(c => c.nome.toLowerCase() === t.category?.toLowerCase());
+            return (
+              <div key={t.id} className="flex justify-between items-center bg-black/40 p-4 rounded-2xl border border-white/5">
+                <div className="flex items-center gap-3">
+                  <span className="text-xl">{t.type === 'entrada' ? "💰" : (catInfo?.emoji || "💸")}</span>
+                  <div>
+                    <p className="text-white font-black italic uppercase text-[10px] leading-none">{t.category}</p>
+                    <p className="text-zinc-600 text-[8px] font-bold uppercase mt-1">{new Date(t.created_at).toLocaleDateString('pt-BR')}</p>
+                  </div>
+                </div>
+                <span className={`text-sm font-black italic ${t.type === 'entrada' ? 'text-green-500' : 'text-white'}`}>
+                  {t.type === 'entrada' ? '+' : '-'} R$ {Number(t.amount).toLocaleString('pt-BR')}
+                </span>
+              </div>
+            );
+          })}
+        </div>
+      </div>
+
+      {/* MODAL TRANSAÇÃO */}
       {showModal && (
         <div className="fixed inset-0 bg-black/95 backdrop-blur-md z-[150] flex items-center justify-center p-6">
           <div className="bg-[#111] w-full max-w-sm rounded-[2rem] p-8 border border-white/10">
@@ -345,6 +371,21 @@ export default function DashboardPage() {
         </div>
       )}
 
+      {/* MODAL GASTO FIXO */}
+      {showFixedModal && (
+        <div className="fixed inset-0 bg-black/95 backdrop-blur-md z-[150] flex items-center justify-center p-6">
+          <div className="bg-[#111] w-full max-w-sm rounded-[2rem] p-8 border border-white/10 shadow-2xl">
+            <h2 className="text-2xl font-black italic uppercase mb-8 text-yellow-400">Nova Sentença Fixa</h2>
+            <div className="space-y-6">
+              <input type="text" placeholder="NOME DO GASTO" value={fixoNome} onChange={e => setFixoNome(e.target.value)} className="w-full bg-black border border-white/5 p-5 rounded-2xl text-[11px] font-black italic text-white outline-none focus:border-yellow-400" />
+              <input type="text" inputMode="numeric" placeholder="VALOR (0,00)" value={fixoValor} onChange={e => setFixoValor(maskMoney(e.target.value))} className="w-full bg-black border border-white/5 p-5 rounded-2xl text-[11px] font-black italic text-white outline-none focus:border-yellow-400" />
+              <input type="text" inputMode="numeric" placeholder="00/00/0000" value={fixoData} onChange={e => setFixoData(maskDate(e.target.value))} className="w-full bg-black border border-white/10 p-5 rounded-2xl text-[11px] font-black italic text-white outline-none focus:border-yellow-400" />
+            </div>
+            <button onClick={handleAddFixed} className="w-full bg-yellow-400 text-black py-5 rounded-2xl font-black uppercase text-[10px] mt-10 active:scale-95">Confirmar</button>
+            <button onClick={() => setShowFixedModal(false)} className="w-full py-4 text-zinc-500 font-black text-[9px] uppercase mt-2">Cancelar</button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
