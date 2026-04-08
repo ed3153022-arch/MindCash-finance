@@ -22,7 +22,7 @@ export default function DashboardPage() {
   const [showModal, setShowModal] = useState(false);
   const [showFixedModal, setShowFixedModal] = useState(false);
   
-  // --- SISTEMA DE NOTIFICAÇÕES INTEGRADO ---
+  // --- SISTEMA DE NOTIFICAÇÕES (ESTADOS) ---
   const [notifications, setNotifications] = useState<any[]>([]);
   const [closedNotifications, setClosedNotifications] = useState<string[]>(() => {
     if (typeof window !== 'undefined') {
@@ -41,13 +41,14 @@ export default function DashboardPage() {
     setClosedNotifications(prev => [...prev, id]);
   };
 
+  // --- LÓGICA DE ALERTAS DINÂMICOS ---
   const gerarAlertasDinamicos = (metasData: any[], transData: any[], fixosData: any[]) => {
     const novosAlertas: any[] = [];
     const hoje = new Date();
     const hojeStr = `${hoje.getDate()}${hoje.getMonth() + 1}${hoje.getFullYear()}`;
     const diaHoje = String(hoje.getDate()).padStart(2, '0');
 
-    // Alertas de Gastos Fixos (Lógica p/ int4 salvando data completa)
+    // Verifica Vencimentos de hoje (Extraindo dia do int4)
     fixosData.forEach(gasto => {
       const dataCompleta = String(gasto.due_day).padStart(8, '0');
       const diaGasto = dataCompleta.slice(0, 2);
@@ -63,7 +64,7 @@ export default function DashboardPage() {
       }
     });
 
-    // Alertas de Metas
+    // Verifica Limites/Metas
     metasData.forEach(meta => {
       const gastoCat = transData
         .filter(t => t.type === "saida" && t.category?.toLowerCase() === meta.category?.toLowerCase())
@@ -87,7 +88,6 @@ export default function DashboardPage() {
       return [...prev, ...filtrar];
     });
   };
-  // ------------------------------------------
 
   const [metas, setMetas] = useState<any[]>([]);
   const [transacoes, setTransacoes] = useState<any[]>([]);
@@ -96,6 +96,7 @@ export default function DashboardPage() {
   const [tipo, setTipo] = useState<"saida" | "entrada">("saida");
   const [catSel, setCatSel] = useState("");
   const [valor, setValor] = useState("");
+
   const [fixoNome, setFixoNome] = useState("");
   const [fixoValor, setFixoValor] = useState("");
   const [fixoData, setFixoData] = useState("");
@@ -106,24 +107,32 @@ export default function DashboardPage() {
     try {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) return router.push("/login");
+
       const [m, t, f] = await Promise.all([
         supabase.from("goals").select("*").eq("user_id", user.id),
         supabase.from("transactions").select("*").eq("user_id", user.id).order("created_at", { ascending: false }),
         supabase.from("fixed_expenses").select("*").eq("user_id", user.id).order("due_day", { ascending: true })
       ]);
+
       setMetas(m.data || []);
       setTransacoes(t.data || []);
       setGastosFixos(f.data || []);
-      
-      // DISPARA A GERAÇÃO DE ALERTAS APÓS CARREGAR
+
+      // DISPARA OS ALERTAS APÓS CARREGAR OS DADOS
       gerarAlertasDinamicos(m.data || [], t.data || [], f.data || []);
     } catch (e) { console.error(e); }
     setLoading(false);
   }
 
   const notify = (msg: string, type: 'success' | 'error' = 'success') => {
-    const id = `manual-${Date.now()}`;
-    setNotifications(prev => [...prev, { id, msg, title: type === 'success' ? 'SUCESSO' : 'ERRO', severity: type === 'success' ? 'success' : 'danger', icon: <Bell size={14} /> }]);
+    const id = Date.now().toString();
+    setNotifications(prev => [...prev, { 
+      id, 
+      msg, 
+      title: type === 'success' ? 'SUCESSO' : 'ERRO', 
+      severity: type === 'success' ? 'success' : 'danger',
+      icon: <Bell size={14} />
+    }]);
     setTimeout(() => setNotifications(prev => prev.filter(n => n.id !== id)), 3000);
   };
 
@@ -153,7 +162,9 @@ export default function DashboardPage() {
   const orcamentoTotal = metas.reduce((acc, m) => acc + Number(m.amount), 0) || 1;
   const porcentagemGeral = Math.min(Math.round((saídas / orcamentoTotal) * 100), 100);
 
-  const categoriasDosLimites = MASTER_CATS.filter(cat => metas.some(m => m.category?.toLowerCase() === cat.nome.toLowerCase()));
+  const categoriasDosLimites = MASTER_CATS.filter(cat => 
+    metas.some(m => m.category?.toLowerCase() === cat.nome.toLowerCase())
+  );
 
   async function handleAddFixed() {
     try {
@@ -161,9 +172,11 @@ export default function DashboardPage() {
       const { data: { user } } = await supabase.auth.getUser();
       const valorNum = parseFloat(fixoValor.replace(",", "."));
       const dataLimpa = fixoData.replace(/\D/g, "");
+
       const { error } = await supabase.from("fixed_expenses").insert({
         user_id: user?.id, name: fixoNome.trim().toUpperCase(), amount: valorNum, due_day: dataLimpa
       });
+
       if (error) throw error;
       notify("Sentença Fixa Salva!");
       setShowFixedModal(false); setFixoNome(""); setFixoValor(""); setFixoData("");
@@ -182,6 +195,7 @@ export default function DashboardPage() {
     const circunferencia = 2 * Math.PI * raio;
     let acumulado = 0;
     if (saídas <= 0) return <circle cx="80" cy="80" r={raio} fill="none" stroke="#1a1a1a" strokeWidth="20" />;
+
     return categoriasDosLimites.map((cat) => {
       const gastoCat = transacoes.filter(t => t.type === "saida" && t.category?.toLowerCase() === cat.nome.toLowerCase()).reduce((acc, t) => acc + Number(t.amount), 0);
       if (gastoCat <= 0) return null;
@@ -198,7 +212,7 @@ export default function DashboardPage() {
   return (
     <div className="flex flex-col gap-6 w-full max-w-4xl mx-auto p-4 pb-24 text-white bg-black min-h-screen font-sans">
       
-      {/* HUD DE NOTIFICAÇÕES (NOVO DESIGN) */}
+      {/* HUD DE NOTIFICAÇÕES DINÂMICAS */}
       <div className="fixed top-4 right-4 left-4 z-[999] flex flex-col gap-3 pointer-events-none">
         {notifications.map((n) => (
           <div key={n.id} className={`pointer-events-auto bg-[#0a0a0a]/95 backdrop-blur-xl border-2 p-4 rounded-[2rem] shadow-2xl flex gap-4 items-start transition-all ${n.severity === 'danger' ? 'border-red-500/50' : n.severity === 'warning' ? 'border-yellow-500/50' : n.severity === 'info' ? 'border-blue-500/50' : 'border-green-500/50'}`}>
@@ -209,7 +223,9 @@ export default function DashboardPage() {
               <h4 className="text-[9px] font-black italic uppercase tracking-[0.15em] text-zinc-500 mb-0.5">{n.title}</h4>
               <p className="text-[11px] font-black italic uppercase leading-tight text-white/95">{n.msg}</p>
             </div>
-            <button onClick={() => closeNotification(n.id)} className="text-zinc-600 p-1 hover:text-white transition-colors"><X size={16} strokeWidth={3} /></button>
+            <button onClick={() => closeNotification(n.id)} className="text-zinc-600 p-1 hover:text-white transition-colors">
+              <X size={16} strokeWidth={3} />
+            </button>
           </div>
         ))}
       </div>
@@ -225,12 +241,12 @@ export default function DashboardPage() {
         </div>
       </div>
 
-      {/* SALDO */}
+      {/* SALDO & RESUMO */}
       <div className="bg-[#111] pt-12 pb-8 px-8 rounded-[1.5rem] border border-white/5">
         <p className="text-zinc-500 text-[9px] font-black uppercase tracking-widest mb-1 italic">Saldo Disponível</p>
         <h2 className="text-4xl font-black italic">R$ {saldo.toLocaleString('pt-BR')}</h2>
       </div>
-
+      
       <div className="grid grid-cols-2 gap-3">
           <div className="bg-[#111] p-6 rounded-[1.5rem] border border-white/5">
             <p className="text-green-500 text-[8px] font-black uppercase italic mb-1">Entradas</p>
@@ -253,6 +269,7 @@ export default function DashboardPage() {
             <Zap size={12} fill="black" /> ADICIONAR
           </button>
         </div>
+        
         <div className="space-y-3">
           {gastosFixos.map(gasto => (
             <div key={gasto.id} className="flex justify-between items-center bg-black/40 p-4 rounded-2xl border border-white/5">
@@ -266,14 +283,16 @@ export default function DashboardPage() {
               </div>
               <div className="flex items-center gap-4">
                 <p className="text-xs font-black italic">R$ {Number(gasto.amount).toLocaleString('pt-BR')}</p>
-                <button onClick={() => deleteFixed(gasto.id)} className="text-zinc-800"><X size={16} strokeWidth={3} /></button>
+                <button onClick={() => deleteFixed(gasto.id)} className="text-zinc-800">
+                  <X size={16} strokeWidth={3} />
+                </button>
               </div>
             </div>
           ))}
         </div>
       </div>
 
-      {/* GRÁFICO & USO */}
+      {/* GRÁFICO DONUT */}
       <div className="bg-[#111] pt-12 pb-8 px-8 rounded-[1.5rem] border border-white/5 flex flex-col items-center">
         <span className="text-zinc-500 text-[10px] font-black uppercase tracking-[0.2em] mb-10 self-start italic">Uso do Orçamento</span>
         <div className="relative w-64 h-64 flex items-center justify-center mb-10">
@@ -347,10 +366,13 @@ export default function DashboardPage() {
               </div>
             );
           })}
+          <button onClick={() => router.push("/historico")} className="w-full py-4 mt-2 bg-zinc-900 border border-white/5 rounded-2xl text-[9px] font-black uppercase tracking-[0.2em] italic">
+            Ver atividade Completa →
+          </button>
         </div>
       </div>
 
-      {/* MODAL TRANSAÇÃO */}
+      {/* MODAL NOVA TRANSAÇÃO */}
       {showModal && (
         <div className="fixed inset-0 bg-black/95 backdrop-blur-md z-[150] flex items-center justify-center p-6">
           <div className="bg-[#111] w-full max-w-sm rounded-[2rem] p-8 border border-white/10">
@@ -359,6 +381,16 @@ export default function DashboardPage() {
               <button onClick={() => setTipo("saida")} className={`py-3 rounded-xl font-black text-[10px] uppercase transition ${tipo === "saida" ? "bg-red-500 text-white" : "text-zinc-500"}`}>Saída</button>
               <button onClick={() => setTipo("entrada")} className={`py-3 rounded-xl font-black text-[10px] uppercase transition ${tipo === "entrada" ? "bg-green-500 text-white" : "text-zinc-500"}`}>Entrada</button>
             </div>
+            {tipo === "saida" && (
+              <div className="grid grid-cols-3 gap-2 mb-6 max-h-40 overflow-y-auto">
+                {MASTER_CATS.map(c => (
+                  <button key={c.nome} onClick={() => setCatSel(c.nome)} className={`p-2 rounded-xl border transition-all flex flex-col items-center ${catSel === c.nome ? "border-yellow-400 bg-yellow-400/10" : "border-white/5 bg-black/40"}`}>
+                    <span className="text-lg">{c.emoji}</span>
+                    <span className="text-[6px] font-black uppercase">{c.nome}</span>
+                  </button>
+                ))}
+              </div>
+            )}
             <input type="text" inputMode="numeric" placeholder="R$ 0,00" value={valor} onChange={(e) => setValor(maskMoney(e.target.value))} className="w-full bg-black border border-white/10 p-5 rounded-2xl text-3xl font-black italic outline-none text-center focus:border-yellow-400 mb-6" />
             <button onClick={async () => {
                 const valorNum = parseFloat(valor.replace(",", "."));
