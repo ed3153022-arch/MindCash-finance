@@ -44,11 +44,16 @@ export default function DashboardPage() {
   const gerarAlertasDinamicos = (metasData: any[], transData: any[], fixosData: any[]) => {
     const novosAlertas: any[] = [];
     const hoje = new Date();
+    // ID base diário: DiaMesAno
     const hojeStr = `${hoje.getDate()}${hoje.getMonth() + 1}${hoje.getFullYear()}`;
 
-    // Alertas de Gastos Fixos
+    // --- CORREÇÃO GASTOS FIXOS ---
     fixosData.forEach(gasto => {
-      const diaGasto = String(gasto.due_day).replace(/\D/g, "").slice(0, 2);
+      // Remove barras e pega os 2 primeiros dígitos (o dia)
+      const dataLimpa = String(gasto.due_day).replace(/\D/g, "");
+      const diaGasto = dataLimpa.slice(0, 2).padStart(2, '0');
+      
+      // Pega o dia de hoje (ex: 7 vira "07")
       const diaHoje = String(hoje.getDate()).padStart(2, '0');
       
       if (diaGasto === diaHoje) {
@@ -90,7 +95,6 @@ export default function DashboardPage() {
       return [...prev, ...filtrar];
     });
   };
-  // -----------------------------------------------
 
   const [metas, setMetas] = useState<any[]>([]);
   const [transacoes, setTransacoes] = useState<any[]>([]);
@@ -121,7 +125,6 @@ export default function DashboardPage() {
       setTransacoes(t.data || []);
       setGastosFixos(f.data || []);
       
-      // Ativa a geração de alertas após carregar os dados
       gerarAlertasDinamicos(m.data || [], t.data || [], f.data || []);
     } catch (e) { console.error(e); }
     setLoading(false);
@@ -214,7 +217,7 @@ export default function DashboardPage() {
   return (
     <div className="flex flex-col gap-6 w-full max-w-4xl mx-auto p-4 pb-24 text-white bg-black min-h-screen font-sans">
       
-      {/* HUD DE NOTIFICAÇÕES (Z-INDEX ALTO E POINTER EVENTS CORRIGIDOS) */}
+      {/* HUD DE NOTIFICAÇÕES */}
       <div className="fixed top-4 right-4 left-4 z-[999] flex flex-col gap-3 pointer-events-none">
         {notifications.map((n, i) => (
           <div 
@@ -302,7 +305,7 @@ export default function DashboardPage() {
         </div>
       </div>
 
-      {/* GRÁFICO DONUT */}
+      {/* GRÁFICO DONUT, LIMITES, ATIVIDADES E MODAIS MANTIDOS... */}
       <div className="bg-[#111] pt-12 pb-8 px-8 rounded-[1.5rem] border border-white/5 flex flex-col items-center">
         <span className="text-zinc-500 text-[10px] font-black uppercase tracking-[0.2em] mb-10 self-start italic">Uso do Orçamento</span>
         <div className="relative w-64 h-64 flex items-center justify-center mb-10">
@@ -328,7 +331,6 @@ export default function DashboardPage() {
         </p>
       </div>
 
-      {/* LIMITES */}
       <div className="bg-[#111] pt-12 pb-8 px-8 rounded-[1.5rem] border border-white/5 space-y-8">
         <h3 className="text-xl font-black italic uppercase tracking-tighter">Limites por Categoria</h3>
         <div className="space-y-6">
@@ -352,7 +354,6 @@ export default function DashboardPage() {
         </div>
       </div>
 
-      {/* ATIVIDADE */}
       <div className="bg-[#111] pt-12 pb-8 px-8 rounded-[1.5rem] border border-white/5 space-y-6">
         <div className="flex justify-between items-center">
           <h3 className="text-xl font-black italic uppercase tracking-tighter">Atividade</h3>
@@ -382,7 +383,7 @@ export default function DashboardPage() {
         </div>
       </div>
 
-      {/* MODAL NOVA TRANSAÇÃO */}
+      {/* MODAIS */}
       {showModal && (
         <div className="fixed inset-0 bg-black/95 backdrop-blur-md z-[150] flex items-center justify-center p-6">
           <div className="bg-[#111] w-full max-w-sm rounded-[2rem] p-8 border border-white/10">
@@ -413,7 +414,6 @@ export default function DashboardPage() {
         </div>
       )}
 
-      {/* MODAL GASTO FIXO */}
       {showFixedModal && (
         <div className="fixed inset-0 bg-black/95 backdrop-blur-md z-[150] flex items-center justify-center p-6">
           <div className="bg-[#111] w-full max-w-sm rounded-[2rem] p-8 border border-white/10 shadow-2xl">
