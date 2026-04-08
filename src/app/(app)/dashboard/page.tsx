@@ -66,7 +66,6 @@ export default function DashboardPage() {
       }
     });
 
-    // Lógica de alerta baseada no mês atual
     metasData.forEach(meta => {
       const gastoCat = transData
         .filter(t => {
@@ -151,9 +150,6 @@ export default function DashboardPage() {
     setTimeout(() => setNotifications(prev => prev.filter(n => n.id !== id)), 3000);
   };
 
-  // --- LÓGICA DE FILTRAGEM ---
-
-  // 1. Dados para os CARDS (Respeitam o viewMode)
   const transacoesCards = transacoes.filter(t => {
     const d = new Date(t.created_at);
     if (viewMode === "mes") return d.getMonth() === mesAtual && d.getFullYear() === anoAtual;
@@ -163,7 +159,6 @@ export default function DashboardPage() {
   const entradasCard = transacoesCards.filter(t => t.type === "entrada").reduce((acc, t) => acc + Number(t.amount), 0);
   const saidasCard = transacoesCards.filter(t => t.type === "saida").reduce((acc, t) => acc + Number(t.amount), 0);
 
-  // 2. Dados para GRÁFICO e LIMITES (Sempre Mês Atual)
   const transacoesMesLogica = transacoes.filter(t => {
     const d = new Date(t.created_at);
     return d.getMonth() === mesAtual && d.getFullYear() === anoAtual;
@@ -246,30 +241,39 @@ export default function DashboardPage() {
 
       {/* SALDO (VISUAL BASE) */}
       <div className="bg-[#111] pt-12 pb-8 px-8 rounded-[1.5rem] border border-white/5">
-        <p className="text-zinc-500 text-[9px] font-black uppercase tracking-widest mb-1 italic">Saldo Disponível</p>
+        <p className="text-zinc-500 text-[9px] font-black uppercase tracking-widest mb-1 italic">Saldo Disponível (Total)</p>
         <h2 className="text-4xl font-black italic">R$ {saldoGeral.toLocaleString('pt-BR')}</h2>
       </div>
       
-      {/* CARDS EMPILHADOS (ENTRADAS E SAÍDAS) */}
+      {/* CARDS EMPILHADOS */}
       <div className="flex flex-col gap-3">
           {/* CARD ENTRADAS */}
           <div className="bg-[#111] pt-12 pb-8 px-8 rounded-[1.5rem] border border-white/5 relative">
             <p className="text-green-500 text-[9px] font-black uppercase tracking-widest mb-1 italic">Entradas ({viewMode === 'mes' ? 'Mês' : 'Ano'})</p>
             <h2 className="text-4xl font-black italic text-green-500">R$ {entradasCard.toLocaleString('pt-BR')}</h2>
             
-            {/* BOTÕES DE FILTRO SEPARADOS E AMARELOS */}
-            <div className="absolute top-4 right-4 flex gap-2">
+            {/* BOTÕES DE FILTRO INTEGRADOS */}
+            <div className="absolute top-4 right-4 flex gap-1.5">
               <button 
                 onClick={() => setViewMode("mes")} 
-                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl border font-black text-[8px] uppercase italic transition-all ${viewMode === 'mes' ? 'bg-yellow-400 text-black border-yellow-400' : 'bg-transparent text-yellow-400 border-yellow-400'}`}
+                className={`flex items-center gap-1 px-2.5 py-1.5 rounded-xl border-2 transition-all duration-200 font-black text-[7px] uppercase italic ${
+                  viewMode === 'mes' 
+                  ? 'border-yellow-400 text-yellow-400 bg-yellow-400/5' 
+                  : 'border-zinc-800 text-zinc-500 bg-transparent'
+                }`}
               >
-                <Calendar size={10} className={viewMode === 'mes' ? 'text-black' : 'text-yellow-400'} /> MÊS
+                <Calendar size={9} strokeWidth={3} className={viewMode === 'mes' ? 'text-yellow-400' : 'text-zinc-500'} /> MÊS
               </button>
+              
               <button 
                 onClick={() => setViewMode("ano")} 
-                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl border font-black text-[8px] uppercase italic transition-all ${viewMode === 'ano' ? 'bg-yellow-400 text-black border-yellow-400' : 'bg-transparent text-yellow-400 border-yellow-400'}`}
+                className={`flex items-center gap-1 px-2.5 py-1.5 rounded-xl border-2 transition-all duration-200 font-black text-[7px] uppercase italic ${
+                  viewMode === 'ano' 
+                  ? 'border-yellow-400 text-yellow-400 bg-yellow-400/5' 
+                  : 'border-zinc-800 text-zinc-500 bg-transparent'
+                }`}
               >
-                <Calendar size={10} className={viewMode === 'ano' ? 'text-black' : 'text-yellow-400'} /> ANO
+                <Calendar size={9} strokeWidth={3} className={viewMode === 'ano' ? 'text-yellow-400' : 'text-zinc-500'} /> ANO
               </button>
             </div>
           </div>
@@ -339,7 +343,6 @@ export default function DashboardPage() {
         <h3 className="text-xl font-black italic uppercase tracking-tighter">Limites por Categoria</h3>
         <div className="space-y-6">
           {metas.map(meta => {
-            // Filtragem fixa por mês para as barras
             const gastoCatMes = transacoesMesLogica.filter(t => t.type === "saida" && t.category?.toLowerCase() === meta.category?.toLowerCase()).reduce((acc, t) => acc + Number(t.amount), 0);
             const progresso = Math.min((gastoCatMes / Number(meta.amount)) * 100, 100);
             const excedeu = gastoCatMes > Number(meta.amount);
