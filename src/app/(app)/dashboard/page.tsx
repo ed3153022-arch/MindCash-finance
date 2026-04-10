@@ -3,7 +3,7 @@
 import { useEffect, useState, useMemo } from "react";
 import { useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabase";
-import { Plus, Zap, Trash2, X, Bell, AlertTriangle, Info, Calendar } from "lucide-react";
+import { Plus, Zap, Trash2, X, Bell, AlertTriangle, Info, Calendar, Target, TrendingUp } from "lucide-react";
 
 const MASTER_CATS = [
   { nome: "Alimentação", emoji: "🍔", cor: "#FF007A" },
@@ -21,6 +21,7 @@ export default function DashboardPage() {
   const [loading, setLoading] = useState(true);
   const [showModal, setShowModal] = useState(false);
   const [showFixedModal, setShowFixedModal] = useState(false);
+  const [showIncomeGoalModal, setShowIncomeGoalModal] = useState(false); // NOVO
   
   const [viewMode, setViewMode] = useState<"mes" | "ano">("mes");
   const agora = new Date();
@@ -36,13 +37,104 @@ export default function DashboardPage() {
     return [];
   });
 
+  const [metas, setMetas] = useState<any[]>([]);
+  const [transacoes, setTransacoes] = useState<any[]>([]);
+  const [gastosFixos, setGastosFixos] = useState<any[]>([]);
+  const [metasRenda, setMetasRenda] = useState<any[]>([]); // NOVO
+
+  const [tipo, setTipo] = useState<"saida" | "entrada">("saida");
+  const [catSel, setCatSel] = useState("");
+  const [valor, setValor] = useState("");
+  const [fixoNome, setFixoNome] = useState("");
+  const [fixoValor, setFixoValor] = useState("");
+  const [fixoData, setFixoData] = useState("");
+  const [metaRendaValor, setMetaRendaValor] = useState(""); // NOVO
+
   useEffect(() => {
     localStorage.setItem("alertas_silenciados", JSON.stringify(closedNotifications));
   }, [closedNotifications]);
 
+  useEffect(() => { loadData(); }, []);
+
+  async function loadData() {
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return router.push("/login");
+      const [m, t, f, r] = await Promise.all([
+        supabase.from("goals").select("*").eq("user_id", user.id),
+        supabase.from("transactions").select("*").eq("user_id", user.id).order("created_at", { ascending: true }),
+        supabase.from("fixed_expenses").select("*").eq("user_id", user.id).order("due_day", { ascending: true }),
+        supabase.from("income_goals").select("*").eq("user_id", user.id) // NOVO
+      ]);
+      setMetas(m.data || []);
+      setTransacoes(t.data || []);
+      setGastosFixos(f.data || []);
+      setMetasRenda(r.data || []); // NOVO
+      gerarAlertasDinamicos(m.data || [], t.data || [], f.data || []);
+    } catch (e) { console.error(e); }
+    setLoading(false);
+  }
+
+  // LÓGICA DE MONITORAMENTO DE LUCRO (SÓ ENTRADAS REAIS)
+  const monitoramentoLucro = useMemo(() => {
+    const faturamentoMensalReal = transacoes
+      .filter(t => 
+        t.type === "entrada" && 
+        new Date(t.created_at).getMonth() === mesAtual && 
+        new Date(t.created_at).getFullYear() === anoAtual
+      )
+      .reduce((acc, t) => acc + Number(t.amount), 0);
+
+    const metaDefinida = metasRenda[0]?.amount || 0;
+    const porcentagemConcluida = metaDefinida > 0 ? Math.min((faturamentoMensalReal / metaDefinida) * 100, 100) : 0;
+    const faltaQuanto = Math.max(metaDefinida - faturamentoMensalReal, 0);
+
+    return { faturamentoMensalReal, metaDefinida, porcentagemConcluida, faltaQuanto };
+  }, [transacoes, metasRenda, mesAtual, anoAtual]);
+
+  // FUNÇÕES AUXILIARES
   const closeNotification = (id: string) => {
     setNotifications(prev => prev.filter(n => n.id !== id));
     setClosedNotifications(prev => [...prev, id]);
+  };
+
+  const maskMoney = (v: string) => {
+    const onlyNums = v.replace(/\D/g, "");
+    if (!onlyNums) return "";
+    return (Number(onlyNums) / 100).toFixed(2).replace(".", ",");
+  };
+
+  const maskDate = (v: string) => {
+    const onlyNums = v.replace(/\D/g, "").slice(0, 8);
+    if (onlyNums.length >= 5) return onlyNums.replace(/(\d{2})(\d{2})(\d{4})/, "$1/$2/$3");
+    if (onlyNums.length >= 3) return onlyNums.replace(/(\d{2})(\d{2})/, "$1/$2");
+    return onlyNums;
+  };
+
+  const formatDisplayDate = (d: any) => {
+    if (!d) return "";
+    const clean = String(d).replace(/\D/g, "");
+    const padded = clean.padStart(8, '0');
+    return padded.replace(/(\d{2})(\d{2})(\d{4})/, "$1/$2/$3");
+  };
+
+  const notify = (msg: string, type: 'success' | 'error' = 'success') => {
+    const id = Date.now().toString();
+    setNotifications(prev => [...prev, { id, msg, title: type === 'success' ? 'SUCESSO' : 'ERRO', severity: type === 'success' ? 'success' : 'danger', icon: <Bell size={14} /> }]);
+    setTimeout(() => setNotifications(prev => prev.filter(n => n.id !== id)), 3000);
+  };
+
+  const solveCurve = (pontos: any[], height: number, max: number) => {
+    if (pontos.length === 0) return "";
+    const getPos = (p: any) => ({ x: p.x, y: height - (p.y / max) * height });
+    let d = `M ${getPos(pontos[0]).x} ${getPos(pontos[0]).y}`;
+    for (let i = 0; i < pontos.length - 1; i++) {
+      const curr = getPos(pontos[i]);
+      const next = getPos(pontos[i+1]);
+      const mx = (curr.x + next.x) / 2;
+      d += ` C ${mx} ${curr.y}, ${mx} ${next.y}, ${next.x} ${next.y}`;
+    }
+    return d;
   };
 
   const gerarAlertasDinamicos = (metasData: any[], transData: any[], fixosData: any[]) => {
@@ -93,35 +185,6 @@ export default function DashboardPage() {
     });
   };
 
-  const [metas, setMetas] = useState<any[]>([]);
-  const [transacoes, setTransacoes] = useState<any[]>([]);
-  const [gastosFixos, setGastosFixos] = useState<any[]>([]);
-  const [tipo, setTipo] = useState<"saida" | "entrada">("saida");
-  const [catSel, setCatSel] = useState("");
-  const [valor, setValor] = useState("");
-  const [fixoNome, setFixoNome] = useState("");
-  const [fixoValor, setFixoValor] = useState("");
-  const [fixoData, setFixoData] = useState("");
-
-  useEffect(() => { loadData(); }, []);
-
-  async function loadData() {
-    try {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) return router.push("/login");
-      const [m, t, f] = await Promise.all([
-        supabase.from("goals").select("*").eq("user_id", user.id),
-        supabase.from("transactions").select("*").eq("user_id", user.id).order("created_at", { ascending: true }),
-        supabase.from("fixed_expenses").select("*").eq("user_id", user.id).order("due_day", { ascending: true })
-      ]);
-      setMetas(m.data || []);
-      setTransacoes(t.data || []);
-      setGastosFixos(f.data || []);
-      gerarAlertasDinamicos(m.data || [], t.data || [], f.data || []);
-    } catch (e) { console.error(e); }
-    setLoading(false);
-  }
-
   const timelineData = useMemo(() => {
     const totalPontos = 30;
     const espacamento = 80; 
@@ -155,45 +218,6 @@ export default function DashboardPage() {
       espacamento
     };
   }, [transacoes, mesAtual, anoAtual]);
-
-  const solveCurve = (pontos: any[], height: number, max: number) => {
-    if (pontos.length === 0) return "";
-    const getPos = (p: any) => ({ x: p.x, y: height - (p.y / max) * height });
-    let d = `M ${getPos(pontos[0]).x} ${getPos(pontos[0]).y}`;
-    for (let i = 0; i < pontos.length - 1; i++) {
-      const curr = getPos(pontos[i]);
-      const next = getPos(pontos[i+1]);
-      const mx = (curr.x + next.x) / 2;
-      d += ` C ${mx} ${curr.y}, ${mx} ${next.y}, ${next.x} ${next.y}`;
-    }
-    return d;
-  };
-
-  const maskMoney = (v: string) => {
-    const onlyNums = v.replace(/\D/g, "");
-    if (!onlyNums) return "";
-    return (Number(onlyNums) / 100).toFixed(2).replace(".", ",");
-  };
-
-  const maskDate = (v: string) => {
-    const onlyNums = v.replace(/\D/g, "").slice(0, 8);
-    if (onlyNums.length >= 5) return onlyNums.replace(/(\d{2})(\d{2})(\d{4})/, "$1/$2/$3");
-    if (onlyNums.length >= 3) return onlyNums.replace(/(\d{2})(\d{2})/, "$1/$2");
-    return onlyNums;
-  };
-
-  const formatDisplayDate = (d: any) => {
-    if (!d) return "";
-    const clean = String(d).replace(/\D/g, "");
-    const padded = clean.padStart(8, '0');
-    return padded.replace(/(\d{2})(\d{2})(\d{4})/, "$1/$2/$3");
-  };
-
-  const notify = (msg: string, type: 'success' | 'error' = 'success') => {
-    const id = Date.now().toString();
-    setNotifications(prev => [...prev, { id, msg, title: type === 'success' ? 'SUCESSO' : 'ERRO', severity: type === 'success' ? 'success' : 'danger', icon: <Bell size={14} /> }]);
-    setTimeout(() => setNotifications(prev => prev.filter(n => n.id !== id)), 3000);
-  };
 
   const transacoesCards = transacoes.filter(t => {
     const d = new Date(t.created_at);
@@ -247,6 +271,22 @@ export default function DashboardPage() {
     } catch (e) { notify("Erro ao salvar", "error"); }
   }
 
+  async function handleAddIncomeGoal() {
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      const valorNum = parseFloat(metaRendaValor.replace(",", "."));
+      const { error } = await supabase.from("income_goals").upsert({ 
+        user_id: user?.id, 
+        amount: valorNum 
+      }, { onConflict: 'user_id' });
+      if (error) throw error;
+      notify("Meta de Faturamento Salva!");
+      setShowIncomeGoalModal(false);
+      setMetaRendaValor("");
+      loadData();
+    } catch (e) { notify("Erro ao salvar meta", "error"); }
+  }
+
   async function deleteFixed(id: string) {
     await supabase.from("fixed_expenses").delete().eq("id", id);
     loadData();
@@ -275,11 +315,39 @@ export default function DashboardPage() {
       {/* HEADER */}
       <div className="flex flex-col gap-2 w-full pt-4">
         <h1 className="text-5xl font-black italic uppercase tracking-tighter leading-none">DASHBOARD</h1>
-        <div className="grid grid-cols-2 gap-3 mt-4">
-          <button onClick={() => router.push("/metas")} className="bg-zinc-900 border border-white/5 py-4 rounded-2xl font-black text-[10px] uppercase tracking-widest italic">LIMITES 🎯</button>
-          <button onClick={() => setShowModal(true)} className="bg-yellow-400 text-black py-4 rounded-2xl font-black text-[10px] uppercase tracking-widest flex items-center justify-center gap-2 italic">
-            <Plus size={14} strokeWidth={3} /> NOVA TRANSAÇÃO
+        <div className="grid grid-cols-3 gap-2 mt-4">
+          <button onClick={() => setShowIncomeGoalModal(true)} className="bg-zinc-900 border border-white/5 py-4 rounded-2xl font-black text-[9px] uppercase tracking-widest italic flex items-center justify-center gap-2">
+            <Target size={12} className="text-green-500" /> ALVO DE LUCRO
           </button>
+          <button onClick={() => router.push("/metas")} className="bg-zinc-900 border border-white/5 py-4 rounded-2xl font-black text-[9px] uppercase tracking-widest italic">LIMITES 🎯</button>
+          <button onClick={() => setShowModal(true)} className="bg-yellow-400 text-black py-4 rounded-2xl font-black text-[9px] uppercase tracking-widest flex items-center justify-center gap-2 italic">
+            <Plus size={12} strokeWidth={3} /> LANÇAR
+          </button>
+        </div>
+      </div>
+
+      {/* CARD DE META DE LUCRO (NOVO) */}
+      <div className="bg-[#0a0a0a] pt-10 pb-8 px-8 rounded-[2rem] border-2 border-green-500/20 shadow-[0_0_40px_rgba(34,197,94,0.05)] relative overflow-hidden">
+        <div className="flex justify-between items-start relative z-10">
+            <div>
+            <p className="text-green-500 text-[10px] font-black uppercase tracking-[0.2em] italic mb-1">Performance de Lucro (Real)</p>
+            <h2 className="text-4xl font-black italic tracking-tighter">R$ {monitoramentoLucro.faturamentoMensalReal.toLocaleString('pt-BR')}</h2>
+            </div>
+            <div className="text-right">
+            <p className="text-zinc-600 text-[8px] font-black uppercase italic">Meta Alvo</p>
+            <p className="text-lg font-black italic text-white/90">R$ {monitoramentoLucro.metaDefinida.toLocaleString('pt-BR')}</p>
+            </div>
+        </div>
+        <div className="mt-8 relative">
+            <div className="w-full bg-white/5 h-4 rounded-full overflow-hidden p-1 border border-white/5">
+            <div className="h-full bg-green-500 rounded-full transition-all duration-1000 shadow-[0_0_20px_#22c55e]" style={{ width: `${monitoramentoLucro.porcentagemConcluida}%` }} />
+            </div>
+        </div>
+        <div className="flex justify-between mt-4">
+            <span className="text-[10px] font-black text-zinc-500 italic uppercase">{monitoramentoLucro.porcentagemConcluida.toFixed(1)}% DO OBJETIVO</span>
+            <span className="text-[10px] font-black text-green-500 italic uppercase">
+            {monitoramentoLucro.faltaQuanto > 0 ? `Faltam R$ ${monitoramentoLucro.faltaQuanto.toLocaleString('pt-BR')}` : "META ALCANÇADA 🏆"}
+            </span>
         </div>
       </div>
 
@@ -380,101 +448,50 @@ export default function DashboardPage() {
         </div>
       </div>
 
-      {/* GRÁFICO DE LINHA - SISTEMA DE SEGMENTAÇÃO DINÂMICA */}
+      {/* GRÁFICO DE LINHA */}
       <div className="bg-[#0c0c0c] pt-10 pb-10 rounded-[2.5rem] border border-white/5 flex flex-col overflow-hidden relative shadow-2xl">
         <div className="px-8 mb-10 flex justify-between items-start">
           <div>
             <h3 className="text-base font-black italic uppercase tracking-[0.2em] text-white">Rastreamento Diário</h3>
             <p className="text-[10px] text-zinc-500 font-bold uppercase italic mt-1">Fluxo Real: Dia 01 ao 30</p>
           </div>
-          <div className="bg-zinc-900/50 px-3 py-1 rounded-full border border-white/5">
-             <span className="text-[9px] font-black text-yellow-400 italic tracking-widest">LIVE ANALYTICS</span>
-          </div>
         </div>
 
         <div className="overflow-x-auto px-10 pb-6 scrollbar-hide relative">
           <div style={{ width: `${timelineData.width}px` }} className="relative h-[280px]">
-            
-            {/* 1. LINHAS DE GRADE HORIZONTAIS */}
             <div className="absolute inset-0 h-[200px] flex flex-col justify-between pointer-events-none">
               <div className="w-full border-t border-white/[0.03] pt-1">
                 <span className="text-[7px] font-black text-zinc-600 italic">MAX R$ {timelineData.maxValor.toFixed(0)}</span>
               </div>
-              <div className="w-full border-t border-white/[0.03] pt-1">
-                <span className="text-[7px] font-black text-zinc-600 italic">MÉDIA</span>
-              </div>
-              {/* LINHA DE BASE BRANCA ESTÁTICA - TAMPA A LINHA ROXA */}
+              <div className="w-full border-t border-white/[0.03] pt-1" />
               <div className="w-full pt-1">
                 <span className="text-[7px] font-black text-zinc-400 italic">BASE R$ 0</span>
               </div>
             </div>
 
-            {/* 2. GRADE VERTICAL (TRACEJADA) */}
-            <div className="absolute inset-0 h-[200px] flex justify-between pointer-events-none">
-              {timelineData.series[0].pontos.map((_, i) => (
-                <div key={i} className="h-full border-l border-dashed border-white/[0.03]" />
-              ))}
-            </div>
-
-            {/* 3. O GRÁFICO SVG */}
             <svg width={timelineData.width} height="200" className="relative z-10 overflow-visible">
-              
-              {/* LINHA BRANCA DE BASE - ESTATICA E PERFEITA */}
-              <line 
-                x1="0" y1="200" x2={timelineData.width} y2="200" 
-                stroke="white" strokeWidth="4" strokeLinecap="round" 
-                style={{ opacity: 0.8 }} 
-              />
-
-              {timelineData.series.map((serie, sIdx) => {
-                const temValorReal = serie.pontos.some(p => p.y > 0);
-                if (!temValorReal) return null;
-
-                return (
-                  <g key={serie.nome}>
-                    {serie.pontos.map((p, pIdx) => {
-                      // Se não tem gasto aqui, não desenha segmento de cor
-                      if (p.y <= 0) return null;
-
-                      // Criamos uma "micro-onda" pegando o ponto anterior, o atual e o próximo
-                      // Isso faz com que a cor apareça apenas na subida e descida do gasto
-                      const segmento = [
-                        serie.pontos[pIdx - 1] || p,
-                        p,
-                        serie.pontos[pIdx + 1] || p
-                      ];
-
-                      const pathData = solveCurve(segmento, 200, timelineData.maxValor);
-
-                      return (
-                        <g key={pIdx}>
-                          {/* Segmento Colorido da Oscilação */}
-                          <path 
-                            d={pathData} 
-                            fill="none" 
-                            stroke={serie.cor} 
-                            strokeWidth="4" 
-                            strokeLinecap="round" 
-                          />
-                          {/* Ponto de Destaque no Topo */}
-                          <circle cx={p.x} cy={200 - (p.y / timelineData.maxValor) * 200} r="6" fill={serie.cor} className="opacity-20 animate-pulse" />
-                          <circle cx={p.x} cy={200 - (p.y / timelineData.maxValor) * 200} r="3" fill={serie.cor} stroke="#000" strokeWidth="2" />
-                        </g>
-                      );
-                    })}
-                  </g>
-                );
-              })}
+              <line x1="0" y1="200" x2={timelineData.width} y2="200" stroke="white" strokeWidth="4" strokeLinecap="round" style={{ opacity: 0.8 }} />
+              {timelineData.series.map((serie) => (
+                  serie.pontos.some(p => p.y > 0) && (
+                    <g key={serie.nome}>
+                        {serie.pontos.map((p, pIdx) => (
+                            p.y > 0 && (
+                                <g key={pIdx}>
+                                    <path d={solveCurve([serie.pontos[pIdx - 1] || p, p, serie.pontos[pIdx + 1] || p], 200, timelineData.maxValor)} fill="none" stroke={serie.cor} strokeWidth="4" strokeLinecap="round" />
+                                    <circle cx={p.x} cy={200 - (p.y / timelineData.maxValor) * 200} r="3" fill={serie.cor} stroke="#000" strokeWidth="2" />
+                                </g>
+                            )
+                        ))}
+                    </g>
+                  )
+              ))}
             </svg>
 
-            {/* 4. EIXO X: DIAS */}
             <div className="absolute top-[210px] left-0 right-0 flex justify-between pointer-events-none">
               {timelineData.series[0].pontos.map((p, i) => (
                 <div key={i} className="flex flex-col items-center" style={{ width: '1px' }}>
                   <div className="w-[1px] h-2 bg-zinc-800 mb-2" />
-                  <span className={`text-[10px] font-black italic ${p.y > 0 ? 'text-white' : 'text-zinc-600'}`}>
-                    {p.dia}
-                  </span>
+                  <span className={`text-[10px] font-black italic ${p.y > 0 ? 'text-white' : 'text-zinc-600'}`}>{p.dia}</span>
                 </div>
               ))}
             </div>
@@ -510,17 +527,17 @@ export default function DashboardPage() {
         </div>
       </div>
 
-      {/* MODAIS */}
+      {/* MODAL REGISTRO */}
       {showModal && (
         <div className="fixed inset-0 bg-black/95 backdrop-blur-md z-[150] flex items-center justify-center p-6">
-          <div className="bg-[#111] w-full max-sm rounded-[2rem] p-8 border border-white/10">
+          <div className="bg-[#111] w-full max-w-sm rounded-[2rem] p-8 border border-white/10">
             <h2 className="text-2xl font-black italic uppercase mb-6 text-center">Novo Registro</h2>
             <div className="grid grid-cols-2 gap-2 bg-black p-1 rounded-2xl mb-6">
               <button onClick={() => setTipo("saida")} className={`py-3 rounded-xl font-black text-[10px] uppercase transition ${tipo === "saida" ? "bg-red-500 text-white" : "text-zinc-500"}`}>Saída</button>
               <button onClick={() => setTipo("entrada")} className={`py-3 rounded-xl font-black text-[10px] uppercase transition ${tipo === "entrada" ? "bg-green-500 text-white" : "text-zinc-500"}`}>Entrada</button>
             </div>
             {tipo === "saida" && (
-              <div className="grid grid-cols-3 gap-2 mb-6 max-h-40 overflow-y-auto">
+              <div className="grid grid-cols-3 gap-2 mb-6 max-h-40 overflow-y-auto scrollbar-hide">
                 {MASTER_CATS.map(c => (
                   <button key={c.nome} onClick={() => setCatSel(c.nome)} className={`p-2 rounded-xl border transition-all flex flex-col items-center ${catSel === c.nome ? "border-yellow-400 bg-yellow-400/10" : "border-white/5 bg-black/40"}`}>
                     <span className="text-lg">{c.emoji}</span>
@@ -541,6 +558,7 @@ export default function DashboardPage() {
         </div>
       )}
 
+      {/* MODAL FIXOS */}
       {showFixedModal && (
         <div className="fixed inset-0 bg-black/95 backdrop-blur-md z-[150] flex items-center justify-center p-6">
           <div className="bg-[#111] w-full max-w-sm rounded-[2rem] p-8 border border-white/10 shadow-2xl">
@@ -555,6 +573,25 @@ export default function DashboardPage() {
           </div>
         </div>
       )}
+
+      {/* MODAL ALVO DE LUCRO (NOVO) */}
+      {showIncomeGoalModal && (
+        <div className="fixed inset-0 bg-black/98 backdrop-blur-xl z-[200] flex items-center justify-center p-6">
+            <div className="bg-[#111] w-full max-w-sm rounded-[2.5rem] p-8 border border-green-500/30">
+            <div className="flex justify-center mb-6">
+                <div className="p-4 bg-green-500/10 rounded-full border border-green-500/20">
+                <Target size={32} className="text-green-500" />
+                </div>
+            </div>
+            <h2 className="text-2xl font-black italic uppercase text-center text-white mb-2">Definir Alvo</h2>
+            <p className="text-[9px] text-zinc-500 font-black uppercase text-center mb-8 italic tracking-[0.2em]">Qual o seu objetivo de lucro real este mês?</p>
+            <input type="text" inputMode="numeric" placeholder="R$ 0,00" value={metaRendaValor} onChange={(e) => setMetaRendaValor(maskMoney(e.target.value))} className="w-full bg-black border border-white/10 p-6 rounded-3xl text-3xl font-black italic outline-none text-center focus:border-green-500 mb-6 text-white" />
+            <button onClick={handleAddIncomeGoal} className="w-full bg-green-500 text-black py-5 rounded-2xl font-black uppercase text-[11px] mb-3 italic shadow-lg shadow-green-500/20">Salvar Meta</button>
+            <button onClick={() => setShowIncomeGoalModal(false)} className="w-full text-zinc-600 font-black text-[9px] uppercase tracking-widest">Cancelar</button>
+            </div>
+        </div>
+      )}
+
     </div>
   );
-  }
+}
