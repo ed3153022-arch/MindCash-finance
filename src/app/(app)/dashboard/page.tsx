@@ -9,7 +9,7 @@ const MASTER_CATS = [
   { nome: "Alimentação", emoji: "🍔", cor: "#FF007A" },
   { nome: "Moradia", emoji: "🏠", cor: "#FF4D00" },
   { nome: "Transporte", emoji: "🚗", cor: "#00E5FF" },
-  { nome: "Lazer", emoji: "🎬", cor: "#39FF14" },
+  { nome: "Lazer", emoji: "39FF14", cor: "#39FF14" },
   { nome: "Saúde", emoji: "💊", cor: "#FFB800" },
   { nome: "Educação", emoji: "📚", cor: "#4169E1" },
   { nome: "Assinaturas", emoji: "💳", cor: "#FFD700" },
@@ -125,13 +125,11 @@ export default function DashboardPage() {
   const timelineData = useMemo(() => {
     const totalPontos = 30;
     const espacamento = 80; 
-
     let maxValorGlobal = 0;
 
     const series = MASTER_CATS.map(cat => {
       const pontos = Array.from({ length: totalPontos }, (_, i) => {
         const diaDesejado = i + 1; 
-        
         const totalNoDia = transacoes.filter(t => {
           const dataTransacao = new Date(t.created_at);
           return (
@@ -145,13 +143,8 @@ export default function DashboardPage() {
 
         if (totalNoDia > maxValorGlobal) maxValorGlobal = totalNoDia;
 
-        return { 
-          x: i * espacamento, 
-          y: totalNoDia, 
-          dia: diaDesejado 
-        };
+        return { x: i * espacamento, y: totalNoDia, dia: diaDesejado };
       });
-
       return { ...cat, pontos };
     });
 
@@ -166,7 +159,6 @@ export default function DashboardPage() {
   const solveCurve = (pontos: any[], height: number, max: number) => {
     if (pontos.length === 0) return "";
     const getPos = (p: any) => ({ x: p.x, y: height - (p.y / max) * height });
-    
     let d = `M ${getPos(pontos[0]).x} ${getPos(pontos[0]).y}`;
     for (let i = 0; i < pontos.length - 1; i++) {
       const curr = getPos(pontos[i]);
@@ -219,7 +211,6 @@ export default function DashboardPage() {
 
   const totalSaidasMes = transacoesMesLogica.filter(t => t.type === "saida").reduce((acc, t) => acc + Number(t.amount), 0);
   const saldoGeral = transacoes.reduce((acc, t) => t.type === "entrada" ? acc + Number(t.amount) : acc - Number(t.amount), 0);
-  
   const orcamentoTotalMes = metas.reduce((acc, m) => acc + Number(m.amount), 0) || 1;
   const porcentagemGeralMes = Math.min(Math.round((totalSaidasMes / orcamentoTotalMes) * 100), 100);
 
@@ -389,7 +380,7 @@ export default function DashboardPage() {
         </div>
       </div>
 
-      {/* NOVO: GRÁFICO DE LINHA (VERSÃO CORRIGIDA) */}
+      {/* GRÁFICO DE LINHA - CORREÇÃO DEFINITIVA DA LINHA ROXA */}
       <div className="bg-[#0c0c0c] pt-10 pb-10 rounded-[2.5rem] border border-white/5 flex flex-col overflow-hidden relative shadow-2xl">
         <div className="px-8 mb-10 flex justify-between items-start">
           <div>
@@ -404,7 +395,7 @@ export default function DashboardPage() {
         <div className="overflow-x-auto px-10 pb-6 scrollbar-hide relative">
           <div style={{ width: `${timelineData.width}px` }} className="relative h-[280px]">
             
-            {/* LINHAS DE GRADE HORIZONTAIS (BRANCAS SUTIS) */}
+            {/* 1. LINHAS DE GRADE HORIZONTAIS */}
             <div className="absolute inset-0 h-[200px] flex flex-col justify-between pointer-events-none">
               <div className="w-full border-t border-white/[0.03] pt-1">
                 <span className="text-[7px] font-black text-zinc-600 italic">MAX R$ {timelineData.maxValor.toFixed(0)}</span>
@@ -412,27 +403,25 @@ export default function DashboardPage() {
               <div className="w-full border-t border-white/[0.03] pt-1">
                 <span className="text-[7px] font-black text-zinc-600 italic">MÉDIA</span>
               </div>
-              <div className="w-full border-t border-white/[0.08] pt-1">
-                <span className="text-[7px] font-black text-zinc-500 italic">BASE R$ 0</span>
+              {/* LINHA DE BASE BRANCA ÚNICA (Resolve a linha roxa) */}
+              <div className="w-full border-t-2 border-white/20 pt-1">
+                <span className="text-[7px] font-black text-zinc-400 italic">BASE R$ 0</span>
               </div>
             </div>
 
-            {/* GRADE VERTICAL (TRACEJADA BRANCA CLARA) */}
+            {/* 2. GRADE VERTICAL (TRACEJADA) */}
             <div className="absolute inset-0 h-[200px] flex justify-between pointer-events-none">
               {timelineData.series[0].pontos.map((_, i) => (
-                <div 
-                  key={i} 
-                  className="h-full border-l border-dashed border-white/[0.03]"
-                />
+                <div key={i} className="h-full border-l border-dashed border-white/[0.03]" />
               ))}
             </div>
 
-            {/* O GRÁFICO SVG */}
+            {/* 3. O GRÁFICO SVG (Apenas dados reais) */}
             <svg width={timelineData.width} height="200" className="relative z-10 overflow-visible">
               {timelineData.series.map((serie, sIdx) => {
-                // SÓ RENDERIZA SE TIVER ATIVIDADE (ELIMINA A LINHA COLORIDA NO ZERO)
-                const temAtividade = serie.pontos.some(p => p.y > 0);
-                if (!temAtividade) return null;
+                // SÓ DESENHA SE TIVER VALOR > 0 (Filtro rigoroso)
+                const temValorReal = serie.pontos.some(p => p.y > 0);
+                if (!temValorReal) return null;
 
                 const pathData = solveCurve(serie.pontos, 200, timelineData.maxValor);
                 if (!pathData) return null;
@@ -441,16 +430,18 @@ export default function DashboardPage() {
                   <g key={serie.nome}>
                     <defs>
                       <linearGradient id={`grad-${sIdx}`} x1="0" y1="0" x2="0" y2="1">
-                        <stop offset="0%" stopColor={serie.cor} stopOpacity="0.15" />
+                        <stop offset="0%" stopColor={serie.cor} stopOpacity="0.1" />
                         <stop offset="100%" stopColor={serie.cor} stopOpacity="0" />
                       </linearGradient>
                     </defs>
 
+                    {/* Área preenchida (opcional, mas visualmente bom) */}
                     <path 
                       d={`${pathData} L ${serie.pontos[serie.pontos.length-1].x} 200 L ${serie.pontos[0].x} 200 Z`} 
                       fill={`url(#grad-${sIdx})`} 
                     />
 
+                    {/* A linha colorida da categoria */}
                     <path 
                       d={pathData} 
                       fill="none" 
@@ -459,6 +450,7 @@ export default function DashboardPage() {
                       strokeLinecap="round" 
                     />
 
+                    {/* Pontos de destaque apenas onde há gasto */}
                     {serie.pontos.map((p, pIdx) => p.y > 0 && (
                       <g key={pIdx}>
                         <circle cx={p.x} cy={200 - (p.y / timelineData.maxValor) * 200} r="6" fill={serie.cor} className="opacity-20 animate-pulse" />
@@ -470,7 +462,7 @@ export default function DashboardPage() {
               })}
             </svg>
 
-            {/* EIXO X: DIAS */}
+            {/* 4. EIXO X: DIAS */}
             <div className="absolute top-[210px] left-0 right-0 flex justify-between pointer-events-none">
               {timelineData.series[0].pontos.map((p, i) => (
                 <div key={i} className="flex flex-col items-center" style={{ width: '1px' }}>
@@ -513,7 +505,7 @@ export default function DashboardPage() {
         </div>
       </div>
 
-      {/* MODAL TRANSAÇÃO */}
+      {/* MODAIS (TRANSAÇÃO E FIXO) - Mantidos sem alteração */}
       {showModal && (
         <div className="fixed inset-0 bg-black/95 backdrop-blur-md z-[150] flex items-center justify-center p-6">
           <div className="bg-[#111] w-full max-sm rounded-[2rem] p-8 border border-white/10">
@@ -544,7 +536,6 @@ export default function DashboardPage() {
         </div>
       )}
 
-      {/* MODAL GASTO FIXO */}
       {showFixedModal && (
         <div className="fixed inset-0 bg-black/95 backdrop-blur-md z-[150] flex items-center justify-center p-6">
           <div className="bg-[#111] w-full max-w-sm rounded-[2rem] p-8 border border-white/10 shadow-2xl">
