@@ -122,39 +122,52 @@ export default function DashboardPage() {
     setLoading(false);
   }
 
-  // --- LÓGICA DO GRÁFICO DE LINHA (ESTILO BLOOMBERG/PRINT) ---
+  // --- NOVA LÓGICA DE DADOS DO GRÁFICO (REVISADA) ---
   const timelineData = useMemo(() => {
-    const dias = Array.from({ length: 30 }, (_, i) => {
-      const d = new Date();
-      d.setDate(d.getDate() - (29 - i));
-      return d.toISOString().split('T')[0];
-    });
+    const totalPontos = 30;
+    const espacamento = 80; 
 
-    let maxValor = 0;
+    let maxValorGlobal = 0;
+
     const series = MASTER_CATS.map(cat => {
-      const pontos = dias.map((dataStr, index) => {
-        const total = transacoes
-          .filter(t => t.created_at.startsWith(dataStr) && 
-                       t.type === 'saida' && 
-                       t.category?.toLowerCase() === cat.nome.toLowerCase())
-          .reduce((acc, t) => acc + Number(t.amount), 0);
+      const pontos = Array.from({ length: totalPontos }, (_, i) => {
+        const diaDesejado = i + 1; 
         
-        if (total > maxValor) maxValor = total;
-        return { x: index * 75, y: total, dia: dataStr.split('-')[2] };
+        const totalNoDia = transacoes.filter(t => {
+          const dataTransacao = new Date(t.created_at);
+          return (
+            t.type === 'saida' &&
+            t.category?.toLowerCase() === cat.nome.toLowerCase() &&
+            dataTransacao.getDate() === diaDesejado &&
+            dataTransacao.getMonth() === mesAtual &&
+            dataTransacao.getFullYear() === anoAtual
+          );
+        }).reduce((acc, t) => acc + Number(t.amount), 0);
+
+        if (totalNoDia > maxValorGlobal) maxValorGlobal = totalNoDia;
+
+        return { 
+          x: i * espacamento, 
+          y: totalNoDia, 
+          dia: diaDesejado 
+        };
       });
+
       return { ...cat, pontos };
     });
 
     return { 
       series, 
-      maxValor: maxValor === 0 ? 1000 : maxValor * 1.2, 
-      width: 29 * 75 
+      maxValor: maxValorGlobal === 0 ? 1000 : maxValorGlobal * 1.2, 
+      width: (totalPontos - 1) * espacamento,
+      espacamento
     };
-  }, [transacoes]);
+  }, [transacoes, mesAtual, anoAtual]);
 
   const solveCurve = (pontos: any[], height: number, max: number) => {
     if (pontos.length === 0) return "";
     const getPos = (p: any) => ({ x: p.x, y: height - (p.y / max) * height });
+    
     let d = `M ${getPos(pontos[0]).x} ${getPos(pontos[0]).y}`;
     for (let i = 0; i < pontos.length - 1; i++) {
       const curr = getPos(pontos[i]);
@@ -377,59 +390,77 @@ export default function DashboardPage() {
         </div>
       </div>
 
-      {/* NOVO: GRÁFICO DE LINHA (RASTREAMENTO DIÁRIO - ESTILO PRINT) */}
-      <div className="bg-[#0c0c0c] pt-10 pb-6 rounded-[2.5rem] border border-white/5 flex flex-col overflow-hidden relative shadow-2xl">
+      {/* NOVO: GRÁFICO DE LINHA (REVISADO: ALINHAMENTO E DIAS 1-30) */}
+      <div className="bg-[#0c0c0c] pt-10 pb-10 rounded-[2.5rem] border border-white/5 flex flex-col overflow-hidden relative shadow-2xl">
         <div className="px-8 mb-10 flex justify-between items-start">
           <div>
             <h3 className="text-base font-black italic uppercase tracking-[0.2em] text-white">Rastreamento Diário</h3>
-            <p className="text-[10px] text-zinc-500 font-bold uppercase italic mt-1">Análise de fluxo 30 dias</p>
+            <p className="text-[10px] text-zinc-500 font-bold uppercase italic mt-1">Fluxo Real: Dia 01 ao 30</p>
           </div>
           <div className="bg-zinc-900/50 px-3 py-1 rounded-full border border-white/5">
-             <span className="text-[9px] font-black text-yellow-400 italic">DADOS REAIS</span>
+             <span className="text-[9px] font-black text-yellow-400 italic tracking-widest">LIVE ANALYTICS</span>
           </div>
         </div>
 
-        <div className="overflow-x-auto px-8 pb-4 scrollbar-hide relative">
-          <div style={{ width: `${timelineData.width}px` }} className="relative h-[250px]">
+        <div className="overflow-x-auto px-10 pb-6 scrollbar-hide relative">
+          <div style={{ width: `${timelineData.width}px` }} className="relative h-[280px]">
             
-            {/* LINHAS DE VALOR (HORIZONTAIS) */}
-            <div className="absolute inset-0 flex flex-col justify-between pointer-events-none">
-              <div className="w-full border-t border-white/5 flex justify-between items-start pt-1">
-                <span className="text-[8px] font-black text-zinc-600 italic">MAX: R$ {timelineData.maxValor.toFixed(0)}</span>
+            {/* LINHAS DE GRADE HORIZONTAIS */}
+            <div className="absolute inset-0 h-[200px] flex flex-col justify-between pointer-events-none opacity-50">
+              <div className="w-full border-t border-white/5 pt-1">
+                <span className="text-[7px] font-black text-zinc-600 italic">MAX R$ {timelineData.maxValor.toFixed(0)}</span>
               </div>
-              <div className="w-full border-t border-white/5 flex justify-between items-start pt-1">
-                <span className="text-[8px] font-black text-zinc-600 italic">AVG</span>
+              <div className="w-full border-t border-white/5 pt-1">
+                <span className="text-[7px] font-black text-zinc-600 italic">MÉDIA</span>
               </div>
-              <div className="w-full border-t border-white/10 flex justify-between items-start pt-1">
-                <span className="text-[8px] font-black text-zinc-800 italic">BASE: R$ 0,00</span>
+              <div className="w-full border-t border-white/10 pt-1">
+                <span className="text-[7px] font-black text-zinc-700 italic">BASE R$ 0</span>
               </div>
             </div>
 
-            {/* GRADE DIÁRIA (VERTICAL TRACEJADA) */}
-            <div className="absolute inset-0 flex justify-between pointer-events-none">
-              {timelineData.series[0].pontos.map((_, i) => (
-                <div key={i} className="h-full border-l border-dashed border-white/[0.04]" />
+            {/* GRADE VERTICAL (TRACEJADA NOS DIAS) */}
+            <div className="absolute inset-0 h-[200px] flex justify-between pointer-events-none">
+              {timelineData.series[0].pontos.map((p, i) => (
+                <div 
+                  key={i} 
+                  className="h-full border-l border-dashed border-white/[0.05]"
+                />
               ))}
             </div>
 
-            <svg width={timelineData.width} height="200" className="relative z-10 overflow-visible mt-4">
+            {/* O GRÁFICO SVG */}
+            <svg width={timelineData.width} height="200" className="relative z-10 overflow-visible">
               {timelineData.series.map((serie, sIdx) => {
                 const pathData = solveCurve(serie.pontos, 200, timelineData.maxValor);
                 if (!pathData) return null;
+
                 return (
                   <g key={serie.nome}>
                     <defs>
-                      <linearGradient id={`fill-${sIdx}`} x1="0" y1="0" x2="0" y2="1">
-                        <stop offset="0%" stopColor={serie.cor} stopOpacity="0.2" />
+                      <linearGradient id={`grad-${sIdx}`} x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="0%" stopColor={serie.cor} stopOpacity="0.15" />
                         <stop offset="100%" stopColor={serie.cor} stopOpacity="0" />
                       </linearGradient>
                     </defs>
-                    <path d={`${pathData} L ${serie.pontos[serie.pontos.length-1].x} 200 L ${serie.pontos[0].x} 200 Z`} fill={`url(#fill-${sIdx})`} />
-                    <path d={pathData} fill="none" stroke={serie.cor} strokeWidth="3" strokeLinecap="round" className="drop-shadow-[0_0_8px_rgba(0,0,0,0.5)]" />
+
+                    <path 
+                      d={`${pathData} L ${serie.pontos[serie.pontos.length-1].x} 200 L ${serie.pontos[0].x} 200 Z`} 
+                      fill={`url(#grad-${sIdx})`} 
+                    />
+
+                    <path 
+                      d={pathData} 
+                      fill="none" 
+                      stroke={serie.cor} 
+                      strokeWidth="4" 
+                      strokeLinecap="round" 
+                      className="drop-shadow-[0_4_12px_rgba(0,0,0,0.8)]"
+                    />
+
                     {serie.pontos.map((p, pIdx) => p.y > 0 && (
                       <g key={pIdx}>
-                        <circle cx={p.x} cy={200 - (p.y / timelineData.maxValor) * 200} r="5" fill={serie.cor} className="opacity-20 animate-pulse" />
-                        <circle cx={p.x} cy={200 - (p.y / timelineData.maxValor) * 200} r="2.5" fill={serie.cor} stroke="black" strokeWidth="1.5" />
+                        <circle cx={p.x} cy={200 - (p.y / timelineData.maxValor) * 200} r="6" fill={serie.cor} className="opacity-20 animate-pulse" />
+                        <circle cx={p.x} cy={200 - (p.y / timelineData.maxValor) * 200} r="3" fill={serie.cor} stroke="#000" strokeWidth="2" />
                       </g>
                     ))}
                   </g>
@@ -437,12 +468,18 @@ export default function DashboardPage() {
               })}
             </svg>
 
-            {/* EIXO X (DIAS) */}
-            <div className="flex justify-between mt-8">
+            {/* EIXO X: DIAS ABAIXO DAS LINHAS */}
+            <div className="absolute top-[210px] left-0 right-0 flex justify-between pointer-events-none">
               {timelineData.series[0].pontos.map((p, i) => (
-                <div key={i} style={{ width: '75px' }} className="flex-shrink-0 flex flex-col items-center">
-                  <div className="w-1 h-1 bg-zinc-800 rounded-full mb-2" />
-                  <span className="text-[9px] font-black text-zinc-500 italic">{p.dia}</span>
+                <div 
+                  key={i} 
+                  className="flex flex-col items-center" 
+                  style={{ width: '1px' }}
+                >
+                  <div className="w-[1px] h-2 bg-zinc-800 mb-2" />
+                  <span className={`text-[10px] font-black italic ${p.y > 0 ? 'text-white' : 'text-zinc-600'}`}>
+                    {p.dia}
+                  </span>
                 </div>
               ))}
             </div>
