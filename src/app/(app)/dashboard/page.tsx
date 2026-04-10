@@ -380,7 +380,7 @@ export default function DashboardPage() {
         </div>
       </div>
 
-      {/* GRÁFICO DE LINHA - CORREÇÃO DEFINITIVA DA LINHA ROXA */}
+      {/* GRÁFICO DE LINHA - SISTEMA DE SEGMENTAÇÃO DINÂMICA */}
       <div className="bg-[#0c0c0c] pt-10 pb-10 rounded-[2.5rem] border border-white/5 flex flex-col overflow-hidden relative shadow-2xl">
         <div className="px-8 mb-10 flex justify-between items-start">
           <div>
@@ -403,8 +403,8 @@ export default function DashboardPage() {
               <div className="w-full border-t border-white/[0.03] pt-1">
                 <span className="text-[7px] font-black text-zinc-600 italic">MÉDIA</span>
               </div>
-              {/* LINHA DE BASE BRANCA ÚNICA (Resolve a linha roxa) */}
-              <div className="w-full border-t-2 border-white/20 pt-1">
+              {/* LINHA DE BASE BRANCA ESTÁTICA - TAMPA A LINHA ROXA */}
+              <div className="w-full pt-1">
                 <span className="text-[7px] font-black text-zinc-400 italic">BASE R$ 0</span>
               </div>
             </div>
@@ -416,47 +416,52 @@ export default function DashboardPage() {
               ))}
             </div>
 
-            {/* 3. O GRÁFICO SVG (Apenas dados reais) */}
+            {/* 3. O GRÁFICO SVG */}
             <svg width={timelineData.width} height="200" className="relative z-10 overflow-visible">
+              
+              {/* LINHA BRANCA DE BASE - ESTATICA E PERFEITA */}
+              <line 
+                x1="0" y1="200" x2={timelineData.width} y2="200" 
+                stroke="white" strokeWidth="4" strokeLinecap="round" 
+                style={{ opacity: 0.8 }} 
+              />
+
               {timelineData.series.map((serie, sIdx) => {
-                // SÓ DESENHA SE TIVER VALOR > 0 (Filtro rigoroso)
                 const temValorReal = serie.pontos.some(p => p.y > 0);
                 if (!temValorReal) return null;
 
-                const pathData = solveCurve(serie.pontos, 200, timelineData.maxValor);
-                if (!pathData) return null;
-
                 return (
                   <g key={serie.nome}>
-                    <defs>
-                      <linearGradient id={`grad-${sIdx}`} x1="0" y1="0" x2="0" y2="1">
-                        <stop offset="0%" stopColor={serie.cor} stopOpacity="0.1" />
-                        <stop offset="100%" stopColor={serie.cor} stopOpacity="0" />
-                      </linearGradient>
-                    </defs>
+                    {serie.pontos.map((p, pIdx) => {
+                      // Se não tem gasto aqui, não desenha segmento de cor
+                      if (p.y <= 0) return null;
 
-                    {/* Área preenchida (opcional, mas visualmente bom) */}
-                    <path 
-                      d={`${pathData} L ${serie.pontos[serie.pontos.length-1].x} 200 L ${serie.pontos[0].x} 200 Z`} 
-                      fill={`url(#grad-${sIdx})`} 
-                    />
+                      // Criamos uma "micro-onda" pegando o ponto anterior, o atual e o próximo
+                      // Isso faz com que a cor apareça apenas na subida e descida do gasto
+                      const segmento = [
+                        serie.pontos[pIdx - 1] || p,
+                        p,
+                        serie.pontos[pIdx + 1] || p
+                      ];
 
-                    {/* A linha colorida da categoria */}
-                    <path 
-                      d={pathData} 
-                      fill="none" 
-                      stroke={serie.cor} 
-                      strokeWidth="4" 
-                      strokeLinecap="round" 
-                    />
+                      const pathData = solveCurve(segmento, 200, timelineData.maxValor);
 
-                    {/* Pontos de destaque apenas onde há gasto */}
-                    {serie.pontos.map((p, pIdx) => p.y > 0 && (
-                      <g key={pIdx}>
-                        <circle cx={p.x} cy={200 - (p.y / timelineData.maxValor) * 200} r="6" fill={serie.cor} className="opacity-20 animate-pulse" />
-                        <circle cx={p.x} cy={200 - (p.y / timelineData.maxValor) * 200} r="3" fill={serie.cor} stroke="#000" strokeWidth="2" />
-                      </g>
-                    ))}
+                      return (
+                        <g key={pIdx}>
+                          {/* Segmento Colorido da Oscilação */}
+                          <path 
+                            d={pathData} 
+                            fill="none" 
+                            stroke={serie.cor} 
+                            strokeWidth="4" 
+                            strokeLinecap="round" 
+                          />
+                          {/* Ponto de Destaque no Topo */}
+                          <circle cx={p.x} cy={200 - (p.y / timelineData.maxValor) * 200} r="6" fill={serie.cor} className="opacity-20 animate-pulse" />
+                          <circle cx={p.x} cy={200 - (p.y / timelineData.maxValor) * 200} r="3" fill={serie.cor} stroke="#000" strokeWidth="2" />
+                        </g>
+                      );
+                    })}
                   </g>
                 );
               })}
@@ -505,7 +510,7 @@ export default function DashboardPage() {
         </div>
       </div>
 
-      {/* MODAIS (TRANSAÇÃO E FIXO) - Mantidos sem alteração */}
+      {/* MODAIS */}
       {showModal && (
         <div className="fixed inset-0 bg-black/95 backdrop-blur-md z-[150] flex items-center justify-center p-6">
           <div className="bg-[#111] w-full max-sm rounded-[2rem] p-8 border border-white/10">
