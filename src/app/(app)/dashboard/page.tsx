@@ -122,7 +122,6 @@ export default function DashboardPage() {
     setLoading(false);
   }
 
-  // --- NOVA LÓGICA DE DADOS DO GRÁFICO (REVISADA) ---
   const timelineData = useMemo(() => {
     const totalPontos = 30;
     const espacamento = 80; 
@@ -390,7 +389,7 @@ export default function DashboardPage() {
         </div>
       </div>
 
-      {/* NOVO: GRÁFICO DE LINHA (REVISADO: ALINHAMENTO E DIAS 1-30) */}
+      {/* NOVO: GRÁFICO DE LINHA (VERSÃO CORRIGIDA) */}
       <div className="bg-[#0c0c0c] pt-10 pb-10 rounded-[2.5rem] border border-white/5 flex flex-col overflow-hidden relative shadow-2xl">
         <div className="px-8 mb-10 flex justify-between items-start">
           <div>
@@ -405,25 +404,25 @@ export default function DashboardPage() {
         <div className="overflow-x-auto px-10 pb-6 scrollbar-hide relative">
           <div style={{ width: `${timelineData.width}px` }} className="relative h-[280px]">
             
-            {/* LINHAS DE GRADE HORIZONTAIS */}
-            <div className="absolute inset-0 h-[200px] flex flex-col justify-between pointer-events-none opacity-50">
-              <div className="w-full border-t border-white/5 pt-1">
+            {/* LINHAS DE GRADE HORIZONTAIS (BRANCAS SUTIS) */}
+            <div className="absolute inset-0 h-[200px] flex flex-col justify-between pointer-events-none">
+              <div className="w-full border-t border-white/[0.03] pt-1">
                 <span className="text-[7px] font-black text-zinc-600 italic">MAX R$ {timelineData.maxValor.toFixed(0)}</span>
               </div>
-              <div className="w-full border-t border-white/5 pt-1">
+              <div className="w-full border-t border-white/[0.03] pt-1">
                 <span className="text-[7px] font-black text-zinc-600 italic">MÉDIA</span>
               </div>
-              <div className="w-full border-t border-white/10 pt-1">
-                <span className="text-[7px] font-black text-zinc-700 italic">BASE R$ 0</span>
+              <div className="w-full border-t border-white/[0.08] pt-1">
+                <span className="text-[7px] font-black text-zinc-500 italic">BASE R$ 0</span>
               </div>
             </div>
 
-            {/* GRADE VERTICAL (TRACEJADA NOS DIAS) */}
+            {/* GRADE VERTICAL (TRACEJADA BRANCA CLARA) */}
             <div className="absolute inset-0 h-[200px] flex justify-between pointer-events-none">
-              {timelineData.series[0].pontos.map((p, i) => (
+              {timelineData.series[0].pontos.map((_, i) => (
                 <div 
                   key={i} 
-                  className="h-full border-l border-dashed border-white/[0.05]"
+                  className="h-full border-l border-dashed border-white/[0.03]"
                 />
               ))}
             </div>
@@ -431,6 +430,10 @@ export default function DashboardPage() {
             {/* O GRÁFICO SVG */}
             <svg width={timelineData.width} height="200" className="relative z-10 overflow-visible">
               {timelineData.series.map((serie, sIdx) => {
+                // SÓ RENDERIZA SE TIVER ATIVIDADE (ELIMINA A LINHA COLORIDA NO ZERO)
+                const temAtividade = serie.pontos.some(p => p.y > 0);
+                if (!temAtividade) return null;
+
                 const pathData = solveCurve(serie.pontos, 200, timelineData.maxValor);
                 if (!pathData) return null;
 
@@ -454,7 +457,6 @@ export default function DashboardPage() {
                       stroke={serie.cor} 
                       strokeWidth="4" 
                       strokeLinecap="round" 
-                      className="drop-shadow-[0_4_12px_rgba(0,0,0,0.8)]"
                     />
 
                     {serie.pontos.map((p, pIdx) => p.y > 0 && (
@@ -468,14 +470,10 @@ export default function DashboardPage() {
               })}
             </svg>
 
-            {/* EIXO X: DIAS ABAIXO DAS LINHAS */}
+            {/* EIXO X: DIAS */}
             <div className="absolute top-[210px] left-0 right-0 flex justify-between pointer-events-none">
               {timelineData.series[0].pontos.map((p, i) => (
-                <div 
-                  key={i} 
-                  className="flex flex-col items-center" 
-                  style={{ width: '1px' }}
-                >
+                <div key={i} className="flex flex-col items-center" style={{ width: '1px' }}>
                   <div className="w-[1px] h-2 bg-zinc-800 mb-2" />
                   <span className={`text-[10px] font-black italic ${p.y > 0 ? 'text-white' : 'text-zinc-600'}`}>
                     {p.dia}
