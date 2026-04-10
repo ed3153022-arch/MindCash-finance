@@ -9,7 +9,7 @@ const MASTER_CATS = [
   { nome: "Alimentação", emoji: "🍔", cor: "#FF007A" },
   { nome: "Moradia", emoji: "🏠", cor: "#FF4D00" },
   { nome: "Transporte", emoji: "🚗", cor: "#00E5FF" },
-  { nome: "Lazer", emoji: "39FF14", cor: "#39FF14" },
+  { nome: "Lazer", emoji: "🎬", cor: "#39FF14" },
   { nome: "Saúde", emoji: "💊", cor: "#FFB800" },
   { nome: "Educação", emoji: "📚", cor: "#4169E1" },
   { nome: "Assinaturas", emoji: "💳", cor: "#FFD700" },
@@ -122,7 +122,6 @@ export default function DashboardPage() {
     setLoading(false);
   }
 
-  // --- LOGICA DO GRÁFICO INTEGRADA (ESCALA DINÂMICA) ---
   const timelineData = useMemo(() => {
     const totalPontos = 30;
     const espacamento = 80; 
@@ -149,25 +148,13 @@ export default function DashboardPage() {
       return { ...cat, pontos };
     });
 
-    // O topo do gráfico agora é conforme o seu maior gasto registrado no período
-    const topoCalculado = maxValorGlobal === 0 ? 1000 : maxValorGlobal * 1.1; // 10% de folga no topo
-
     return { 
       series, 
-      maxValor: topoCalculado, 
+      maxValor: maxValorGlobal === 0 ? 1000 : maxValorGlobal, 
       width: (totalPontos - 1) * espacamento,
       espacamento
     };
   }, [transacoes, mesAtual, anoAtual]);
-
-  const solveCurve = (pts: any[], height: number, max: number) => {
-    const [p0, p1, p2] = pts;
-    const cp1x = p0.x + (p1.x - p0.x) / 2;
-    const cp2x = p1.x + (p2.x - p1.x) / 2;
-    const y1 = height - (p1.y / max) * height;
-    const y2 = height - (p2.y / max) * height;
-    return `M ${p1.x} ${y1} C ${cp2x} ${y1} ${cp2x} ${y2} ${p2.x} ${y2}`;
-  };
 
   const maskMoney = (v: string) => {
     const onlyNums = v.replace(/\D/g, "");
@@ -380,7 +367,7 @@ export default function DashboardPage() {
         </div>
       </div>
 
-      {/* --- GRÁFICO DE LINHA COM 10 DIVISÕES E TOPO DINÂMICO --- */}
+      {/* NOVO GRÁFICO DE LINHA - CORRIGIDO E DINÂMICO */}
       <div className="bg-[#0c0c0c] pt-10 pb-10 rounded-[2.5rem] border border-white/5 flex flex-col overflow-hidden relative shadow-2xl">
         <div className="px-8 mb-10 flex justify-between items-start">
           <div>
@@ -392,79 +379,105 @@ export default function DashboardPage() {
           </div>
         </div>
 
-        <div className="overflow-x-auto px-10 pb-6 scrollbar-hide relative">
-          <div style={{ width: `${timelineData.width}px` }} className="relative h-[280px]">
+        <div className="overflow-x-auto px-10 pb-12 scrollbar-hide relative">
+          <div style={{ width: `${timelineData.width}px` }} className="relative h-[250px]">
             
-            {/* LINHAS DE GRADE HORIZONTAIS (10 DIVISÕES DINÂMICAS) */}
+            {/* 1. LINHAS DE GRADE HORIZONTAIS (10 FATIAS EXATAS) */}
             <div className="absolute inset-0 h-[200px] flex flex-col justify-between pointer-events-none">
               {Array.from({ length: 11 }).map((_, i) => {
-                const percentual = (10 - i) / 10;
-                const valorLinha = timelineData.maxValor * percentual;
+                const valorFatia = (timelineData.maxValor / 10) * (10 - i);
                 return (
-                  <div key={i} className="w-full border-t border-white/[0.04] relative">
-                    <span className="absolute -top-1.5 left-0 text-[6px] font-black text-zinc-600 italic uppercase">
-                      {valorLinha > 0 ? `R$ ${valorLinha.toFixed(0)}` : "BASE R$ 0"}
+                  <div key={i} className="w-full border-t border-white/[0.03] relative">
+                    <span className="absolute -top-1.5 left-0 text-[7px] font-black text-zinc-600 italic">
+                      R$ {valorFatia.toFixed(0)}
                     </span>
                   </div>
                 );
               })}
             </div>
 
-            {/* GRADE VERTICAL (TRACEJADA) */}
+            {/* 2. GRADE VERTICAL */}
             <div className="absolute inset-0 h-[200px] flex justify-between pointer-events-none">
               {timelineData.series[0].pontos.map((_, i) => (
-                <div key={i} className="h-full border-l border-dashed border-white/[0.03]" />
+                <div key={i} className="h-full border-l border-dashed border-white/[0.02]" />
               ))}
             </div>
 
-            {/* O GRÁFICO SVG */}
-            <svg width={timelineData.width} height="200" className="relative z-10 overflow-visible">
+            {/* 3. O GRÁFICO SVG (RENDERIZAÇÃO TOTAL) */}
+            <svg 
+              width={timelineData.width} 
+              height="200" 
+              className="relative z-10 overflow-visible"
+              viewBox={`0 0 ${timelineData.width} 200`}
+              preserveAspectRatio="none"
+            >
+              {/* LINHA DE BASE BRANCA */}
               <line 
                 x1="0" y1="200" x2={timelineData.width} y2="200" 
-                stroke="white" strokeWidth="4" strokeLinecap="round" 
-                style={{ opacity: 0.8 }} 
+                stroke="white" strokeWidth="2" strokeLinecap="round" 
               />
 
               {timelineData.series.map((serie) => {
-                const temValorReal = serie.pontos.some(p => p.y > 0);
-                if (!temValorReal) return null;
+                const pontosComGasto = serie.pontos.filter(p => p.y > 0);
+                if (pontosComGasto.length === 0) return null;
+
+                const getCoords = (p: any) => ({
+                  x: p.x,
+                  y: 200 - (p.y / timelineData.maxValor) * 200
+                });
+
+                let d = "";
+                serie.pontos.forEach((p, i) => {
+                  const curr = getCoords(p);
+                  if (i === 0) d += `M ${curr.x} ${curr.y}`;
+                  else {
+                    const prev = getCoords(serie.pontos[i - 1]);
+                    const cp1x = prev.x + (curr.x - prev.x) / 2;
+                    d += ` C ${cp1x} ${prev.y}, ${cp1x} ${curr.y}, ${curr.x} ${curr.y}`;
+                  }
+                });
 
                 return (
                   <g key={serie.nome}>
-                    {serie.pontos.map((p, pIdx) => {
-                      if (p.y <= 0) return null;
-
-                      // Pega o ponto anterior ou o atual se for o primeiro
-                      const prev = serie.pontos[pIdx - 1] || p;
-                      // Pega o próximo ou o atual se for o último
-                      const next = serie.pontos[pIdx + 1] || p;
-                      
-                      const pathData = solveCurve([prev, p, next], 200, timelineData.maxValor);
-
-                      return (
-                        <g key={pIdx}>
-                          <path 
-                            d={pathData} 
-                            fill="none" 
-                            stroke={serie.cor} 
-                            strokeWidth="4" 
-                            strokeLinecap="round" 
-                          />
-                          <circle cx={p.x} cy={200 - (p.y / timelineData.maxValor) * 200} r="6" fill={serie.cor} className="opacity-20 animate-pulse" />
-                          <circle cx={p.x} cy={200 - (p.y / timelineData.maxValor) * 200} r="3" fill={serie.cor} stroke="#000" strokeWidth="2" />
-                        </g>
-                      );
-                    })}
+                    <path 
+                      d={d} 
+                      fill="none" 
+                      stroke={serie.cor} 
+                      strokeWidth="4" 
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      className="opacity-90"
+                    />
+                    
+                    {serie.pontos.map((p, idx) => p.y > 0 && (
+                      <g key={idx}>
+                        <circle 
+                          cx={p.x} 
+                          cy={200 - (p.y / timelineData.maxValor) * 200} 
+                          r="6" 
+                          fill={serie.cor} 
+                          className="opacity-20 animate-pulse" 
+                        />
+                        <circle 
+                          cx={p.x} 
+                          cy={200 - (p.y / timelineData.maxValor) * 200} 
+                          r="3" 
+                          fill={serie.cor} 
+                          stroke="#000" 
+                          strokeWidth="2" 
+                        />
+                      </g>
+                    ))}
                   </g>
                 );
               })}
             </svg>
 
-            {/* EIXO X: DIAS */}
-            <div className="absolute top-[210px] left-0 right-0 flex justify-between pointer-events-none">
+            {/* 4. EIXO X: DIAS */}
+            <div className="absolute top-[215px] left-0 right-0 flex justify-between pointer-events-none">
               {timelineData.series[0].pontos.map((p, i) => (
                 <div key={i} className="flex flex-col items-center" style={{ width: '1px' }}>
-                  <div className="w-[1px] h-2 bg-zinc-800 mb-2" />
+                  <div className={`w-[1px] h-2 mb-2 ${p.dia % 5 === 0 ? 'bg-zinc-500' : 'bg-zinc-800'}`} />
                   <span className={`text-[10px] font-black italic ${p.y > 0 ? 'text-white' : 'text-zinc-600'}`}>
                     {p.dia}
                   </span>
@@ -503,7 +516,7 @@ export default function DashboardPage() {
         </div>
       </div>
 
-      {/* MODAIS (SEM ALTERAÇÃO) */}
+      {/* MODAIS */}
       {showModal && (
         <div className="fixed inset-0 bg-black/95 backdrop-blur-md z-[150] flex items-center justify-center p-6">
           <div className="bg-[#111] w-full max-sm rounded-[2rem] p-8 border border-white/10">
