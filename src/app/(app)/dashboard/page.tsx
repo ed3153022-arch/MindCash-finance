@@ -122,6 +122,7 @@ export default function DashboardPage() {
     setLoading(false);
   }
 
+  // --- LOGICA DO GRÁFICO INTEGRADA (ESCALA DINÂMICA) ---
   const timelineData = useMemo(() => {
     const totalPontos = 30;
     const espacamento = 80; 
@@ -148,25 +149,24 @@ export default function DashboardPage() {
       return { ...cat, pontos };
     });
 
+    // O topo do gráfico agora é conforme o seu maior gasto registrado no período
+    const topoCalculado = maxValorGlobal === 0 ? 1000 : maxValorGlobal * 1.1; // 10% de folga no topo
+
     return { 
       series, 
-      maxValor: maxValorGlobal === 0 ? 1000 : maxValorGlobal * 1.2, 
+      maxValor: topoCalculado, 
       width: (totalPontos - 1) * espacamento,
       espacamento
     };
   }, [transacoes, mesAtual, anoAtual]);
 
-  const solveCurve = (pontos: any[], height: number, max: number) => {
-    if (pontos.length === 0) return "";
-    const getPos = (p: any) => ({ x: p.x, y: height - (p.y / max) * height });
-    let d = `M ${getPos(pontos[0]).x} ${getPos(pontos[0]).y}`;
-    for (let i = 0; i < pontos.length - 1; i++) {
-      const curr = getPos(pontos[i]);
-      const next = getPos(pontos[i+1]);
-      const mx = (curr.x + next.x) / 2;
-      d += ` C ${mx} ${curr.y}, ${mx} ${next.y}, ${next.x} ${next.y}`;
-    }
-    return d;
+  const solveCurve = (pts: any[], height: number, max: number) => {
+    const [p0, p1, p2] = pts;
+    const cp1x = p0.x + (p1.x - p0.x) / 2;
+    const cp2x = p1.x + (p2.x - p1.x) / 2;
+    const y1 = height - (p1.y / max) * height;
+    const y2 = height - (p2.y / max) * height;
+    return `M ${p1.x} ${y1} C ${cp2x} ${y1} ${cp2x} ${y2} ${p2.x} ${y2}`;
   };
 
   const maskMoney = (v: string) => {
@@ -380,7 +380,7 @@ export default function DashboardPage() {
         </div>
       </div>
 
-      {/* GRÁFICO DE LINHA - SISTEMA DE SEGMENTAÇÃO DINÂMICA */}
+      {/* --- GRÁFICO DE LINHA COM 10 DIVISÕES E TOPO DINÂMICO --- */}
       <div className="bg-[#0c0c0c] pt-10 pb-10 rounded-[2.5rem] border border-white/5 flex flex-col overflow-hidden relative shadow-2xl">
         <div className="px-8 mb-10 flex justify-between items-start">
           <div>
@@ -395,60 +395,54 @@ export default function DashboardPage() {
         <div className="overflow-x-auto px-10 pb-6 scrollbar-hide relative">
           <div style={{ width: `${timelineData.width}px` }} className="relative h-[280px]">
             
-            {/* 1. LINHAS DE GRADE HORIZONTAIS */}
+            {/* LINHAS DE GRADE HORIZONTAIS (10 DIVISÕES DINÂMICAS) */}
             <div className="absolute inset-0 h-[200px] flex flex-col justify-between pointer-events-none">
-              <div className="w-full border-t border-white/[0.03] pt-1">
-                <span className="text-[7px] font-black text-zinc-600 italic">MAX R$ {timelineData.maxValor.toFixed(0)}</span>
-              </div>
-              <div className="w-full border-t border-white/[0.03] pt-1">
-                <span className="text-[7px] font-black text-zinc-600 italic">MÉDIA</span>
-              </div>
-              {/* LINHA DE BASE BRANCA ESTÁTICA - TAMPA A LINHA ROXA */}
-              <div className="w-full pt-1">
-                <span className="text-[7px] font-black text-zinc-400 italic">BASE R$ 0</span>
-              </div>
+              {Array.from({ length: 11 }).map((_, i) => {
+                const percentual = (10 - i) / 10;
+                const valorLinha = timelineData.maxValor * percentual;
+                return (
+                  <div key={i} className="w-full border-t border-white/[0.04] relative">
+                    <span className="absolute -top-1.5 left-0 text-[6px] font-black text-zinc-600 italic uppercase">
+                      {valorLinha > 0 ? `R$ ${valorLinha.toFixed(0)}` : "BASE R$ 0"}
+                    </span>
+                  </div>
+                );
+              })}
             </div>
 
-            {/* 2. GRADE VERTICAL (TRACEJADA) */}
+            {/* GRADE VERTICAL (TRACEJADA) */}
             <div className="absolute inset-0 h-[200px] flex justify-between pointer-events-none">
               {timelineData.series[0].pontos.map((_, i) => (
                 <div key={i} className="h-full border-l border-dashed border-white/[0.03]" />
               ))}
             </div>
 
-            {/* 3. O GRÁFICO SVG */}
+            {/* O GRÁFICO SVG */}
             <svg width={timelineData.width} height="200" className="relative z-10 overflow-visible">
-              
-              {/* LINHA BRANCA DE BASE - ESTATICA E PERFEITA */}
               <line 
                 x1="0" y1="200" x2={timelineData.width} y2="200" 
                 stroke="white" strokeWidth="4" strokeLinecap="round" 
                 style={{ opacity: 0.8 }} 
               />
 
-              {timelineData.series.map((serie, sIdx) => {
+              {timelineData.series.map((serie) => {
                 const temValorReal = serie.pontos.some(p => p.y > 0);
                 if (!temValorReal) return null;
 
                 return (
                   <g key={serie.nome}>
                     {serie.pontos.map((p, pIdx) => {
-                      // Se não tem gasto aqui, não desenha segmento de cor
                       if (p.y <= 0) return null;
 
-                      // Criamos uma "micro-onda" pegando o ponto anterior, o atual e o próximo
-                      // Isso faz com que a cor apareça apenas na subida e descida do gasto
-                      const segmento = [
-                        serie.pontos[pIdx - 1] || p,
-                        p,
-                        serie.pontos[pIdx + 1] || p
-                      ];
-
-                      const pathData = solveCurve(segmento, 200, timelineData.maxValor);
+                      // Pega o ponto anterior ou o atual se for o primeiro
+                      const prev = serie.pontos[pIdx - 1] || p;
+                      // Pega o próximo ou o atual se for o último
+                      const next = serie.pontos[pIdx + 1] || p;
+                      
+                      const pathData = solveCurve([prev, p, next], 200, timelineData.maxValor);
 
                       return (
                         <g key={pIdx}>
-                          {/* Segmento Colorido da Oscilação */}
                           <path 
                             d={pathData} 
                             fill="none" 
@@ -456,7 +450,6 @@ export default function DashboardPage() {
                             strokeWidth="4" 
                             strokeLinecap="round" 
                           />
-                          {/* Ponto de Destaque no Topo */}
                           <circle cx={p.x} cy={200 - (p.y / timelineData.maxValor) * 200} r="6" fill={serie.cor} className="opacity-20 animate-pulse" />
                           <circle cx={p.x} cy={200 - (p.y / timelineData.maxValor) * 200} r="3" fill={serie.cor} stroke="#000" strokeWidth="2" />
                         </g>
@@ -467,7 +460,7 @@ export default function DashboardPage() {
               })}
             </svg>
 
-            {/* 4. EIXO X: DIAS */}
+            {/* EIXO X: DIAS */}
             <div className="absolute top-[210px] left-0 right-0 flex justify-between pointer-events-none">
               {timelineData.series[0].pontos.map((p, i) => (
                 <div key={i} className="flex flex-col items-center" style={{ width: '1px' }}>
@@ -510,7 +503,7 @@ export default function DashboardPage() {
         </div>
       </div>
 
-      {/* MODAIS */}
+      {/* MODAIS (SEM ALTERAÇÃO) */}
       {showModal && (
         <div className="fixed inset-0 bg-black/95 backdrop-blur-md z-[150] flex items-center justify-center p-6">
           <div className="bg-[#111] w-full max-sm rounded-[2rem] p-8 border border-white/10">
