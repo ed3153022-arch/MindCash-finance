@@ -367,7 +367,7 @@ export default function DashboardPage() {
         </div>
       </div>
 
-      {/* NOVO GRÁFICO DE LINHA - CORRIGIDO E DINÂMICO */}
+      {/* NOVO GRÁFICO DE LINHA - CORRIGIDO (BASELINE E POSICIONAMENTO) */}
       <div className="bg-[#0c0c0c] pt-10 pb-10 rounded-[2.5rem] border border-white/5 flex flex-col overflow-hidden relative shadow-2xl">
         <div className="px-8 mb-10 flex justify-between items-start">
           <div>
@@ -379,51 +379,49 @@ export default function DashboardPage() {
           </div>
         </div>
 
-        <div className="overflow-x-auto px-10 pb-12 scrollbar-hide relative">
-          <div style={{ width: `${timelineData.width}px` }} className="relative h-[250px]">
+        <div className="overflow-x-auto px-10 pb-14 scrollbar-hide relative">
+          {/* Aumentei a altura do container para 300px para evitar cortes */}
+          <div style={{ width: `${timelineData.width}px` }} className="relative h-[280px]">
             
-            {/* 1. LINHAS DE GRADE HORIZONTAIS (10 FATIAS EXATAS) */}
+            {/* 1. LINHAS DE GRADE HORIZONTAIS */}
             <div className="absolute inset-0 h-[200px] flex flex-col justify-between pointer-events-none">
-              {Array.from({ length: 11 }).map((_, i) => {
-                const valorFatia = (timelineData.maxValor / 10) * (10 - i);
-                return (
-                  <div key={i} className="w-full border-t border-white/[0.03] relative">
-                    <span className="absolute -top-1.5 left-0 text-[7px] font-black text-zinc-600 italic">
-                      R$ {valorFatia.toFixed(0)}
-                    </span>
-                  </div>
-                );
-              })}
-            </div>
-
-            {/* 2. GRADE VERTICAL */}
-            <div className="absolute inset-0 h-[200px] flex justify-between pointer-events-none">
-              {timelineData.series[0].pontos.map((_, i) => (
-                <div key={i} className="h-full border-l border-dashed border-white/[0.02]" />
+              {Array.from({ length: 6 }).map((_, i) => (
+                <div key={i} className="w-full border-t border-white/[0.03] relative">
+                  <span className="absolute -top-1.5 left-0 text-[7px] font-black text-zinc-700 italic">
+                    R$ {((timelineData.maxValor / 5) * (5 - i)).toFixed(0)}
+                  </span>
+                </div>
               ))}
             </div>
 
-            {/* 3. O GRÁFICO SVG (RENDERIZAÇÃO TOTAL) */}
+            {/* 2. O GRÁFICO SVG COM AJUSTES DE POSICIONAMENTO */}
             <svg 
               width={timelineData.width} 
-              height="200" 
+              height="250" 
               className="relative z-10 overflow-visible"
-              viewBox={`0 0 ${timelineData.width} 200`}
-              preserveAspectRatio="none"
+              viewBox={`0 0 ${timelineData.width} 250`}
             >
-              {/* LINHA DE BASE BRANCA */}
+              {/* LINHA DE BASE BRANCA (RESTAURADA DO PRINT 2) */}
               <line 
-                x1="0" y1="200" x2={timelineData.width} y2="200" 
-                stroke="white" strokeWidth="2" strokeLinecap="round" 
+                x1="0" 
+                y1="200" 
+                x2={timelineData.width} 
+                y2="200" 
+                stroke="white" 
+                strokeWidth="2" 
+                strokeLinecap="round" 
+                style={{ opacity: 0.9 }}
               />
 
               {timelineData.series.map((serie) => {
-                const pontosComGasto = serie.pontos.filter(p => p.y > 0);
-                if (pontosComGasto.length === 0) return null;
+                const temGasto = serie.pontos.some(p => p.y > 0);
+                if (!temGasto) return null;
 
+                // Função de mapeamento com Respiro de 20% no topo para não cortar
                 const getCoords = (p: any) => ({
                   x: p.x,
-                  y: 200 - (p.y / timelineData.maxValor) * 200
+                  // 200 é a baseline. O 1.2 no divisor garante 20% de margem no topo.
+                  y: 200 - (p.y / (timelineData.maxValor * 1.2)) * 180 
                 });
 
                 let d = "";
@@ -439,6 +437,9 @@ export default function DashboardPage() {
 
                 return (
                   <g key={serie.nome}>
+                    {/* Glow da Linha */}
+                    <path d={d} fill="none" stroke={serie.cor} strokeWidth="6" className="opacity-10 blur-sm" />
+                    {/* Linha Principal */}
                     <path 
                       d={d} 
                       fill="none" 
@@ -451,21 +452,8 @@ export default function DashboardPage() {
                     
                     {serie.pontos.map((p, idx) => p.y > 0 && (
                       <g key={idx}>
-                        <circle 
-                          cx={p.x} 
-                          cy={200 - (p.y / timelineData.maxValor) * 200} 
-                          r="6" 
-                          fill={serie.cor} 
-                          className="opacity-20 animate-pulse" 
-                        />
-                        <circle 
-                          cx={p.x} 
-                          cy={200 - (p.y / timelineData.maxValor) * 200} 
-                          r="3" 
-                          fill={serie.cor} 
-                          stroke="#000" 
-                          strokeWidth="2" 
-                        />
+                        <circle cx={getCoords(p).x} cy={getCoords(p).y} r="6" fill={serie.cor} className="opacity-20 animate-pulse" />
+                        <circle cx={getCoords(p).x} cy={getCoords(p).y} r="3" fill={serie.cor} stroke="#000" strokeWidth="2" />
                       </g>
                     ))}
                   </g>
@@ -473,7 +461,7 @@ export default function DashboardPage() {
               })}
             </svg>
 
-            {/* 4. EIXO X: DIAS */}
+            {/* 3. EIXO X: DIAS */}
             <div className="absolute top-[215px] left-0 right-0 flex justify-between pointer-events-none">
               {timelineData.series[0].pontos.map((p, i) => (
                 <div key={i} className="flex flex-col items-center" style={{ width: '1px' }}>
