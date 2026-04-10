@@ -9,7 +9,7 @@ const MASTER_CATS = [
   { nome: "Alimentação", emoji: "🍔", cor: "#FF007A" },
   { nome: "Moradia", emoji: "🏠", cor: "#FF4D00" },
   { nome: "Transporte", emoji: "🚗", cor: "#00E5FF" },
-  { nome: "Lazer", emoji: "🎬", cor: "#39FF14" },
+  { nome: "Lazer", emoji: "39FF14", cor: "#39FF14" },
   { nome: "Saúde", emoji: "💊", cor: "#FFB800" },
   { nome: "Educação", emoji: "📚", cor: "#4169E1" },
   { nome: "Assinaturas", emoji: "💳", cor: "#FFD700" },
@@ -125,8 +125,7 @@ export default function DashboardPage() {
   const timelineData = useMemo(() => {
     const totalPontos = 30;
     const espacamento = 80; 
-    const paddingLateral = 40; // Evita bater na esquerda/direita
-    let maxValorReal = 0;
+    let maxValorGlobal = 0;
 
     const series = MASTER_CATS.map(cat => {
       const pontos = Array.from({ length: totalPontos }, (_, i) => {
@@ -142,20 +141,17 @@ export default function DashboardPage() {
           );
         }).reduce((acc, t) => acc + Number(t.amount), 0);
 
-        if (totalNoDia > maxValorReal) maxValorReal = totalNoDia;
+        if (totalNoDia > maxValorGlobal) maxValorGlobal = totalNoDia;
 
-        // X agora recebe o padding lateral
-        return { x: (i * espacamento) + paddingLateral, y: totalNoDia, dia: diaDesejado };
+        return { x: i * espacamento, y: totalNoDia, dia: diaDesejado };
       });
       return { ...cat, pontos };
     });
 
     return { 
       series, 
-      valorMaximoReal: maxValorReal,
-      // Folga de 30% no topo para não bater no título
-      maxValorGrafico: maxValorReal === 0 ? 1000 : maxValorReal * 1.3, 
-      width: ((totalPontos - 1) * espacamento) + (paddingLateral * 2),
+      maxValor: maxValorGlobal === 0 ? 1000 : maxValorGlobal * 1.2, 
+      width: (totalPontos - 1) * espacamento,
       espacamento
     };
   }, [transacoes, mesAtual, anoAtual]);
@@ -339,7 +335,7 @@ export default function DashboardPage() {
         <span className="text-zinc-500 text-[10px] font-black uppercase tracking-[0.2em] mb-10 self-start italic">Uso do Orçamento (Mês)</span>
         <div className="relative w-64 h-64 flex items-center justify-center mb-10">
           <svg className="w-full h-full -rotate-90" viewBox="0 0 160 160">
-            <circle cx="80" cy="80" r={70} fill="none" stroke="#1a1a1a" strokeWidth="20" />
+            <circle cx="80" cy="80" r={70} fill="none" stroke="#1a1a1a" strokeWidth="18" />
             {renderDonutChartSegments()}
           </svg>
           <div className="absolute flex flex-col items-center">
@@ -384,7 +380,7 @@ export default function DashboardPage() {
         </div>
       </div>
 
-      {/* GRÁFICO DE LINHA - SEM SEGMENTOS, COM TOPO DINÂMICO E ESPAÇAMENTOS */}
+      {/* GRÁFICO DE LINHA - SISTEMA DE SEGMENTAÇÃO DINÂMICA */}
       <div className="bg-[#0c0c0c] pt-10 pb-10 rounded-[2.5rem] border border-white/5 flex flex-col overflow-hidden relative shadow-2xl">
         <div className="px-8 mb-10 flex justify-between items-start">
           <div>
@@ -396,58 +392,83 @@ export default function DashboardPage() {
           </div>
         </div>
 
-        <div className="overflow-x-auto px-2 pb-6 scrollbar-hide relative">
-          <div style={{ width: `${timelineData.width}px` }} className="relative h-[250px]">
+        <div className="overflow-x-auto px-10 pb-6 scrollbar-hide relative">
+          <div style={{ width: `${timelineData.width}px` }} className="relative h-[280px]">
             
-            {/* VALOR MÁXIMO NO TOPO */}
-            <div className="absolute top-0 left-10 pointer-events-none">
-                <span className="text-[8px] font-black text-zinc-600 italic uppercase">
-                  Maior Transação: R$ {timelineData.valorMaximoReal.toLocaleString('pt-BR')}
-                </span>
+            {/* 1. LINHAS DE GRADE HORIZONTAIS */}
+            <div className="absolute inset-0 h-[200px] flex flex-col justify-between pointer-events-none">
+              <div className="w-full border-t border-white/[0.03] pt-1">
+                <span className="text-[7px] font-black text-zinc-600 italic">MAX R$ {timelineData.maxValor.toFixed(0)}</span>
+              </div>
+              <div className="w-full border-t border-white/[0.03] pt-1">
+                <span className="text-[7px] font-black text-zinc-600 italic">MÉDIA</span>
+              </div>
+              {/* LINHA DE BASE BRANCA ESTÁTICA - TAMPA A LINHA ROXA */}
+              <div className="w-full pt-1">
+                <span className="text-[7px] font-black text-zinc-400 italic">BASE R$ 0</span>
+              </div>
             </div>
 
-            {/* O GRÁFICO SVG */}
-            <svg width={timelineData.width} height="200" className="relative z-10 overflow-visible mt-6">
+            {/* 2. GRADE VERTICAL (TRACEJADA) */}
+            <div className="absolute inset-0 h-[200px] flex justify-between pointer-events-none">
+              {timelineData.series[0].pontos.map((_, i) => (
+                <div key={i} className="h-full border-l border-dashed border-white/[0.03]" />
+              ))}
+            </div>
+
+            {/* 3. O GRÁFICO SVG */}
+            <svg width={timelineData.width} height="200" className="relative z-10 overflow-visible">
               
-              {/* LINHA BRANCA DE BASE */}
+              {/* LINHA BRANCA DE BASE - ESTATICA E PERFEITA */}
               <line 
                 x1="0" y1="200" x2={timelineData.width} y2="200" 
                 stroke="white" strokeWidth="4" strokeLinecap="round" 
                 style={{ opacity: 0.8 }} 
               />
 
-              {timelineData.series.map((serie) => {
+              {timelineData.series.map((serie, sIdx) => {
                 const temValorReal = serie.pontos.some(p => p.y > 0);
                 if (!temValorReal) return null;
 
-                const pathData = solveCurve(serie.pontos, 200, timelineData.maxValorGrafico);
-
                 return (
                   <g key={serie.nome}>
-                    {/* Linha Contínua da Categoria */}
-                    <path 
-                      d={pathData} 
-                      fill="none" 
-                      stroke={serie.cor} 
-                      strokeWidth="4" 
-                      strokeLinecap="round" 
-                      strokeLinejoin="round"
-                    />
-                    
-                    {/* Pontos de Destaque */}
-                    {serie.pontos.map((p, pIdx) => p.y > 0 && (
-                      <g key={pIdx}>
-                        <circle cx={p.x} cy={200 - (p.y / timelineData.maxValorGrafico) * 200} r="6" fill={serie.cor} className="opacity-20 animate-pulse" />
-                        <circle cx={p.x} cy={200 - (p.y / timelineData.maxValorGrafico) * 200} r="3" fill={serie.cor} stroke="#000" strokeWidth="2" />
-                      </g>
-                    ))}
+                    {serie.pontos.map((p, pIdx) => {
+                      // Se não tem gasto aqui, não desenha segmento de cor
+                      if (p.y <= 0) return null;
+
+                      // Criamos uma "micro-onda" pegando o ponto anterior, o atual e o próximo
+                      // Isso faz com que a cor apareça apenas na subida e descida do gasto
+                      const segmento = [
+                        serie.pontos[pIdx - 1] || p,
+                        p,
+                        serie.pontos[pIdx + 1] || p
+                      ];
+
+                      const pathData = solveCurve(segmento, 200, timelineData.maxValor);
+
+                      return (
+                        <g key={pIdx}>
+                          {/* Segmento Colorido da Oscilação */}
+                          <path 
+                            d={pathData} 
+                            fill="none" 
+                            stroke={serie.cor} 
+                            strokeWidth="4" 
+                            strokeLinecap="round" 
+                          />
+                          {/* Ponto de Destaque no Topo */}
+                          <circle cx={p.x} cy={200 - (p.y / timelineData.maxValor) * 200} r="6" fill={serie.cor} className="opacity-20 animate-pulse" />
+                          <circle cx={p.x} cy={200 - (p.y / timelineData.maxValor) * 200} r="3" fill={serie.cor} stroke="#000" strokeWidth="2" />
+                        </g>
+                      );
+                    })}
                   </g>
                 );
               })}
             </svg>
 
-            {/* EIXO X: DIAS */}
-            <div className="absolute top-[230px] left-0 right-0 flex justify-between pointer-events-none">
+            {/* 4. EIXO X: DIAS */}
+            <div className="absolute top-[210px] left-0 right-0 flex justify-between pointer-events-none">
               {timelineData.series[0].pontos.map((p, i) => (
                 <div key={i} className="flex flex-col items-center" style={{ width: '1px' }}>
                   <div className="w-[1px] h-2 bg-zinc-800 mb-2" />
@@ -462,7 +483,78 @@ export default function DashboardPage() {
       </div>
 
       {/* ATIVIDADE RECENTE */}
-      {/* ... restante do código permanece igual ... */}
+      <div className="bg-[#111] pt-12 pb-8 px-8 rounded-[1.5rem] border border-white/5 space-y-6">
+        <div className="flex justify-between items-center">
+          <h3 className="text-xl font-black italic uppercase tracking-tighter">Atividade</h3>
+          <span className="text-[9px] font-black text-zinc-500 uppercase tracking-widest italic">Recentes</span>
+        </div>
+        <div className="space-y-3">
+          {transacoes.slice(0, 4).map((t) => {
+            const catInfo = MASTER_CATS.find(c => c.nome.toLowerCase() === t.category?.toLowerCase());
+            return (
+              <div key={t.id} className="flex justify-between items-center bg-black/40 p-4 rounded-2xl border border-white/5">
+                <div className="flex items-center gap-3">
+                  <span className="text-xl">{t.type === 'entrada' ? "💰" : (catInfo?.emoji || "💸")}</span>
+                  <div>
+                    <p className="text-white font-black italic uppercase text-[10px] leading-none">{t.category}</p>
+                    <p className="text-zinc-600 text-[8px] font-bold uppercase mt-1">{new Date(t.created_at).toLocaleDateString('pt-BR')}</p>
+                  </div>
+                </div>
+                <span className={`text-sm font-black italic ${t.type === 'entrada' ? 'text-green-500' : 'text-white'}`}>
+                  {t.type === 'entrada' ? '+' : '-'} R$ {Number(t.amount).toLocaleString('pt-BR')}
+                </span>
+              </div>
+            );
+          })}
+          <button onClick={() => router.push("/historico")} className="w-full py-4 mt-2 bg-zinc-900 border border-white/5 rounded-2xl text-[9px] font-black uppercase tracking-[0.2em] italic">Ver atividade Completa →</button>
+        </div>
+      </div>
+
+      {/* MODAIS */}
+      {showModal && (
+        <div className="fixed inset-0 bg-black/95 backdrop-blur-md z-[150] flex items-center justify-center p-6">
+          <div className="bg-[#111] w-full max-sm rounded-[2rem] p-8 border border-white/10">
+            <h2 className="text-2xl font-black italic uppercase mb-6 text-center">Novo Registro</h2>
+            <div className="grid grid-cols-2 gap-2 bg-black p-1 rounded-2xl mb-6">
+              <button onClick={() => setTipo("saida")} className={`py-3 rounded-xl font-black text-[10px] uppercase transition ${tipo === "saida" ? "bg-red-500 text-white" : "text-zinc-500"}`}>Saída</button>
+              <button onClick={() => setTipo("entrada")} className={`py-3 rounded-xl font-black text-[10px] uppercase transition ${tipo === "entrada" ? "bg-green-500 text-white" : "text-zinc-500"}`}>Entrada</button>
+            </div>
+            {tipo === "saida" && (
+              <div className="grid grid-cols-3 gap-2 mb-6 max-h-40 overflow-y-auto">
+                {MASTER_CATS.map(c => (
+                  <button key={c.nome} onClick={() => setCatSel(c.nome)} className={`p-2 rounded-xl border transition-all flex flex-col items-center ${catSel === c.nome ? "border-yellow-400 bg-yellow-400/10" : "border-white/5 bg-black/40"}`}>
+                    <span className="text-lg">{c.emoji}</span>
+                    <span className="text-[6px] font-black uppercase">{c.nome}</span>
+                  </button>
+                ))}
+              </div>
+            )}
+            <input type="text" inputMode="numeric" placeholder="R$ 0,00" value={valor} onChange={(e) => setValor(maskMoney(e.target.value))} className="w-full bg-black border border-white/10 p-5 rounded-2xl text-3xl font-black italic outline-none text-center focus:border-yellow-400 mb-6" />
+            <button onClick={async () => {
+                const valorNum = parseFloat(valor.replace(",", "."));
+                const { data: { user } } = await supabase.auth.getUser();
+                await supabase.from("transactions").insert({ user_id: user?.id, type: tipo, category: tipo === 'saida' ? catSel : 'Receita', amount: valorNum });
+                setShowModal(false); setValor(""); loadData(); notify("Registrado!");
+            }} className="w-full bg-yellow-400 text-black py-5 rounded-2xl font-black uppercase text-[10px] mb-3">Confirmar</button>
+            <button onClick={() => setShowModal(false)} className="w-full text-zinc-500 font-black text-[9px] uppercase">Cancelar</button>
+          </div>
+        </div>
+      )}
+
+      {showFixedModal && (
+        <div className="fixed inset-0 bg-black/95 backdrop-blur-md z-[150] flex items-center justify-center p-6">
+          <div className="bg-[#111] w-full max-w-sm rounded-[2rem] p-8 border border-white/10 shadow-2xl">
+            <h2 className="text-2xl font-black italic uppercase mb-8 text-yellow-400">Nova Sentença Fixa</h2>
+            <div className="space-y-6">
+              <input type="text" placeholder="NOME DO GASTO" value={fixoNome} onChange={e => setFixoNome(e.target.value)} className="w-full bg-black border border-white/5 p-5 rounded-2xl text-[11px] font-black italic text-white outline-none focus:border-yellow-400" />
+              <input type="text" inputMode="numeric" placeholder="VALOR (0,00)" value={fixoValor} onChange={e => setFixoValor(maskMoney(e.target.value))} className="w-full bg-black border border-white/5 p-5 rounded-2xl text-[11px] font-black italic text-white outline-none focus:border-yellow-400" />
+              <input type="text" inputMode="numeric" placeholder="00/00/0000" value={fixoData} onChange={e => setFixoData(maskDate(e.target.value))} className="w-full bg-black border border-white/10 p-5 rounded-2xl text-[11px] font-black italic text-white outline-none focus:border-yellow-400" />
+            </div>
+            <button onClick={handleAddFixed} className="w-full bg-yellow-400 text-black py-5 rounded-2xl font-black uppercase text-[10px] mt-10 active:scale-95 italic">Confirmar</button>
+            <button onClick={() => setShowFixedModal(false)} className="w-full py-4 text-zinc-500 font-black text-[9px] uppercase mt-2">Cancelar</button>
+          </div>
+        </div>
+      )}
     </div>
   );
-}
+  }
