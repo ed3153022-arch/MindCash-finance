@@ -22,12 +22,12 @@ export default function DashboardPage() {
   const [showModal, setShowModal] = useState(false);
   const [showFixedModal, setShowFixedModal] = useState(false);
   
-  // ESTADOS PARA OBJETIVOS
+  // NOVOS ESTADOS PARA OBJETIVOS
   const [showDreamModal, setShowDreamModal] = useState(false);
   const [metasDesejo, setMetasDesejo] = useState<any[]>([]);
   const [dreamNome, setDreamNome] = useState("");
   const [dreamValor, setDreamValor] = useState("");
-  
+
   const [viewMode, setViewMode] = useState<"mes" | "ano">("mes");
   const agora = new Date();
   const mesAtual = agora.getMonth();
@@ -117,20 +117,20 @@ export default function DashboardPage() {
       if (!user) return router.push("/login");
       const [m, t, f, d] = await Promise.all([
         supabase.from("goals").select("*").eq("user_id", user.id),
-        supabase.from("transactions").select("*").eq("user_id", user.id).order("created_at", { ascending: false }),
+        supabase.from("transactions").select("*").eq("user_id", user.id).order("created_at", { ascending: true }),
         supabase.from("fixed_expenses").select("*").eq("user_id", user.id).order("due_day", { ascending: true }),
-        supabase.from("dream_goals").select("*").eq("user_id", user.id)
+        supabase.from("dream_goals").select("*").eq("user_id", user.id) // Busca objetivos
       ]);
       setMetas(m.data || []);
       setTransacoes(t.data || []);
       setGastosFixos(f.data || []);
-      setMetasDesejo(d.data || []);
+      setMetasDesejo(d.data || []); // Seta objetivos
       gerarAlertasDinamicos(m.data || [], t.data || [], f.data || []);
     } catch (e) { console.error(e); }
     setLoading(false);
   }
 
-  // LOGICA PARA CRIAR NOVO OBJETIVO
+  // FUNÇÃO PARA ADICIONAR OBJETIVO
   async function handleAddDream() {
     try {
       if (!dreamNome || !dreamValor) return notify("Preencha o objetivo!", "error");
@@ -142,11 +142,21 @@ export default function DashboardPage() {
         target_amount: valorNum 
       });
       if (error) throw error;
-      notify("Objetivo Lançado!");
+      notify("Objetivo de vida lançado!");
       setShowDreamModal(false); setDreamNome(""); setDreamValor("");
       loadData();
     } catch (e) { notify("Erro ao salvar", "error"); }
   }
+
+  // CONTADOR DE OBJETIVOS CONCLUÍDOS
+  const objetivosConcluidosCount = useMemo(() => {
+    return metasDesejo.filter(meta => {
+      const totalAportado = transacoes
+        .filter(t => t.type === 'entrada' && t.category === `OBJ: ${meta.name}`)
+        .reduce((acc, t) => acc + Number(t.amount), 0);
+      return totalAportado >= Number(meta.target_amount);
+    }).length;
+  }, [metasDesejo, transacoes]);
 
   const timelineData = useMemo(() => {
     const totalPontos = 30;
@@ -356,12 +366,14 @@ export default function DashboardPage() {
         </div>
       </div>
 
-      {/* --- OBJETIVOS DE VIDA (ABAIXO DOS GASTOS FIXOS) --- */}
+      {/* --- NOVO CARD: OBJETIVOS DE VIDA --- */}
       <div className="bg-[#0c0c0c] p-6 rounded-[2rem] border border-white/5 space-y-6">
         <div className="flex justify-between items-center px-2">
           <div className="flex flex-col">
             <h3 className="text-lg font-black italic uppercase tracking-tighter text-white">Objetivos de Vida</h3>
-            <p className="text-[8px] text-zinc-500 font-black uppercase tracking-widest italic">Aportes via Entradas</p>
+            <p className="text-[8px] text-zinc-500 font-black uppercase tracking-widest italic">
+              {objetivosConcluidosCount} OBJETIVOS CONCLUÍDOS
+            </p>
           </div>
           <button 
             onClick={() => setShowDreamModal(true)} 
@@ -377,7 +389,7 @@ export default function DashboardPage() {
               .filter(t => t.type === 'entrada' && t.category === `OBJ: ${meta.name}`)
               .reduce((acc, t) => acc + Number(t.amount), 0);
             
-            const porcentagem = Math.min(Math.round((totalAportado / meta.target_amount) * 100), 100);
+            const porcentagem = Math.min(Math.round((totalAportado / Number(meta.target_amount)) * 100), 100);
             const concluido = porcentagem >= 100;
 
             return (
@@ -476,6 +488,11 @@ export default function DashboardPage() {
 
         <div className="overflow-x-auto px-10 pb-6 scrollbar-hide relative">
           <div style={{ width: `${timelineData.width}px` }} className="relative h-[280px]">
+            <div className="absolute inset-0 h-[200px] flex flex-col justify-between pointer-events-none">
+              <div className="w-full border-t border-white/[0.03] pt-1"><span className="text-[7px] font-black text-zinc-600 italic">MAX R$ {timelineData.maxValor.toFixed(0)}</span></div>
+              <div className="w-full border-t border-white/[0.03] pt-1"><span className="text-[7px] font-black text-zinc-600 italic">MÉDIA</span></div>
+              <div className="w-full pt-1"><span className="text-[7px] font-black text-zinc-400 italic">BASE R$ 0</span></div>
+            </div>
             <svg width={timelineData.width} height="200" className="relative z-10 overflow-visible">
               <line x1="0" y1="200" x2={timelineData.width} y2="200" stroke="white" strokeWidth="4" strokeLinecap="round" style={{ opacity: 0.8 }} />
               {timelineData.series.map((serie, sIdx) => {
@@ -487,12 +504,21 @@ export default function DashboardPage() {
                   return (
                     <g key={pIdx}>
                       <path d={pathData} fill="none" stroke={serie.cor} strokeWidth="4" strokeLinecap="round" />
+                      <circle cx={p.x} cy={200 - (p.y / timelineData.maxValor) * 200} r="6" fill={serie.cor} className="opacity-20 animate-pulse" />
                       <circle cx={p.x} cy={200 - (p.y / timelineData.maxValor) * 200} r="3" fill={serie.cor} stroke="#000" strokeWidth="2" />
                     </g>
                   );
                 });
               })}
             </svg>
+            <div className="absolute top-[210px] left-0 right-0 flex justify-between pointer-events-none">
+              {timelineData.series[0].pontos.map((p, i) => (
+                <div key={i} className="flex flex-col items-center" style={{ width: '1px' }}>
+                  <div className="w-[1px] h-2 bg-zinc-800 mb-2" />
+                  <span className={`text-[10px] font-black italic ${p.y > 0 ? 'text-white' : 'text-zinc-600'}`}>{p.dia}</span>
+                </div>
+              ))}
+            </div>
           </div>
         </div>
       </div>
@@ -521,20 +547,21 @@ export default function DashboardPage() {
               </div>
             );
           })}
+          <button onClick={() => router.push("/historico")} className="w-full py-4 mt-2 bg-zinc-900 border border-white/5 rounded-2xl text-[9px] font-black uppercase tracking-[0.2em] italic">Ver atividade Completa →</button>
         </div>
       </div>
 
-      {/* MODAL TRANSAÇÃO */}
+      {/* MODAL REGISTRO (INTEGRADO COM OBJETIVOS) */}
       {showModal && (
         <div className="fixed inset-0 bg-black/95 backdrop-blur-md z-[150] flex items-center justify-center p-6">
           <div className="bg-[#111] w-full max-sm rounded-[2rem] p-8 border border-white/10">
             <h2 className="text-2xl font-black italic uppercase mb-6 text-center">Novo Registro</h2>
             <div className="grid grid-cols-2 gap-2 bg-black p-1 rounded-2xl mb-6">
-              <button onClick={() => setTipo("saida")} className={`py-3 rounded-xl font-black text-[10px] uppercase transition ${tipo === "saida" ? "bg-red-500 text-white" : "text-zinc-500"}`}>Saída</button>
-              <button onClick={() => setTipo("entrada")} className={`py-3 rounded-xl font-black text-[10px] uppercase transition ${tipo === "entrada" ? "bg-green-500 text-white" : "text-zinc-500"}`}>Entrada</button>
+              <button onClick={() => {setTipo("saida"); setCatSel("")}} className={`py-3 rounded-xl font-black text-[10px] uppercase transition ${tipo === "saida" ? "bg-red-500 text-white" : "text-zinc-500"}`}>Saída</button>
+              <button onClick={() => {setTipo("entrada"); setCatSel("Receita")}} className={`py-3 rounded-xl font-black text-[10px] uppercase transition ${tipo === "entrada" ? "bg-green-500 text-white" : "text-zinc-500"}`}>Entrada</button>
             </div>
             
-            <div className="grid grid-cols-3 gap-2 mb-6 max-h-48 overflow-y-auto">
+            <div className="grid grid-cols-3 gap-2 mb-6 max-h-40 overflow-y-auto">
               {tipo === "saida" ? (
                 MASTER_CATS.map(c => (
                   <button key={c.nome} onClick={() => setCatSel(c.nome)} className={`p-2 rounded-xl border transition-all flex flex-col items-center ${catSel === c.nome ? "border-yellow-400 bg-yellow-400/10" : "border-white/5 bg-black/40"}`}>
@@ -544,8 +571,8 @@ export default function DashboardPage() {
                 ))
               ) : (
                 <>
-                  <button onClick={() => setCatSel("Receita")} className={`p-2 rounded-xl border transition-all flex flex-col items-center ${catSel === "Receita" ? "border-green-500 bg-green-500/10" : "border-white/5 bg-black/40"}`}>
-                    <span className="text-lg">💵</span>
+                   <button onClick={() => setCatSel("Receita")} className={`p-2 rounded-xl border transition-all flex flex-col items-center ${catSel === "Receita" ? "border-green-500 bg-green-500/10" : "border-white/5 bg-black/40"}`}>
+                    <span className="text-lg">💰</span>
                     <span className="text-[6px] font-black uppercase">Receita</span>
                   </button>
                   {metasDesejo.map(m => (
@@ -576,7 +603,7 @@ export default function DashboardPage() {
           <div className="bg-[#111] w-full max-w-sm rounded-[2rem] p-8 border border-white/10 shadow-2xl">
             <h2 className="text-2xl font-black italic uppercase text-center mb-8">Novo Objetivo</h2>
             <div className="space-y-4">
-              <input type="text" placeholder="NOME DO SONHO" value={dreamNome} onChange={(e) => setDreamNome(e.target.value.toUpperCase())} className="w-full bg-black border border-white/10 p-5 rounded-2xl text-[10px] font-black italic outline-none focus:border-yellow-400" />
+              <input type="text" placeholder="NOME DO SONHO (EX: VIAGEM)" value={dreamNome} onChange={(e) => setDreamNome(e.target.value.toUpperCase())} className="w-full bg-black border border-white/10 p-5 rounded-2xl text-[10px] font-black italic outline-none focus:border-yellow-400" />
               <input type="text" inputMode="numeric" placeholder="VALOR TOTAL R$ 0,00" value={dreamValor} onChange={(e) => setDreamValor(maskMoney(e.target.value))} className="w-full bg-black border border-white/10 p-5 rounded-2xl text-2xl font-black italic outline-none text-center focus:border-yellow-400" />
             </div>
             <button onClick={handleAddDream} className="w-full bg-yellow-400 text-black py-5 rounded-2xl font-black uppercase text-[10px] mt-8 italic">Criar Objetivo</button>
@@ -585,7 +612,6 @@ export default function DashboardPage() {
         </div>
       )}
 
-      {/* MODAL FIXO */}
       {showFixedModal && (
         <div className="fixed inset-0 bg-black/95 backdrop-blur-md z-[150] flex items-center justify-center p-6">
           <div className="bg-[#111] w-full max-w-sm rounded-[2rem] p-8 border border-white/10 shadow-2xl">
@@ -595,7 +621,7 @@ export default function DashboardPage() {
               <input type="text" inputMode="numeric" placeholder="VALOR (0,00)" value={fixoValor} onChange={e => setFixoValor(maskMoney(e.target.value))} className="w-full bg-black border border-white/5 p-5 rounded-2xl text-[11px] font-black italic text-white outline-none focus:border-yellow-400" />
               <input type="text" inputMode="numeric" placeholder="00/00/0000" value={fixoData} onChange={e => setFixoData(maskDate(e.target.value))} className="w-full bg-black border border-white/10 p-5 rounded-2xl text-[11px] font-black italic text-white outline-none focus:border-yellow-400" />
             </div>
-            <button onClick={handleAddFixed} className="w-full bg-yellow-400 text-black py-5 rounded-2xl font-black uppercase text-[10px] mt-10 italic">Confirmar</button>
+            <button onClick={handleAddFixed} className="w-full bg-yellow-400 text-black py-5 rounded-2xl font-black uppercase text-[10px] mt-10 active:scale-95 italic">Confirmar</button>
             <button onClick={() => setShowFixedModal(false)} className="w-full py-4 text-zinc-500 font-black text-[9px] uppercase mt-2">Cancelar</button>
           </div>
         </div>
@@ -603,3 +629,4 @@ export default function DashboardPage() {
     </div>
   );
 }
+
