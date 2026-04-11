@@ -3,7 +3,7 @@
 import { useEffect, useState, useMemo } from "react";
 import { useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabase";
-import { Plus, Zap, Trash2, X, Bell, AlertTriangle, Info, Calendar, Target, TrendingUp } from "lucide-react";
+import { Plus, Zap, Trash2, X, Bell, AlertTriangle, Info, Calendar, Trophy, CheckCircle2 } from "lucide-react";
 
 const MASTER_CATS = [
   { nome: "Alimentação", emoji: "🍔", cor: "#FF007A" },
@@ -21,7 +21,12 @@ export default function DashboardPage() {
   const [loading, setLoading] = useState(true);
   const [showModal, setShowModal] = useState(false);
   const [showFixedModal, setShowFixedModal] = useState(false);
-  const [showIncomeGoalModal, setShowIncomeGoalModal] = useState(false); // NOVO
+  
+  // NOVOS ESTADOS PARA OBJETIVOS
+  const [showDreamModal, setShowDreamModal] = useState(false);
+  const [dreamNome, setDreamNome] = useState("");
+  const [dreamValor, setDreamValor] = useState("");
+  const [metasDesejo, setMetasDesejo] = useState<any[]>([]);
   
   const [viewMode, setViewMode] = useState<"mes" | "ano">("mes");
   const agora = new Date();
@@ -37,104 +42,13 @@ export default function DashboardPage() {
     return [];
   });
 
-  const [metas, setMetas] = useState<any[]>([]);
-  const [transacoes, setTransacoes] = useState<any[]>([]);
-  const [gastosFixos, setGastosFixos] = useState<any[]>([]);
-  const [metasRenda, setMetasRenda] = useState<any[]>([]); // NOVO
-
-  const [tipo, setTipo] = useState<"saida" | "entrada">("saida");
-  const [catSel, setCatSel] = useState("");
-  const [valor, setValor] = useState("");
-  const [fixoNome, setFixoNome] = useState("");
-  const [fixoValor, setFixoValor] = useState("");
-  const [fixoData, setFixoData] = useState("");
-  const [metaRendaValor, setMetaRendaValor] = useState(""); // NOVO
-
   useEffect(() => {
     localStorage.setItem("alertas_silenciados", JSON.stringify(closedNotifications));
   }, [closedNotifications]);
 
-  useEffect(() => { loadData(); }, []);
-
-  async function loadData() {
-    try {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) return router.push("/login");
-      const [m, t, f, r] = await Promise.all([
-        supabase.from("goals").select("*").eq("user_id", user.id),
-        supabase.from("transactions").select("*").eq("user_id", user.id).order("created_at", { ascending: true }),
-        supabase.from("fixed_expenses").select("*").eq("user_id", user.id).order("due_day", { ascending: true }),
-        supabase.from("income_goals").select("*").eq("user_id", user.id) // NOVO
-      ]);
-      setMetas(m.data || []);
-      setTransacoes(t.data || []);
-      setGastosFixos(f.data || []);
-      setMetasRenda(r.data || []); // NOVO
-      gerarAlertasDinamicos(m.data || [], t.data || [], f.data || []);
-    } catch (e) { console.error(e); }
-    setLoading(false);
-  }
-
-  // LÓGICA DE MONITORAMENTO DE LUCRO (SÓ ENTRADAS REAIS)
-  const monitoramentoLucro = useMemo(() => {
-    const faturamentoMensalReal = transacoes
-      .filter(t => 
-        t.type === "entrada" && 
-        new Date(t.created_at).getMonth() === mesAtual && 
-        new Date(t.created_at).getFullYear() === anoAtual
-      )
-      .reduce((acc, t) => acc + Number(t.amount), 0);
-
-    const metaDefinida = metasRenda[0]?.amount || 0;
-    const porcentagemConcluida = metaDefinida > 0 ? Math.min((faturamentoMensalReal / metaDefinida) * 100, 100) : 0;
-    const faltaQuanto = Math.max(metaDefinida - faturamentoMensalReal, 0);
-
-    return { faturamentoMensalReal, metaDefinida, porcentagemConcluida, faltaQuanto };
-  }, [transacoes, metasRenda, mesAtual, anoAtual]);
-
-  // FUNÇÕES AUXILIARES
   const closeNotification = (id: string) => {
     setNotifications(prev => prev.filter(n => n.id !== id));
     setClosedNotifications(prev => [...prev, id]);
-  };
-
-  const maskMoney = (v: string) => {
-    const onlyNums = v.replace(/\D/g, "");
-    if (!onlyNums) return "";
-    return (Number(onlyNums) / 100).toFixed(2).replace(".", ",");
-  };
-
-  const maskDate = (v: string) => {
-    const onlyNums = v.replace(/\D/g, "").slice(0, 8);
-    if (onlyNums.length >= 5) return onlyNums.replace(/(\d{2})(\d{2})(\d{4})/, "$1/$2/$3");
-    if (onlyNums.length >= 3) return onlyNums.replace(/(\d{2})(\d{2})/, "$1/$2");
-    return onlyNums;
-  };
-
-  const formatDisplayDate = (d: any) => {
-    if (!d) return "";
-    const clean = String(d).replace(/\D/g, "");
-    const padded = clean.padStart(8, '0');
-    return padded.replace(/(\d{2})(\d{2})(\d{4})/, "$1/$2/$3");
-  };
-
-  const notify = (msg: string, type: 'success' | 'error' = 'success') => {
-    const id = Date.now().toString();
-    setNotifications(prev => [...prev, { id, msg, title: type === 'success' ? 'SUCESSO' : 'ERRO', severity: type === 'success' ? 'success' : 'danger', icon: <Bell size={14} /> }]);
-    setTimeout(() => setNotifications(prev => prev.filter(n => n.id !== id)), 3000);
-  };
-
-  const solveCurve = (pontos: any[], height: number, max: number) => {
-    if (pontos.length === 0) return "";
-    const getPos = (p: any) => ({ x: p.x, y: height - (p.y / max) * height });
-    let d = `M ${getPos(pontos[0]).x} ${getPos(pontos[0]).y}`;
-    for (let i = 0; i < pontos.length - 1; i++) {
-      const curr = getPos(pontos[i]);
-      const next = getPos(pontos[i+1]);
-      const mx = (curr.x + next.x) / 2;
-      d += ` C ${mx} ${curr.y}, ${mx} ${next.y}, ${next.x} ${next.y}`;
-    }
-    return d;
   };
 
   const gerarAlertasDinamicos = (metasData: any[], transData: any[], fixosData: any[]) => {
@@ -185,6 +99,69 @@ export default function DashboardPage() {
     });
   };
 
+  const [metas, setMetas] = useState<any[]>([]);
+  const [transacoes, setTransacoes] = useState<any[]>([]);
+  const [gastosFixos, setGastosFixos] = useState<any[]>([]);
+  const [tipo, setTipo] = useState<"saida" | "entrada">("saida");
+  const [catSel, setCatSel] = useState("");
+  const [valor, setValor] = useState("");
+  const [fixoNome, setFixoNome] = useState("");
+  const [fixoValor, setFixoValor] = useState("");
+  const [fixoData, setFixoData] = useState("");
+
+  useEffect(() => { loadData(); }, []);
+
+  async function loadData() {
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return router.push("/login");
+      const [m, t, f, d] = await Promise.all([
+        supabase.from("goals").select("*").eq("user_id", user.id),
+        supabase.from("transactions").select("*").eq("user_id", user.id).order("created_at", { ascending: true }),
+        supabase.from("fixed_expenses").select("*").eq("user_id", user.id).order("due_day", { ascending: true }),
+        supabase.from("dream_goals").select("*").eq("user_id", user.id) // Carrega Objetivos
+      ]);
+      setMetas(m.data || []);
+      setTransacoes(t.data || []);
+      setGastosFixos(f.data || []);
+      setMetasDesejo(d.data || []);
+      gerarAlertasDinamicos(m.data || [], t.data || [], f.data || []);
+    } catch (e) { console.error(e); }
+    setLoading(false);
+  }
+
+  // Lógica de Filtragem de Objetivos (24h)
+  const metasVisiveis = metasDesejo.filter(meta => {
+    if (!meta.completed_at) return true; 
+    const dataConclusao = new Date(meta.completed_at);
+    const diffHoras = (agora.getTime() - dataConclusao.getTime()) / (1000 * 60 * 60);
+    return diffHoras < 24; 
+  });
+
+  const totalConquistados = metasDesejo.filter(m => m.completed_at).length;
+
+  async function handleAddDream() {
+    try {
+      if (!dreamNome || !dreamValor) return notify("Preencha o objetivo!", "error");
+      const { data: { user } } = await supabase.auth.getUser();
+      const valorNum = parseFloat(dreamValor.replace(",", "."));
+      const { error } = await supabase.from("dream_goals").insert({ 
+        user_id: user?.id, 
+        name: dreamNome.trim().toUpperCase(), 
+        target_amount: valorNum 
+      });
+      if (error) throw error;
+      notify("Objetivo Lançado!");
+      setShowDreamModal(false); setDreamNome(""); setDreamValor("");
+      loadData();
+    } catch (e) { notify("Erro ao salvar", "error"); }
+  }
+
+  async function concluirObjetivo(id: string) {
+    const { error } = await supabase.from("dream_goals").update({ completed_at: new Date().toISOString() }).eq("id", id);
+    if (!error) { notify("OBJETIVO ALCANÇADO! 🏆"); loadData(); }
+  }
+
   const timelineData = useMemo(() => {
     const totalPontos = 30;
     const espacamento = 80; 
@@ -218,6 +195,45 @@ export default function DashboardPage() {
       espacamento
     };
   }, [transacoes, mesAtual, anoAtual]);
+
+  const solveCurve = (pontos: any[], height: number, max: number) => {
+    if (pontos.length === 0) return "";
+    const getPos = (p: any) => ({ x: p.x, y: height - (p.y / max) * height });
+    let d = `M ${getPos(pontos[0]).x} ${getPos(pontos[0]).y}`;
+    for (let i = 0; i < pontos.length - 1; i++) {
+      const curr = getPos(pontos[i]);
+      const next = getPos(pontos[i+1]);
+      const mx = (curr.x + next.x) / 2;
+      d += ` C ${mx} ${curr.y}, ${mx} ${next.y}, ${next.x} ${next.y}`;
+    }
+    return d;
+  };
+
+  const maskMoney = (v: string) => {
+    const onlyNums = v.replace(/\D/g, "");
+    if (!onlyNums) return "";
+    return (Number(onlyNums) / 100).toFixed(2).replace(".", ",");
+  };
+
+  const maskDate = (v: string) => {
+    const onlyNums = v.replace(/\D/g, "").slice(0, 8);
+    if (onlyNums.length >= 5) return onlyNums.replace(/(\d{2})(\d{2})(\d{4})/, "$1/$2/$3");
+    if (onlyNums.length >= 3) return onlyNums.replace(/(\d{2})(\d{2})/, "$1/$2");
+    return onlyNums;
+  };
+
+  const formatDisplayDate = (d: any) => {
+    if (!d) return "";
+    const clean = String(d).replace(/\D/g, "");
+    const padded = clean.padStart(8, '0');
+    return padded.replace(/(\d{2})(\d{2})(\d{4})/, "$1/$2/$3");
+  };
+
+  const notify = (msg: string, type: 'success' | 'error' = 'success') => {
+    const id = Date.now().toString();
+    setNotifications(prev => [...prev, { id, msg, title: type === 'success' ? 'SUCESSO' : 'ERRO', severity: type === 'success' ? 'success' : 'danger', icon: <Bell size={14} /> }]);
+    setTimeout(() => setNotifications(prev => prev.filter(n => n.id !== id)), 3000);
+  };
 
   const transacoesCards = transacoes.filter(t => {
     const d = new Date(t.created_at);
@@ -271,22 +287,6 @@ export default function DashboardPage() {
     } catch (e) { notify("Erro ao salvar", "error"); }
   }
 
-  async function handleAddIncomeGoal() {
-    try {
-      const { data: { user } } = await supabase.auth.getUser();
-      const valorNum = parseFloat(metaRendaValor.replace(",", "."));
-      const { error } = await supabase.from("income_goals").upsert({ 
-        user_id: user?.id, 
-        amount: valorNum 
-      }, { onConflict: 'user_id' });
-      if (error) throw error;
-      notify("Meta de Faturamento Salva!");
-      setShowIncomeGoalModal(false);
-      setMetaRendaValor("");
-      loadData();
-    } catch (e) { notify("Erro ao salvar meta", "error"); }
-  }
-
   async function deleteFixed(id: string) {
     await supabase.from("fixed_expenses").delete().eq("id", id);
     loadData();
@@ -315,39 +315,11 @@ export default function DashboardPage() {
       {/* HEADER */}
       <div className="flex flex-col gap-2 w-full pt-4">
         <h1 className="text-5xl font-black italic uppercase tracking-tighter leading-none">DASHBOARD</h1>
-        <div className="grid grid-cols-3 gap-2 mt-4">
-          <button onClick={() => setShowIncomeGoalModal(true)} className="bg-zinc-900 border border-white/5 py-4 rounded-2xl font-black text-[9px] uppercase tracking-widest italic flex items-center justify-center gap-2">
-            <Target size={12} className="text-green-500" /> ALVO DE LUCRO
+        <div className="grid grid-cols-2 gap-3 mt-4">
+          <button onClick={() => router.push("/metas")} className="bg-zinc-900 border border-white/5 py-4 rounded-2xl font-black text-[10px] uppercase tracking-widest italic">LIMITES 🎯</button>
+          <button onClick={() => setShowModal(true)} className="bg-yellow-400 text-black py-4 rounded-2xl font-black text-[10px] uppercase tracking-widest flex items-center justify-center gap-2 italic">
+            <Plus size={14} strokeWidth={3} /> NOVA TRANSAÇÃO
           </button>
-          <button onClick={() => router.push("/metas")} className="bg-zinc-900 border border-white/5 py-4 rounded-2xl font-black text-[9px] uppercase tracking-widest italic">LIMITES 🎯</button>
-          <button onClick={() => setShowModal(true)} className="bg-yellow-400 text-black py-4 rounded-2xl font-black text-[9px] uppercase tracking-widest flex items-center justify-center gap-2 italic">
-            <Plus size={12} strokeWidth={3} /> LANÇAR
-          </button>
-        </div>
-      </div>
-
-      {/* CARD DE META DE LUCRO (NOVO) */}
-      <div className="bg-[#0a0a0a] pt-10 pb-8 px-8 rounded-[2rem] border-2 border-green-500/20 shadow-[0_0_40px_rgba(34,197,94,0.05)] relative overflow-hidden">
-        <div className="flex justify-between items-start relative z-10">
-            <div>
-            <p className="text-green-500 text-[10px] font-black uppercase tracking-[0.2em] italic mb-1">Performance de Lucro (Real)</p>
-            <h2 className="text-4xl font-black italic tracking-tighter">R$ {monitoramentoLucro.faturamentoMensalReal.toLocaleString('pt-BR')}</h2>
-            </div>
-            <div className="text-right">
-            <p className="text-zinc-600 text-[8px] font-black uppercase italic">Meta Alvo</p>
-            <p className="text-lg font-black italic text-white/90">R$ {monitoramentoLucro.metaDefinida.toLocaleString('pt-BR')}</p>
-            </div>
-        </div>
-        <div className="mt-8 relative">
-            <div className="w-full bg-white/5 h-4 rounded-full overflow-hidden p-1 border border-white/5">
-            <div className="h-full bg-green-500 rounded-full transition-all duration-1000 shadow-[0_0_20px_#22c55e]" style={{ width: `${monitoramentoLucro.porcentagemConcluida}%` }} />
-            </div>
-        </div>
-        <div className="flex justify-between mt-4">
-            <span className="text-[10px] font-black text-zinc-500 italic uppercase">{monitoramentoLucro.porcentagemConcluida.toFixed(1)}% DO OBJETIVO</span>
-            <span className="text-[10px] font-black text-green-500 italic uppercase">
-            {monitoramentoLucro.faltaQuanto > 0 ? `Faltam R$ ${monitoramentoLucro.faltaQuanto.toLocaleString('pt-BR')}` : "META ALCANÇADA 🏆"}
-            </span>
         </div>
       </div>
 
@@ -357,6 +329,59 @@ export default function DashboardPage() {
         <h2 className="text-4xl font-black italic">R$ {saldoGeral.toLocaleString('pt-BR')}</h2>
       </div>
       
+      {/* SEÇÃO DE OBJETIVOS (DESEJOS) */}
+      <div className="space-y-4">
+        <div className="flex justify-between items-center px-2">
+          <div className="flex items-center gap-2">
+            <div className="bg-yellow-400/10 p-2 rounded-lg border border-yellow-400/20">
+              <Trophy size={14} className="text-yellow-400" />
+            </div>
+            <span className="text-[10px] font-black uppercase italic tracking-widest text-zinc-400">
+              Objetivos Batidos: <span className="text-white text-sm">{totalConquistados}</span>
+            </span>
+          </div>
+          <button onClick={() => setShowDreamModal(true)} className="bg-zinc-900 border border-white/5 px-4 py-2 rounded-xl text-[9px] font-black uppercase italic hover:bg-zinc-800 transition-all">+ Novo Objetivo</button>
+        </div>
+
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          {metasVisiveis.map((meta) => {
+            const estaConcluido = !!meta.completed_at;
+            return (
+              <div key={meta.id} className={`bg-[#111] p-6 rounded-[2rem] border transition-all duration-500 relative overflow-hidden group ${estaConcluido ? 'border-green-500/50 shadow-[0_0_30px_rgba(34,197,94,0.1)]' : 'border-white/5'}`}>
+                <div className="flex justify-between items-start relative z-10">
+                  <div className={`p-3 rounded-2xl border transition-all ${estaConcluido ? 'bg-green-500/10 border-green-500 text-green-500' : 'bg-black border-white/10 text-yellow-400'}`}>
+                    {estaConcluido ? <CheckCircle2 size={18} /> : <Trophy size={18} />}
+                  </div>
+                  {!estaConcluido && (
+                    <div className="flex gap-2">
+                      <button onClick={() => concluirObjetivo(meta.id)} className="bg-zinc-900 hover:bg-green-600 p-2 rounded-xl border border-white/5 text-[8px] font-black uppercase transition-all italic">CONCLUIR</button>
+                      <button onClick={async () => { await supabase.from("dream_goals").delete().eq("id", meta.id); loadData(); }} className="text-zinc-800 hover:text-red-500 transition-colors"><X size={16} strokeWidth={3} /></button>
+                    </div>
+                  )}
+                </div>
+                <div className="mt-6 relative z-10">
+                  <h3 className={`text-[9px] font-black italic uppercase mb-1 tracking-[0.2em] ${estaConcluido ? 'text-green-500' : 'text-zinc-500'}`}>
+                    {estaConcluido ? "OBJETIVO ALCANÇADO" : meta.name}
+                  </h3>
+                  <p className={`text-2xl font-black italic ${estaConcluido ? 'line-through text-zinc-600' : 'text-white'}`}>
+                    R$ {Number(meta.target_amount).toLocaleString('pt-BR')}
+                  </p>
+                </div>
+                {estaConcluido && (
+                  <div className="mt-4 flex items-center gap-2">
+                    <div className="h-1 flex-1 bg-white/5 rounded-full overflow-hidden">
+                      <div className="h-full bg-green-500 animate-[progress_24h_linear] w-full" />
+                    </div>
+                    <span className="text-[7px] font-black text-zinc-500 italic uppercase">Some em 24h</span>
+                  </div>
+                )}
+                <div className={`absolute -right-4 -bottom-4 w-24 h-24 blur-[50px] transition-all ${estaConcluido ? 'bg-green-500/20' : 'bg-yellow-400/5'}`} />
+              </div>
+            );
+          })}
+        </div>
+      </div>
+
       {/* CARDS EMPILHADOS */}
       <div className="flex flex-col gap-3">
           <div className="bg-[#111] pt-12 pb-8 px-8 rounded-[1.5rem] border border-white/5 relative">
@@ -455,38 +480,42 @@ export default function DashboardPage() {
             <h3 className="text-base font-black italic uppercase tracking-[0.2em] text-white">Rastreamento Diário</h3>
             <p className="text-[10px] text-zinc-500 font-bold uppercase italic mt-1">Fluxo Real: Dia 01 ao 30</p>
           </div>
+          <div className="bg-zinc-900/50 px-3 py-1 rounded-full border border-white/5">
+             <span className="text-[9px] font-black text-yellow-400 italic tracking-widest">LIVE ANALYTICS</span>
+          </div>
         </div>
-
         <div className="overflow-x-auto px-10 pb-6 scrollbar-hide relative">
           <div style={{ width: `${timelineData.width}px` }} className="relative h-[280px]">
             <div className="absolute inset-0 h-[200px] flex flex-col justify-between pointer-events-none">
-              <div className="w-full border-t border-white/[0.03] pt-1">
-                <span className="text-[7px] font-black text-zinc-600 italic">MAX R$ {timelineData.maxValor.toFixed(0)}</span>
-              </div>
-              <div className="w-full border-t border-white/[0.03] pt-1" />
-              <div className="w-full pt-1">
-                <span className="text-[7px] font-black text-zinc-400 italic">BASE R$ 0</span>
-              </div>
+              <div className="w-full border-t border-white/[0.03] pt-1"><span className="text-[7px] font-black text-zinc-600 italic">MAX R$ {timelineData.maxValor.toFixed(0)}</span></div>
+              <div className="w-full border-t border-white/[0.03] pt-1"><span className="text-[7px] font-black text-zinc-600 italic">MÉDIA</span></div>
+              <div className="w-full pt-1"><span className="text-[7px] font-black text-zinc-400 italic">BASE R$ 0</span></div>
             </div>
-
+            <div className="absolute inset-0 h-[200px] flex justify-between pointer-events-none">
+              {timelineData.series[0].pontos.map((_, i) => ( <div key={i} className="h-full border-l border-dashed border-white/[0.03]" /> ))}
+            </div>
             <svg width={timelineData.width} height="200" className="relative z-10 overflow-visible">
               <line x1="0" y1="200" x2={timelineData.width} y2="200" stroke="white" strokeWidth="4" strokeLinecap="round" style={{ opacity: 0.8 }} />
-              {timelineData.series.map((serie) => (
-                  serie.pontos.some(p => p.y > 0) && (
-                    <g key={serie.nome}>
-                        {serie.pontos.map((p, pIdx) => (
-                            p.y > 0 && (
-                                <g key={pIdx}>
-                                    <path d={solveCurve([serie.pontos[pIdx - 1] || p, p, serie.pontos[pIdx + 1] || p], 200, timelineData.maxValor)} fill="none" stroke={serie.cor} strokeWidth="4" strokeLinecap="round" />
-                                    <circle cx={p.x} cy={200 - (p.y / timelineData.maxValor) * 200} r="3" fill={serie.cor} stroke="#000" strokeWidth="2" />
-                                </g>
-                            )
-                        ))}
-                    </g>
-                  )
-              ))}
+              {timelineData.series.map((serie) => {
+                if (!serie.pontos.some(p => p.y > 0)) return null;
+                return (
+                  <g key={serie.nome}>
+                    {serie.pontos.map((p, pIdx) => {
+                      if (p.y <= 0) return null;
+                      const segmento = [serie.pontos[pIdx - 1] || p, p, serie.pontos[pIdx + 1] || p];
+                      const pathData = solveCurve(segmento, 200, timelineData.maxValor);
+                      return (
+                        <g key={pIdx}>
+                          <path d={pathData} fill="none" stroke={serie.cor} strokeWidth="4" strokeLinecap="round" />
+                          <circle cx={p.x} cy={200 - (p.y / timelineData.maxValor) * 200} r="6" fill={serie.cor} className="opacity-20 animate-pulse" />
+                          <circle cx={p.x} cy={200 - (p.y / timelineData.maxValor) * 200} r="3" fill={serie.cor} stroke="#000" strokeWidth="2" />
+                        </g>
+                      );
+                    })}
+                  </g>
+                );
+              })}
             </svg>
-
             <div className="absolute top-[210px] left-0 right-0 flex justify-between pointer-events-none">
               {timelineData.series[0].pontos.map((p, i) => (
                 <div key={i} className="flex flex-col items-center" style={{ width: '1px' }}>
@@ -527,7 +556,7 @@ export default function DashboardPage() {
         </div>
       </div>
 
-      {/* MODAL REGISTRO */}
+      {/* MODAL NOVA TRANSAÇÃO */}
       {showModal && (
         <div className="fixed inset-0 bg-black/95 backdrop-blur-md z-[150] flex items-center justify-center p-6">
           <div className="bg-[#111] w-full max-w-sm rounded-[2rem] p-8 border border-white/10">
@@ -537,7 +566,7 @@ export default function DashboardPage() {
               <button onClick={() => setTipo("entrada")} className={`py-3 rounded-xl font-black text-[10px] uppercase transition ${tipo === "entrada" ? "bg-green-500 text-white" : "text-zinc-500"}`}>Entrada</button>
             </div>
             {tipo === "saida" && (
-              <div className="grid grid-cols-3 gap-2 mb-6 max-h-40 overflow-y-auto scrollbar-hide">
+              <div className="grid grid-cols-3 gap-2 mb-6 max-h-40 overflow-y-auto">
                 {MASTER_CATS.map(c => (
                   <button key={c.nome} onClick={() => setCatSel(c.nome)} className={`p-2 rounded-xl border transition-all flex flex-col items-center ${catSel === c.nome ? "border-yellow-400 bg-yellow-400/10" : "border-white/5 bg-black/40"}`}>
                     <span className="text-lg">{c.emoji}</span>
@@ -558,7 +587,7 @@ export default function DashboardPage() {
         </div>
       )}
 
-      {/* MODAL FIXOS */}
+      {/* MODAL GASTOS FIXOS */}
       {showFixedModal && (
         <div className="fixed inset-0 bg-black/95 backdrop-blur-md z-[150] flex items-center justify-center p-6">
           <div className="bg-[#111] w-full max-w-sm rounded-[2rem] p-8 border border-white/10 shadow-2xl">
@@ -574,24 +603,26 @@ export default function DashboardPage() {
         </div>
       )}
 
-      {/* MODAL ALVO DE LUCRO (NOVO) */}
-      {showIncomeGoalModal && (
+      {/* MODAL NOVO OBJETIVO (DREAM) */}
+      {showDreamModal && (
         <div className="fixed inset-0 bg-black/98 backdrop-blur-xl z-[200] flex items-center justify-center p-6">
-            <div className="bg-[#111] w-full max-w-sm rounded-[2.5rem] p-8 border border-green-500/30">
+          <div className="bg-[#111] w-full max-w-sm rounded-[2.5rem] p-8 border border-yellow-500/30 shadow-[0_0_50px_rgba(234,179,8,0.1)]">
             <div className="flex justify-center mb-6">
-                <div className="p-4 bg-green-500/10 rounded-full border border-green-500/20">
-                <Target size={32} className="text-green-500" />
-                </div>
+              <div className="p-4 bg-yellow-400/10 rounded-full border border-yellow-400/20 text-yellow-400">
+                <Trophy size={32} />
+              </div>
             </div>
-            <h2 className="text-2xl font-black italic uppercase text-center text-white mb-2">Definir Alvo</h2>
-            <p className="text-[9px] text-zinc-500 font-black uppercase text-center mb-8 italic tracking-[0.2em]">Qual o seu objetivo de lucro real este mês?</p>
-            <input type="text" inputMode="numeric" placeholder="R$ 0,00" value={metaRendaValor} onChange={(e) => setMetaRendaValor(maskMoney(e.target.value))} className="w-full bg-black border border-white/10 p-6 rounded-3xl text-3xl font-black italic outline-none text-center focus:border-green-500 mb-6 text-white" />
-            <button onClick={handleAddIncomeGoal} className="w-full bg-green-500 text-black py-5 rounded-2xl font-black uppercase text-[11px] mb-3 italic shadow-lg shadow-green-500/20">Salvar Meta</button>
-            <button onClick={() => setShowIncomeGoalModal(false)} className="w-full text-zinc-600 font-black text-[9px] uppercase tracking-widest">Cancelar</button>
+            <h2 className="text-2xl font-black italic uppercase text-center mb-2">Novo Objetivo</h2>
+            <p className="text-[9px] text-zinc-500 font-black uppercase text-center mb-8 italic tracking-widest">O que você pretende conquistar?</p>
+            <div className="space-y-4">
+              <input type="text" placeholder="EX: COMPRAR CARRO" value={dreamNome} onChange={(e) => setDreamNome(e.target.value.toUpperCase())} className="w-full bg-black border border-white/10 p-5 rounded-2xl text-[10px] font-black italic outline-none focus:border-yellow-400 text-white" />
+              <input type="text" inputMode="numeric" placeholder="VALOR TOTAL R$ 0,00" value={dreamValor} onChange={(e) => setDreamValor(maskMoney(e.target.value))} className="w-full bg-black border border-white/10 p-6 rounded-3xl text-2xl font-black italic outline-none text-center focus:border-yellow-400 text-white" />
             </div>
+            <button onClick={handleAddDream} className="w-full bg-yellow-400 text-black py-5 rounded-2xl font-black uppercase text-[11px] mt-8 italic shadow-lg shadow-yellow-400/20 active:scale-95 transition-all">Confirmar Objetivo</button>
+            <button onClick={() => setShowDreamModal(false)} className="w-full mt-4 text-zinc-600 font-black text-[9px] uppercase tracking-widest">Desistir</button>
+          </div>
         </div>
       )}
-
     </div>
   );
 }
