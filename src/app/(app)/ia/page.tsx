@@ -7,7 +7,7 @@ import { Send, Bot, User, ArrowLeft, Sparkles, Zap } from "lucide-react";
 import { useRouter } from "next/navigation";
 
 // Substitua pela sua chave que você acabou de criar
-const genAI = new GoogleGenerativeAI("AIzaSyBX6HYQkXwSVLfwVITYEXg72rV19sanDaw");
+const genAI = new GoogleGenerativeAI("AIzaSyD5ht7k6UV-nLEiP_t5IAFlnTNyf-Z2zmU");
 
 export default function AIAnalyticsPage() {
   const router = useRouter();
