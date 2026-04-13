@@ -39,7 +39,7 @@ export default function AIAnalyticsPage() {
       ]);
 
       // Mudei para o modelo 1.5-flash-8b que é mais estável para chaves novas
-      const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash-8b" });
+      const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
 
       const contexto = `
         Você é o "Cérebro" de um app financeiro. 
