@@ -11,7 +11,8 @@ import {
   LayoutDashboard,
   Settings,
   LogOut,
-  User
+  User,
+  Sparkles // Ícone para a IA
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
@@ -20,6 +21,7 @@ interface NavItem {
   label: string;
   icon: React.ComponentType<{ className?: string }>;
   requiresAuth?: boolean;
+  isSpecial?: boolean; // Nova propriedade para destaque
 }
 
 const privateNavItems: NavItem[] = [
@@ -30,7 +32,13 @@ const privateNavItems: NavItem[] = [
     requiresAuth: true,
   },
   {
-    // 🔥 Atualizado para a nova pasta de configurações
+    href: '/ia', // Rota da sua IA
+    label: 'Cérebro',
+    icon: Sparkles,
+    requiresAuth: true,
+    isSpecial: true, // Marcaremos como especial para dar brilho
+  },
+  {
     href: '/configuracoes', 
     label: 'Ajustes',
     icon: Settings,
@@ -51,10 +59,9 @@ export function Navbar() {
   const navItems = user ? privateNavItems : [];
 
   return (
-    // Adicionado backdrop-blur e border-neutral-800 para consistência visual
     <nav className="sticky top-0 z-50 w-full border-b border-neutral-800 bg-black/95 backdrop-blur">
-      <div className="max-w-6xl mx-auto px-6"> {/* px-6 para respiro lateral */}
-        <div className="flex h-20 items-center justify-between"> {/* h-20 para mais altura no topo */}
+      <div className="max-w-6xl mx-auto px-6">
+        <div className="flex h-20 items-center justify-between">
 
           {/* LOGO MINDCASH */}
           <Link href="/dashboard" className="flex items-center space-x-2 active:scale-95 transition">
@@ -78,12 +85,13 @@ export function Navbar() {
                   href={item.href}
                   className={cn(
                     "flex items-center space-x-2 px-4 py-2 rounded-xl text-[10px] font-black uppercase italic tracking-widest transition-all",
+                    item.isSpecial && !isActive ? "text-purple-400 border border-purple-500/30 bg-purple-500/5 shadow-[0_0_10px_rgba(168,85,247,0.1)]" : "",
                     isActive
-                      ? "bg-yellow-400 text-black"
-                      : "text-zinc-500 hover:text-white hover:bg-white/5"
+                      ? "bg-yellow-400 text-black shadow-[0_0_15px_rgba(250,204,21,0.3)]"
+                      : !item.isSpecial ? "text-zinc-500 hover:text-white hover:bg-white/5" : ""
                   )}
                 >
-                  <Icon className="h-3.5 w-3.5" />
+                  <Icon className={cn("h-3.5 w-3.5", item.isSpecial && "animate-pulse")} />
                   <span>{item.label}</span>
                 </Link>
               );
@@ -100,7 +108,7 @@ export function Navbar() {
                   variant="ghost"
                   size="sm"
                   onClick={handleSignOut}
-                  className="text-zinc-600 hover:text-red-500 font-black uppercase text-[9px] tracking-widest"
+                  className="text-zinc-600 hover:text-red-500 font-black uppercase text-[9px] tracking-widest transition-colors"
                 >
                   <LogOut className="h-4 w-4 mr-2" />
                   Sair
@@ -122,7 +130,7 @@ export function Navbar() {
           )}
         </div>
 
-        {/* MOBILE NAV - Com arredondamento 1.5rem para combinar com os cards */}
+        {/* MOBILE NAV */}
         {isOpen && user && (
           <div className="md:hidden border-t border-white/5 py-6 animate-in slide-in-from-top-2">
             <div className="flex flex-col space-y-3">
@@ -138,15 +146,21 @@ export function Navbar() {
                     className={cn(
                       "flex items-center justify-between px-5 py-4 rounded-[1.2rem] text-[11px] font-black uppercase italic tracking-widest transition-all",
                       isActive
-                        ? "bg-yellow-400 text-black"
-                        : "bg-white/5 text-zinc-400"
+                        ? "bg-yellow-400 text-black shadow-lg"
+                        : item.isSpecial 
+                          ? "bg-purple-500/10 border border-purple-500/20 text-purple-400" 
+                          : "bg-white/5 text-zinc-400"
                     )}
                   >
                     <div className="flex items-center space-x-3">
-                      <Icon className="h-4 w-4" />
+                      <Icon className={cn("h-4 w-4", item.isSpecial && !isActive && "animate-pulse")} />
                       <span>{item.label}</span>
                     </div>
-                    {isActive && <div className="w-1.5 h-1.5 rounded-full bg-black" />}
+                    {isActive ? (
+                      <div className="w-1.5 h-1.5 rounded-full bg-black" />
+                    ) : item.isSpecial && (
+                      <div className="w-1.5 h-1.5 rounded-full bg-purple-500 animate-ping" />
+                    )}
                   </Link>
                 );
               })}
