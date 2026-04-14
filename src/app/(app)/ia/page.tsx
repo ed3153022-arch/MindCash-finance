@@ -7,7 +7,7 @@ import { Send, Bot, ArrowLeft, Zap } from "lucide-react";
 import { useRouter } from "next/navigation";
 
 // Inicialização limpa fora do componente
-const genAI = new GoogleGenerativeAI("AIzaSyD5ht7k6UV-nLEiP_t5IAFlnTNyf-Z2zmU");
+const genAI = new GoogleGenerativeAI("AIzaSyAAcDQMNTeKYYrEe4maGIW7wu_woGqw0YM");
 
 export default function AIAnalyticsPage() {
   const router = useRouter();
