@@ -5,14 +5,15 @@ import { supabase } from "@/lib/supabase";
 import { Send, Bot, ArrowLeft, Zap } from "lucide-react";
 import { useRouter } from "next/navigation";
 
+// Substitua pela chave que você gerou no console.groq.com
+const GROQ_API_KEY = process.env.NEXT_PUBLIC_GROQ_API_KEY;
+
 export default function AIAnalyticsPage() {
   const router = useRouter();
   const [input, setInput] = useState("");
   const [messages, setMessages] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
-
-  const API_KEY = "AIzaSyDmaA8zu3hfePDxq0Bl3Clz2DUN2LHYU2w";
 
   useEffect(() => {
     scrollRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -30,36 +31,40 @@ export default function AIAnalyticsPage() {
     try {
       const { data: { user } } = await supabase.auth.getUser();
       
-      // Busca dados para o contexto
       const [trans, metas] = await Promise.all([
         supabase.from("transactions").select("*").eq("user_id", user?.id).limit(10),
         supabase.from("goals").select("*").eq("user_id", user?.id)
       ]);
 
-      const contexto = `Você é o Cérebro do app MindCash. 
-      Dados: ${JSON.stringify(trans.data)}. 
-      Se o usuário gastou/ganhou, responda APENAS o JSON: {"action": "insert", "type": "saida", "amount": 0, "category": "Lazer"}. 
-      Caso contrário, dê um conselho curto com emojis.`;
+      const contexto = `Você é o "Cérebro" do MindCash. 
+      Dados recentes: ${JSON.stringify(trans.data)}. 
+      Regra: Se o usuário informar gasto/ganho, responda APENAS o JSON: {"action": "insert", "type": "saida", "amount": 0, "category": "Lazer"}. 
+      Caso contrário, dê conselhos curtos, diretos e com emojis.`;
 
-      // CHAMADA DIRETA VIA HTTP (Ignora bugs da biblioteca)
-      const response = await fetch(`https://generativelanguage.googleapis.com/v1/models/gemini-1.0-pro:generateContent?key=${API_KEY}`, {
+      // Chamada otimizada para a API da Groq
+      const response = await fetch("https://api.groq.com/openai/v1/chat/completions", {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${GROQ_API_KEY}`
+        },
         body: JSON.stringify({
-          contents: [{ parts: [{ text: contexto + "\nUsuário: " + promptDigitado }] }]
+          model: "llama-3.3-70b-versatile",
+          messages: [
+            { role: "system", content: contexto },
+            { role: "user", content: promptDigitado }
+          ]
         })
       });
 
       const data = await response.json();
+      
+      if (!response.ok) throw new Error(data.error?.message || "Erro na conexão com a Groq");
 
-      if (!response.ok) {
-        throw new Error(data.error?.message || "Erro na API");
-      }
+      const text = data.choices[0].message.content;
 
-      const text = data.candidates[0].content.parts[0].text;
-
-      // Lógica de inserção (JSON)
-      if (text.includes("{")) {
+      // Lógica de processar JSON se a IA sugerir registro
+      if (text.includes("{") && text.includes("action")) {
         try {
           const json = JSON.parse(text.match(/\{.*\}/s)?.[0] || "");
           if (json.action === "insert") {
@@ -70,7 +75,7 @@ export default function AIAnalyticsPage() {
               category: json.category,
               created_at: new Date()
             });
-            setMessages(prev => [...prev, { role: "bot", text: `✅ Registrei R$ ${json.amount} em ${json.category}!` }]);
+            setMessages(prev => [...prev, { role: "bot", text: `✅ Registrado: ${json.category} de R$ ${json.amount}!` }]);
           }
         } catch (e) {
           setMessages(prev => [...prev, { role: "bot", text: text }]);
@@ -78,7 +83,6 @@ export default function AIAnalyticsPage() {
       } else {
         setMessages(prev => [...prev, { role: "bot", text: text }]);
       }
-
     } catch (error: any) {
       setMessages(prev => [...prev, { role: "bot", text: "❌ ERRO: " + error.message }]);
     } finally {
@@ -93,10 +97,10 @@ export default function AIAnalyticsPage() {
           <ArrowLeft size={20} />
         </button>
         <div>
-          <h1 className="text-xl font-black italic uppercase tracking-tighter text-purple-400">O CÉREBRO</h1>
+          <h1 className="text-xl font-black italic uppercase tracking-tighter text-emerald-400">O CÉREBRO</h1>
           <div className="flex items-center gap-2">
-            <div className="w-2 h-2 bg-purple-500 rounded-full animate-pulse" />
-            <span className="text-[10px] font-black text-zinc-500 uppercase tracking-widest">Conexão Direta</span>
+            <div className="w-2 h-2 bg-emerald-500 rounded-full animate-pulse" />
+            <span className="text-[10px] font-black text-zinc-500 uppercase tracking-widest">Groq Engine</span>
           </div>
         </div>
       </div>
@@ -104,8 +108,8 @@ export default function AIAnalyticsPage() {
       <div className="flex-1 overflow-y-auto p-6 space-y-6">
         {messages.length === 0 && (
           <div className="h-full flex flex-col items-center justify-center text-center space-y-4 opacity-50">
-            <Bot size={48} className="text-purple-500 animate-bounce" />
-            <p className="text-[10px] font-black uppercase italic tracking-widest">Aguardando comando...</p>
+            <Bot size={48} className="text-emerald-500" />
+            <p className="text-[10px] font-black uppercase italic tracking-widest">Processamento rápido...</p>
           </div>
         )}
         
@@ -125,10 +129,10 @@ export default function AIAnalyticsPage() {
             value={input}
             onChange={(e) => setInput(e.target.value)}
             onKeyDown={(e) => e.key === 'Enter' && processarIA()}
-            placeholder="Mande sua mensagem..." 
+            placeholder="Diga algo..." 
             className="flex-1 bg-transparent border-none outline-none px-4 text-sm font-bold italic"
           />
-          <button onClick={processarIA} disabled={loading} className="bg-purple-600 text-white p-3 rounded-full">
+          <button onClick={processarIA} disabled={loading} className="bg-emerald-600 text-white p-3 rounded-full">
             {loading ? <Zap size={20} className="animate-spin" /> : <Send size={20} />}
           </button>
         </div>
