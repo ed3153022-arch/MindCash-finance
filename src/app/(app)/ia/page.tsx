@@ -39,7 +39,7 @@ export default function AIAnalyticsPage() {
       ]);
 
       // CHAMADA SIMPLIFICADA (A versão 0.21.0 cuida do resto)
-      const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
+      const model = genAI.getGenerativeModel({ model: "gemini-1.0-pro" });
 
       const contexto = `
         Você é o "Cérebro" de um app financeiro hardcore chamado MindCash. 
