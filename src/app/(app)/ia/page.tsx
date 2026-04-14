@@ -31,25 +31,26 @@ export default function AIAnalyticsPage() {
       const { data: { user } } = await supabase.auth.getUser();
       
       const [trans, metas, sonhos] = await Promise.all([
-        supabase.from("transactions").select("*").eq("user_id", user?.id).order('created_at', { ascending: false }).limit(20),
+        supabase.from("transactions").select("*").eq("user_id", user?.id).order('created_at', { ascending: false }).limit(30),
         supabase.from("goals").select("*").eq("user_id", user?.id),
         supabase.from("dream_goals").select("*").eq("user_id", user?.id)
       ]);
 
-      const contexto = `Você é o "Cérebro", mentor financeiro do MindCash. 
-      Analise os dados reais e aja como um mentor hardcore, mas parceiro.
+      const contexto = `Você é o "Cérebro", o mentor financeiro de elite do MindCash. 
 
-      DADOS REAIS:
+      DADOS ATUAIS:
       - Transações: ${JSON.stringify(trans.data)}
       - Objetivos (Sonhos): ${JSON.stringify(sonhos.data)}
 
-      REGRAS DE OURO:
-      1. MEMÓRIA: Você deve lembrar do que perguntou anteriormente. Se o usuário responder um valor, é para o plano que você está criando, NÃO para registrar um gasto.
-      2. REGISTRO: SÓ gere o JSON de inserção se o usuário der uma ordem clara (ex: "gastei X", "comprei Y", "registre Z").
-      3. PROIBIDO: Nunca use asteriscos (*). Texto sempre limpo.
-      4. CATEGORIAS: 🚗 Transporte, 💊 Saúde, 💳 Assinaturas, 🛍 Compras, ⚡️ Outros, 🍔 Alimentação, 🎮 Lazer, 🏠 Moradia.
-      5. SONHOS: Calcule o progresso real de sonhos como "Viagem" ou "Bike" somando as transações relacionadas.
-      6. FORMATO: Se for para salvar, responda APENAS o JSON: {"action": "insert", "type": "saida", "amount": valor, "category": "nome"}.`;
+      DIRETRIZES DE ESTILO (ESTILO ELITE):
+      1. NÃO mostre cálculos matemáticos passo a passo (ex: 100+200=300), a menos que o usuário peça "mostre as contas".
+      2. INSIGHTS ESTRATÉGICOS: Em vez de listar gastos, analise o impacto. Ex: "Sua alimentação está consumindo 30% da sua renda, mestre."
+      3. BARRA DE PROGRESSO: Para sonhos (Viagem/Bike), use barras visuais em texto, ex: [▓▓▓░░] 60%.
+      4. PERSONALIDADE: Direto, "hardcore" e parceiro. Sem asteriscos (*). Texto limpo.
+      5. CATEGORIAS: 🚗 Transporte, 💊 Saúde, 💳 Assinaturas, 🛍 Compras, ⚡️ Outros, 🍔 Alimentação, 🎮 Lazer, 🏠 Moradia.
+      
+      AÇÃO DE REGISTRO:
+      - SÓ gere JSON se houver ordem de salvar. Formato: {"action": "insert", "type": "saida", "amount": valor, "category": "nome"}.`;
 
       const response = await fetch("https://api.groq.com/openai/v1/chat/completions", {
         method: 'POST',
@@ -61,14 +62,13 @@ export default function AIAnalyticsPage() {
           model: "llama-3.3-70b-versatile",
           messages: [
             { role: "system", content: contexto },
-            // Memória de 10 mensagens para não perder o fio da meada
             ...messages.slice(-10).map(m => ({ 
               role: m.role === 'user' ? 'user' : 'assistant', 
               content: m.text 
             })),
             { role: "user", content: promptDigitado }
           ],
-          temperature: 0.7
+          temperature: 0.6
         })
       });
 
@@ -77,24 +77,21 @@ export default function AIAnalyticsPage() {
 
       const text = data.choices[0].message.content;
 
-      // Só processa inserção se a IA enviar a ação de registro explicitamente
       if (text.includes('"action": "insert"')) {
         try {
           const json = JSON.parse(text.match(/\{.*\}/s)?.[0] || "");
-          if (json.action === "insert") {
-            await supabase.from("transactions").insert({
-              user_id: user?.id,
-              type: json.type,
-              amount: json.amount,
-              category: json.category,
-              created_at: new Date()
-            });
+          await supabase.from("transactions").insert({
+            user_id: user?.id,
+            type: json.type,
+            amount: json.amount,
+            category: json.category,
+            created_at: new Date()
+          });
 
-            const emojis: any = { "Transporte": "🚗", "Saúde": "💊", "Assinaturas": "💳", "Compras": "🛍", "Outros": "⚡️", "Alimentação": "🍔", "Lazer": "🎮", "Moradia": "🏠" };
-            const emoji = emojis[json.category] || "✅";
+          const emojis: any = { "Transporte": "🚗", "Saúde": "💊", "Assinaturas": "💳", "Compras": "🛍", "Outros": "⚡️", "Alimentação": "🍔", "Lazer": "🎮", "Moradia": "🏠" };
+          const emoji = emojis[json.category] || "✅";
 
-            setMessages(prev => [...prev, { role: "bot", text: `${emoji} Registrado, mestre! ${json.category} de R$ ${json.amount}. Agora volta pro foco!` }]);
-          }
+          setMessages(prev => [...prev, { role: "bot", text: `${emoji} Na conta, mestre! Registrei ${json.category} de R$ ${json.amount}. Bora manter o foco no objetivo!` }]);
         } catch (e) {
           setMessages(prev => [...prev, { role: "bot", text: text.replace(/\*/g, '') }]);
         }
@@ -110,6 +107,7 @@ export default function AIAnalyticsPage() {
 
   return (
     <div className="flex flex-col h-screen bg-black text-white font-sans">
+      {/* Header Neon */}
       <div className="p-6 border-b border-white/5 flex items-center gap-4 bg-black/50 backdrop-blur-md sticky top-0 z-50">
         <button onClick={() => router.back()} className="p-2 bg-zinc-900 rounded-full border border-white/5 hover:border-yellow-400/50 transition-colors">
           <ArrowLeft size={20} />
@@ -123,11 +121,12 @@ export default function AIAnalyticsPage() {
         </div>
       </div>
 
+      {/* Chat Area */}
       <div className="flex-1 overflow-y-auto p-6 space-y-6">
         {messages.length === 0 && (
           <div className="h-full flex flex-col items-center justify-center text-center space-y-4 opacity-50">
             <Bot size={48} className="text-yellow-400" />
-            <p className="text-[10px] font-black uppercase italic tracking-widest text-yellow-400/70">Diz aí, chefe. Qual o plano de hoje?</p>
+            <p className="text-[10px] font-black uppercase italic tracking-widest text-yellow-400/70">Diz aí, mestre. Qual o plano de hoje?</p>
           </div>
         )}
         
@@ -145,6 +144,7 @@ export default function AIAnalyticsPage() {
         <div ref={scrollRef} />
       </div>
 
+      {/* Input Area */}
       <div className="p-6 border-t border-white/5 bg-black/80 backdrop-blur-md">
         <div className="flex gap-2 bg-zinc-900 p-2 rounded-[2rem] border border-white/10 focus-within:border-yellow-400/50 transition-all">
           <input 
