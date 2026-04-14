@@ -32,31 +32,27 @@ export default function AIAnalyticsPage() {
       
       // BUSCA TUDO: Transações, Metas Mensais e Objetivos de Vida (Sonhos)
       const [trans, metas, sonhos] = await Promise.all([
-        supabase.from("transactions").select("*").eq("user_id", user?.id).order('created_at', { ascending: false }).limit(15),
+        supabase.from("transactions").select("*").eq("user_id", user?.id).order('created_at', { ascending: false }).limit(20),
         supabase.from("goals").select("*").eq("user_id", user?.id),
         supabase.from("dream_goals").select("*").eq("user_id", user?.id)
       ]);
 
-      const contexto = `Você é o "Cérebro" do MindCash. Analise os dados reais do usuário:
-      
-      TRANSAÇÕES: ${JSON.stringify(trans.data)}
-      METAS MENSAIS: ${JSON.stringify(metas.data)}
-      OBJETIVOS DE VIDA (SONHOS): ${JSON.stringify(sonhos.data)}
+      // --- NOVA PERSONALIDADE E CONTEXTO ---
+      const contexto = `Você é o "Cérebro", mentor financeiro pessoal e hardcore do MindCash. 
+      Sua missão é ser o guardião do dinheiro do usuário.
 
-      REGRAS OBRIGATÓRIAS DE RESPOSTA:
-      1. PROIBIDO usar asteriscos (*). Texto sempre limpo.
-      2. USE APENAS ESTAS CATEGORIAS E EMOJIS:
-         - 🚗 Transporte
-         - 💊 Saúde
-         - 💳 Assinaturas
-         - 🛍 Compras
-         - ⚡️ Outros
-         - 🍔 Alimentação
-         - 🎮 Lazer
-         - 🏠 Moradia
-      3. OBJETIVOS DE VIDA: Eles são identificados apenas pelo nome (ex: Viagem, Bike). Verifique na lista de SONHOS se o valor total das transações relacionadas já atingiu o valor do objetivo. Se ele completou a Bike, parabenize-o!
-      4. Se o usuário falar de um objetivo (ex: "viagem"), procure exatamente por esse nome na lista de SONHOS.
-      5. Formato de Registro: Se for gasto/ganho, responda APENAS o JSON: {"action": "insert", "type": "saida" ou "entrada", "amount": valor, "category": "nome_da_categoria_exata"}.`;
+      DADOS REAIS:
+      - Transações: ${JSON.stringify(trans.data)}
+      - Metas Mensais: ${JSON.stringify(metas.data)}
+      - Objetivos de Vida (Sonhos): ${JSON.stringify(sonhos.data)}
+
+      PERSONALIDADE E REGRAS:
+      1. HUMANO E DIRETO: Fale como um mentor próximo. Use termos como "mestre", "chefe", "bora lá".
+      2. AGRESSIVIDADE/MOTIVAÇÃO: Se o usuário gastou muito ou está longe das metas, seja firme. Se ele completou algo (como a Bike), comemore muito!
+      3. PRECISÃO NOS SONHOS: Analise os SONHOS. Se o usuário perguntar da "Viagem" ou "Bike", calcule o progresso baseado nas transações e dê a % real.
+      4. CATEGORIAS FIXAS: Use APENAS 🚗 Transporte, 💊 Saúde, 💳 Assinaturas, 🛍 Compras, ⚡️ Outros, 🍔 Alimentação, 🎮 Lazer, 🏠 Moradia.
+      5. LIMPEZA: PROIBIDO usar asteriscos (*). Texto limpo e legível.
+      6. FORMATO DE REGISTRO: Se for para salvar algo, responda APENAS o JSON: {"action": "insert", "type": "saida", "amount": valor, "category": "nome"}.`;
 
       const response = await fetch("https://api.groq.com/openai/v1/chat/completions", {
         method: 'POST',
@@ -74,7 +70,7 @@ export default function AIAnalyticsPage() {
             })),
             { role: "user", content: promptDigitado }
           ],
-          temperature: 0.5
+          temperature: 0.7 // Equilíbrio entre precisão e fala humana
         })
       });
 
@@ -103,13 +99,12 @@ export default function AIAnalyticsPage() {
             };
             const emoji = emojis[json.category] || "✅";
 
-            setMessages(prev => [...prev, { role: "bot", text: `${emoji} Registrado: ${json.category} no valor de R$ ${json.amount}!` }]);
+            setMessages(prev => [...prev, { role: "bot", text: `${emoji} Feito, chefe! Registrei ${json.category} de R$ ${json.amount}. Vamos focar no que importa agora?` }]);
           }
         } catch (e) {
           setMessages(prev => [...prev, { role: "bot", text: text.replace(/\*/g, '') }]);
         }
       } else {
-        // Remove qualquer asterisco que a IA possa ter enviado por teimosia
         setMessages(prev => [...prev, { role: "bot", text: text.replace(/\*/g, '') }]);
       }
     } catch (error: any) {
@@ -140,7 +135,7 @@ export default function AIAnalyticsPage() {
         {messages.length === 0 && (
           <div className="h-full flex flex-col items-center justify-center text-center space-y-4 opacity-50">
             <Bot size={48} className="text-yellow-400" />
-            <p className="text-[10px] font-black uppercase italic tracking-widest text-yellow-400/70">Aguardando dados...</p>
+            <p className="text-[10px] font-black uppercase italic tracking-widest text-yellow-400/70">Diz aí, mestre. Como estão as contas hoje?</p>
           </div>
         )}
         
@@ -149,7 +144,7 @@ export default function AIAnalyticsPage() {
             <div className={`max-w-[85%] p-4 rounded-[1.5rem] shadow-xl ${
               m.role === 'user' 
               ? 'bg-yellow-400 text-black font-bold shadow-yellow-400/5' 
-              : 'bg-zinc-900 border border-white/10 text-zinc-100 italic'
+              : 'bg-zinc-900 border border-white/10 text-zinc-100 italic font-medium'
             }`}>
               <p className="text-sm">{m.text}</p>
             </div>
@@ -165,7 +160,7 @@ export default function AIAnalyticsPage() {
             value={input}
             onChange={(e) => setInput(e.target.value)}
             onKeyDown={(e) => e.key === 'Enter' && processarIA()}
-            placeholder="Comande o cérebro..." 
+            placeholder="Diz aí pro Cérebro..." 
             className="flex-1 bg-transparent border-none outline-none px-4 text-sm font-bold italic text-white placeholder:text-zinc-600"
           />
           <button 
