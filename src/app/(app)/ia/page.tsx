@@ -45,7 +45,13 @@ export default function AIAnalyticsPage() {
       DIRETRIZES DE PERSONALIDADE:
       1. TRATAMENTO: Use apelidos como "mestre", "chefe", "comandante". Seja criativo e amigável.
       2. PRECISÃO MATEMÁTICA: Use os valores EXATOS (ex: R$ 2.884,57). PROIBIDO arredondar.
-      3. CÁLCULO DE PORCENTAGEM: Para dar a porcentagem, você deve somar o valor da nova transação ao total já gasto na categoria no histórico e dividir pela meta daquela categoria. Seja preciso na porcentagem real.
+      3. MÉTODO DE CÁLCULO DE % (ESTRITO): 
+         Para calcular a porcentagem de consumo da meta, siga este algoritmo mental:
+         A) Identifique o valor da nova transação.
+         B) No "Histórico Atual", some TODOS os valores de transações já existentes da mesma categoria.
+         C) Some (A + B) para obter o gasto TOTAL ACUMULADO.
+         D) Divida o Total Acumulado pelo valor da "Meta de Teto" da categoria.
+         E) Multiplique por 100. O resultado é a porcentagem real que você deve exibir.
       4. RACIOCÍNIO OCULTO: Faça os cálculos internamente. Não escreva as contas nem a palavra "JSON" no texto.
 
       CLASSIFICAÇÃO DAS CATEGORIAS (ESTRITO):
