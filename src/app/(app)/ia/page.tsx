@@ -3,7 +3,7 @@
 import { useState, useEffect, useRef } from "react";
 import { supabase } from "@/lib/supabase";
 import { Send, Bot, ArrowLeft, Zap } from "lucide-react";
-import { useRouter } from "navigation";
+import { useRouter } from "next/navigation"; // Corrigido aqui
 
 const GROQ_API_KEY = process.env.NEXT_PUBLIC_GROQ_API_KEY;
 
@@ -30,46 +30,44 @@ export default function AIAnalyticsPage() {
     try {
       const { data: { user } } = await supabase.auth.getUser();
       
-      const [trans, metas, sonhos] = await Promise.all([
+      const [trans, metas] = await Promise.all([
         supabase.from("transactions").select("*").eq("user_id", user?.id).order('created_at', { ascending: false }).limit(100),
-        supabase.from("goals").select("*").eq("user_id", user?.id),
-        supabase.from("dream_goals").select("*").eq("user_id", user?.id)
+        supabase.from("goals").select("*").eq("user_id", user?.id)
       ]);
 
       const contexto = `Você é o "Cérebro", mentor financeiro de precisão cirúrgica.
 
-      ### ESPECIFICAÇÃO DE CATEGORIAS (PROIBIDO DESVIAR):
-      - 🚗 **Transporte**: Uber, 99, táxi, combustível, pedágio, manutenção de carro/moto, estacionamento.
+      ### CONCEITO DE OPERAÇÃO:
+      Você gerencia LIMITES DE TETO (Orçamentos). O valor definido nas metas é o LIMITE MÁXIMO que o usuário pode gastar. Nunca use a palavra "Meta" para despesas. Use "Limite de Teto" ou "Orçamento".
+
+      ### ESPECIFICAÇÃO DE CATEGORIAS (ESTRITO):
+      - 🚗 **Transporte**: Uber, 99, táxi, combustível, pedágio, manutenção de veículo, estacionamento.
       - 💊 **Saúde**: Farmácia, remédios, consultas, exames, academia, suplementos, dentista, terapia.
       - 💳 **Assinaturas**: Netflix, Spotify, iCloud, Google One, GamePass, jornais, cursos mensais.
-      - 🛍 **Compras**: Roupas, calçados, eletrônicos (iPhone, PC), móveis, perfumes, presentes.
-      - ⚡️ **Outros**: Tarifas bancárias, impostos, multas, ou gastos que não possuam categoria definida.
-      - 🍔 **Alimentação**: Supermercado, restaurantes, iFood, padaria, café, lanches rápidos, balas e doces.
-      - 🎬 **Lazer**: Cinema, shows, festas, viagens de férias, hobbies, barzinhos, jogos de videogame.
-      - 🏠 **Moradia**: Aluguel, condomínio, conta de luz, água, gás, internet, materiais de limpeza/reforma.
+      - 🛍 **Compras**: Roupas, calçados, eletrônicos (celular, PC), móveis, perfumes, presentes.
+      - ⚡️ **Outros**: Tarifas bancárias, impostos, multas, ou gastos não categorizáveis.
+      - 🍔 **Alimentação**: Mercado, restaurantes, iFood, padaria, café, lanches rápidos, balas e doces.
+      - 🎬 **Lazer**: Cinema, shows, festas, viagens, hobbies, barzinhos, jogos.
+      - 🏠 **Moradia**: Aluguel, condomínio, luz, água, gás, internet, materiais de limpeza/reforma.
 
-      ### ALGORITMO DE CÁLCULO DE PORCENTAGEM (ESTRITO):
-      1. Identifique o valor (V) da nova transação.
-      2. Filtre no "Histórico" todos os gastos da mesma categoria (C) do mês atual.
-      3. Some todos esses valores do histórico (H).
+      ### ALGORITMO DE CÁLCULO DE PORCENTAGEM (PASSO A PASSO):
+      1. Pegue o valor (V) da nova transação.
+      2. Filtre no Histórico todos os gastos da mesma categoria (C) do mês atual.
+      3. Some todos esses valores (H).
       4. Calcule o Gasto Total Acumulado (G = V + H).
-      5. Localize o "Limite de Teto" (L) para a categoria (C) nos dados de Metas.
-      6. Calcule a Porcentagem Final: P = (G / L) * 100.
-      7. Se o resultado for 20.208%, exiba "20,2%".
+      5. Localize o Limite de Teto (L) para a categoria (C).
+      6. Calcule a Porcentagem: P = (G / L) * 100. (Ex: 20,2%).
 
-      ### DIRETRIZES DE COMUNICAÇÃO:
-      - **Terminologia**: Jamais use "Meta". Use "Limite de Teto", "Orçamento" ou "Teto Mensal".
-      - **Personalidade**: Respeitoso (mestre, comandante, chefe), mas firme com os números.
-      - **Gestão de Limite**: 
-         - **Abaixo de 80%**: Registro rápido. "Gasto de R$ [Valor] em [Categoria] no sistema. Você consumiu [P]% do seu teto mensal."
-         - **80% a 100%**: Alerta de proximidade. "Mestre, atenção: [P]% do teto atingido. O muro está perto."
-         - **Acima de 100%**: Puxão de orelha + 3 ações práticas para economizar na semana.
+      ### GESTÃO DE LIMITE E RESPOSTA:
+      - **Abaixo de 80%**: "Feito, mestre! [Categoria] de R$ [Valor] registrada. Você consumiu [P]% do seu limite de teto."
+      - **80% a 100%**: Alerta de proximidade. "Atenção, comandante: você atingiu [P]% do seu limite. O muro está próximo."
+      - **Acima de 100% (Estouro)**: Puxão de orelha sério por furar o teto + 3 passos práticos para economizar.
 
-      ### DADOS REAIS:
+      ### DADOS:
       Histórico: ${JSON.stringify(trans.data)}
       Limites: ${JSON.stringify(metas.data)}
 
-      SAÍDA TÉCNICA (INVISÍVEL): No final da resposta, sem prefixos, apenas o objeto: {"action": "insert", "type": "saida", "amount": valor, "category": "nome"}`;
+      SAÍDA TÉCNICA (INVISÍVEL): No final, inclua apenas o objeto: {"action": "insert", "type": "saida", "amount": valor, "category": "nome"}`;
 
       const response = await fetch("https://api.groq.com/openai/v1/chat/completions", {
         method: 'POST',
@@ -84,14 +82,13 @@ export default function AIAnalyticsPage() {
             ...messages.slice(-10).map(m => ({ role: m.role === 'user' ? 'user' : 'assistant', content: m.text })),
             { role: "user", content: promptDigitado }
           ],
-          temperature: 0.6 
+          temperature: 0.5 
         })
       });
 
       const data = await response.json();
       const text = data.choices[0].message.content;
 
-      // Limpeza de termos técnicos para o usuário final
       const textoLimpo = text.replace(/json/gi, "").replace(/\{.*\}/s, "").trim();
       const jsonMatch = text.match(/\{.*\}/s);
 
