@@ -3,7 +3,7 @@
 import { useState, useEffect, useRef } from "react";
 import { supabase } from "@/lib/supabase";
 import { Send, Bot, ArrowLeft, Zap } from "lucide-react";
-import { useRouter } from "next/navigation"; // Corrigido aqui
+import { useRouter } from "next/navigation";
 
 const GROQ_API_KEY = process.env.NEXT_PUBLIC_GROQ_API_KEY;
 
@@ -35,39 +35,49 @@ export default function AIAnalyticsPage() {
         supabase.from("goals").select("*").eq("user_id", user?.id)
       ]);
 
+      // --- LÓGICA DE TEMPERATURA DINÂMICA ---
+      const ehApenasNumero = /^\d+$/.test(promptDigitado.trim());
+      const temPalavrasDeGasto = ["gastei", "comprei", "paguei", "valor", "custou", "registra", "lança"].some(p => promptDigitado.toLowerCase().includes(p));
+      const temNumeros = /\d/.test(promptDigitado);
+      
+      // Se houver intenção clara de gasto ou números, priorizamos precisão (0.2/0.3). 
+      // Se for conversa fluida, priorizamos criatividade (0.8).
+      let temperaturaDinamica = (temPalavrasDeGasto || temNumeros) ? 0.3 : 0.8;
+
       const contexto = `Você é o "Cérebro", mentor financeiro de precisão cirúrgica.
 
+      ### REGRA DE OURO (DIFERENCIAÇÃO):
+      1. TRANSAÇÃO: Só use "action": "insert" se o mestre confirmar um gasto que JÁ OCORREU (ex: "gastei 50").
+      2. CONVERSA/ESTIMATIVA: Se ele apenas responder uma pergunta sua (ex: "pretendo gastar 100"), use "action": "none". Você faz o cálculo para informar, mas não salva no banco.
+
       ### CONCEITO DE OPERAÇÃO:
-      Você gerencia LIMITES DE TETO (Orçamentos). O valor definido nas metas é o LIMITE MÁXIMO que o usuário pode gastar. Nunca use a palavra "Meta" para despesas. Use "Limite de Teto" ou "Orçamento".
+      Você gerencia LIMITES DE TETO. Nunca use a palavra "Meta" para despesas. Use "Limite de Teto" ou "Orçamento".
 
       ### ESPECIFICAÇÃO DE CATEGORIAS (ESTRITO):
-      - 🚗 **Transporte**: Uber, 99, táxi, combustível, pedágio, manutenção de veículo, estacionamento.
-      - 💊 **Saúde**: Farmácia, remédios, consultas, exames, academia, suplementos, dentista, terapia.
-      - 💳 **Assinaturas**: Netflix, Spotify, iCloud, Google One, GamePass, jornais, cursos mensais.
-      - 🛍 **Compras**: Roupas, calçados, eletrônicos (celular, PC), móveis, perfumes, presentes.
-      - ⚡️ **Outros**: Tarifas bancárias, impostos, multas, ou gastos não categorizáveis.
-      - 🍔 **Alimentação**: Mercado, restaurantes, iFood, padaria, café, lanches rápidos, balas e doces.
-      - 🎬 **Lazer**: Cinema, shows, festas, viagens, hobbies, barzinhos, jogos.
-      - 🏠 **Moradia**: Aluguel, condomínio, luz, água, gás, internet, materiais de limpeza/reforma.
+      - 🚗 **Transporte**: Uber, 99, combustível, manutenção, estacionamento.
+      - 💊 **Saúde**: Farmácia, exames, academia, dentista.
+      - 💳 **Assinaturas**: Netflix, Spotify, iCloud, cursos mensais.
+      - 🛍 **Compras**: Roupas, eletrônicos, presentes.
+      - ⚡️ **Outros**: Taxas, multas e imprevistos.
+      - 🍔 **Alimentação**: Mercado, iFood, restaurante, doces, café.
+      - 🎬 **Lazer**: Cinema, shows, festas, bar, jogos.
+      - 🏠 **Moradia**: Aluguel, condomínio, luz, água, internet.
 
-      ### ALGORITMO DE CÁLCULO DE PORCENTAGEM (PASSO A PASSO):
-      1. Pegue o valor (V) da nova transação.
-      2. Filtre no Histórico todos os gastos da mesma categoria (C) do mês atual.
-      3. Some todos esses valores (H).
-      4. Calcule o Gasto Total Acumulado (G = V + H).
-      5. Localize o Limite de Teto (L) para a categoria (C).
-      6. Calcule a Porcentagem: P = (G / L) * 100. (Ex: 20,2%).
+      ### ALGORITMO DE CÁLCULO DE PORCENTAGEM (PRECISÃO):
+      1. Gasto Acumulado = (Soma de TODOS os valores da mesma categoria no Histórico) + Valor Atual.
+      2. Porcentagem = (Gasto Acumulado / Limite de Teto) * 100.
+      3. PROIBIDO: Não mostre as contas matemáticas. Diga apenas o resultado final de forma elegante.
 
       ### GESTÃO DE LIMITE E RESPOSTA:
-      - **Abaixo de 80%**: "Feito, mestre! [Categoria] de R$ [Valor] registrada. Você consumiu [P]% do seu limite de teto."
-      - **80% a 100%**: Alerta de proximidade. "Atenção, comandante: você atingiu [P]% do seu limite. O muro está próximo."
-      - **Acima de 100% (Estouro)**: Puxão de orelha sério por furar o teto + 3 passos práticos para economizar.
+      - Abaixo de 80%: "Feito, mestre! [Categoria] de R$ [Valor] registrada. Você consumiu [P]% do seu limite de teto."
+      - 80% a 100%: Alerta: "Atenção, comandante: atingiu [P]% do seu limite. O muro está próximo."
+      - Acima de 100%: Puxão de orelha sério + 3 passos práticos para economizar.
 
-      ### DADOS:
+      ### DADOS REAIS:
       Histórico: ${JSON.stringify(trans.data)}
       Limites: ${JSON.stringify(metas.data)}
 
-      SAÍDA TÉCNICA (INVISÍVEL): No final, inclua apenas o objeto: {"action": "insert", "type": "saida", "amount": valor, "category": "nome"}`;
+      SAÍDA TÉCNICA (INVISÍVEL): No final, inclua apenas o objeto: {"action": "insert" ou "none", "type": "saida", "amount": valor, "category": "nome"}`;
 
       const response = await fetch("https://api.groq.com/openai/v1/chat/completions", {
         method: 'POST',
@@ -79,10 +89,10 @@ export default function AIAnalyticsPage() {
           model: "llama-3.3-70b-versatile",
           messages: [
             { role: "system", content: contexto },
-            ...messages.slice(-10).map(m => ({ role: m.role === 'user' ? 'user' : 'assistant', content: m.text })),
+            ...messages.slice(-6).map(m => ({ role: m.role === 'user' ? 'user' : 'assistant', content: m.text })),
             { role: "user", content: promptDigitado }
           ],
-          temperature: 0.5 
+          temperature: temperaturaDinamica
         })
       });
 
@@ -103,10 +113,8 @@ export default function AIAnalyticsPage() {
               category: json.category,
               created_at: new Date()
             });
-            setMessages(prev => [...prev, { role: "bot", text: textoLimpo }]);
-          } else {
-            setMessages(prev => [...prev, { role: "bot", text: textoLimpo }]);
           }
+          setMessages(prev => [...prev, { role: "bot", text: textoLimpo }]);
         } catch (e) {
           setMessages(prev => [...prev, { role: "bot", text: textoLimpo }]);
         }
@@ -169,7 +177,7 @@ export default function AIAnalyticsPage() {
           <button 
             onClick={processarIA} 
             disabled={loading} 
-            className="bg-yellow-400 text-black p-3 rounded-full hover:scale-95 transition-all disabled:opacity-50 shadow-[0_0_15px_rgba(250,204,21,0.2)]"
+            className="bg-yellow-400 text-black p-3 rounded-full hover:scale-95 transition-all disabled:opacity-50"
           >
             {loading ? <Zap size={20} className="animate-spin" /> : <Send size={20} />}
           </button>
