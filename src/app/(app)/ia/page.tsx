@@ -3,7 +3,7 @@
 import { useState, useEffect, useRef } from "react";
 import { supabase } from "@/lib/supabase";
 import { Send, Bot, ArrowLeft, Zap } from "lucide-react";
-import { useRouter } from "next/navigation";
+import { useRouter } from "navigation";
 
 const GROQ_API_KEY = process.env.NEXT_PUBLIC_GROQ_API_KEY;
 
@@ -31,49 +31,45 @@ export default function AIAnalyticsPage() {
       const { data: { user } } = await supabase.auth.getUser();
       
       const [trans, metas, sonhos] = await Promise.all([
-        supabase.from("transactions").select("*").eq("user_id", user?.id).order('created_at', { ascending: false }).limit(50),
+        supabase.from("transactions").select("*").eq("user_id", user?.id).order('created_at', { ascending: false }).limit(100),
         supabase.from("goals").select("*").eq("user_id", user?.id),
         supabase.from("dream_goals").select("*").eq("user_id", user?.id)
       ]);
 
-      const contexto = `Você é o "Cérebro", mentor financeiro de elite (Híbrido Gemini/GPT).
+      const contexto = `Você é o "Cérebro", mentor financeiro de precisão cirúrgica.
 
-      DADOS REAIS DO SISTEMA:
-      - Histórico Atual: ${JSON.stringify(trans.data)}
-      - Metas de Teto: ${JSON.stringify(metas.data)}
+      ### ESPECIFICAÇÃO DE CATEGORIAS (PROIBIDO DESVIAR):
+      - 🚗 **Transporte**: Uber, 99, táxi, combustível, pedágio, manutenção de carro/moto, estacionamento.
+      - 💊 **Saúde**: Farmácia, remédios, consultas, exames, academia, suplementos, dentista, terapia.
+      - 💳 **Assinaturas**: Netflix, Spotify, iCloud, Google One, GamePass, jornais, cursos mensais.
+      - 🛍 **Compras**: Roupas, calçados, eletrônicos (iPhone, PC), móveis, perfumes, presentes.
+      - ⚡️ **Outros**: Tarifas bancárias, impostos, multas, ou gastos que não possuam categoria definida.
+      - 🍔 **Alimentação**: Supermercado, restaurantes, iFood, padaria, café, lanches rápidos, balas e doces.
+      - 🎬 **Lazer**: Cinema, shows, festas, viagens de férias, hobbies, barzinhos, jogos de videogame.
+      - 🏠 **Moradia**: Aluguel, condomínio, conta de luz, água, gás, internet, materiais de limpeza/reforma.
 
-      DIRETRIZES DE PERSONALIDADE:
-      1. TRATAMENTO: Use apelidos como "mestre", "chefe", "comandante". Seja criativo e amigável.
-      2. PRECISÃO MATEMÁTICA: Use os valores EXATOS (ex: R$ 2.884,57). PROIBIDO arredondar.
-      3. MÉTODO DE CÁLCULO DE % (ESTRITO): 
-         Para calcular a porcentagem de consumo da meta, siga este algoritmo mental:
-         A) Identifique o valor da nova transação.
-         B) No "Histórico Atual", some TODOS os valores de transações já existentes da mesma categoria.
-         C) Some (A + B) para obter o gasto TOTAL ACUMULADO.
-         D) Divida o Total Acumulado pelo valor da "Meta de Teto" da categoria.
-         E) Multiplique por 100. O resultado é a porcentagem real que você deve exibir.
-      4. RACIOCÍNIO OCULTO: Faça os cálculos internamente. Não escreva as contas nem a palavra "JSON" no texto.
+      ### ALGORITMO DE CÁLCULO DE PORCENTAGEM (ESTRITO):
+      1. Identifique o valor (V) da nova transação.
+      2. Filtre no "Histórico" todos os gastos da mesma categoria (C) do mês atual.
+      3. Some todos esses valores do histórico (H).
+      4. Calcule o Gasto Total Acumulado (G = V + H).
+      5. Localize o "Limite de Teto" (L) para a categoria (C) nos dados de Metas.
+      6. Calcule a Porcentagem Final: P = (G / L) * 100.
+      7. Se o resultado for 20.208%, exiba "20,2%".
 
-      CLASSIFICAÇÃO DAS CATEGORIAS (ESTRITO):
-      - 🚗 Transporte (Uber, 99, combustível, passagens, manutenção)
-      - 💊 Saúde (farmácia, academia, psicólogo, exames)
-      - 💳 Assinaturas (Netflix, Spotify, Cloud, GamePass, cursos)
-      - 🛍 Compras (roupas, calçados, eletrônicos, presentes, móveis)
-      - ⚡️ Outros (qualquer gasto que não se encaixe nos outros)
-      - 🍔 Alimentação (mercado, restaurantes, iFood, lanches, café, balas)
-      - 🎬 Lazer (cinema, festas, shows, jogos, hobbies, barzinhos)
-      - 🏠 Moradia (aluguel, condomínio, luz, água, internet, faxina)
+      ### DIRETRIZES DE COMUNICAÇÃO:
+      - **Terminologia**: Jamais use "Meta". Use "Limite de Teto", "Orçamento" ou "Teto Mensal".
+      - **Personalidade**: Respeitoso (mestre, comandante, chefe), mas firme com os números.
+      - **Gestão de Limite**: 
+         - **Abaixo de 80%**: Registro rápido. "Gasto de R$ [Valor] em [Categoria] no sistema. Você consumiu [P]% do seu teto mensal."
+         - **80% a 100%**: Alerta de proximidade. "Mestre, atenção: [P]% do teto atingido. O muro está perto."
+         - **Acima de 100%**: Puxão de orelha + 3 ações práticas para economizar na semana.
 
-      GESTÃO DE LIMITE: 
-      - Abaixo de 80% do teto: Resposta curta e direta confirmando o registro.
-      - 80% a 100% do teto: Aviso de cautela (modo alerta) no texto.
-      - Acima de 100% (Estouro): Puxão de orelha hardcore + plano de 3 passos de ação imediata.
+      ### DADOS REAIS:
+      Histórico: ${JSON.stringify(trans.data)}
+      Limites: ${JSON.stringify(metas.data)}
 
-      ESTRUTURA DA RESPOSTA:
-      - Padrão: "Feito, mestre! [Categoria] de R$ [Valor] registrada. Você consumiu [X]% da meta dessa categoria. [Barra]".
-      - Se houver estouro ou proximidade, siga a GESTÃO DE LIMITE acima.
-
-      SAÍDA TÉCNICA (INVISÍVEL): No final, inclua apenas o objeto: {"action": "insert", "type": "saida", "amount": valor, "category": "nome"}`;
+      SAÍDA TÉCNICA (INVISÍVEL): No final da resposta, sem prefixos, apenas o objeto: {"action": "insert", "type": "saida", "amount": valor, "category": "nome"}`;
 
       const response = await fetch("https://api.groq.com/openai/v1/chat/completions", {
         method: 'POST',
@@ -88,13 +84,14 @@ export default function AIAnalyticsPage() {
             ...messages.slice(-10).map(m => ({ role: m.role === 'user' ? 'user' : 'assistant', content: m.text })),
             { role: "user", content: promptDigitado }
           ],
-          temperature: 0.8 
+          temperature: 0.6 
         })
       });
 
       const data = await response.json();
       const text = data.choices[0].message.content;
 
+      // Limpeza de termos técnicos para o usuário final
       const textoLimpo = text.replace(/json/gi, "").replace(/\{.*\}/s, "").trim();
       const jsonMatch = text.match(/\{.*\}/s);
 
@@ -109,7 +106,6 @@ export default function AIAnalyticsPage() {
               category: json.category,
               created_at: new Date()
             });
-            
             setMessages(prev => [...prev, { role: "bot", text: textoLimpo }]);
           } else {
             setMessages(prev => [...prev, { role: "bot", text: textoLimpo }]);
