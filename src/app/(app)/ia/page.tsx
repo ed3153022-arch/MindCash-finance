@@ -41,53 +41,47 @@ export default function AIAnalyticsPage() {
         return acc;
       }, {});
 
-      // --- LISTA DE SALDOS COM BLINDAGEM DE DÍGITOS (A TROCA AQUI) ---
+      // --- LISTA DE SALDOS COM BLINDAGEM MÁXIMA ---
       const listaSaldosAtuais = metas.data?.map(m => {
         const acumuladoAteAgora = resumoGastosDashboard[m.category] || 0;
         const valorTexto = acumuladoAteAgora.toFixed(2);
+        // Injetamos o valor de forma ultra-explícita
         return `CATEGORIA: ${m.category}
-        - VALOR ACUMULADO ATUAL: [ R$ ${valorTexto} ]
-        - LIMITE DE TETO: [ R$ ${m.amount.toFixed(2)} ]
-        - INFO: O primeiro dígito do acumulado é ${valorTexto.charAt(0)}.`;
+        - [DADO_BRUTO_SISTEMA]: R$ ${valorTexto}
+        - [LIMITE_TETO_SISTEMA]: R$ ${m.amount.toFixed(2)}
+        - [DÍGITO_INICIAL]: ${valorTexto.charAt(0)}`;
       }).join('\n\n');
 
-      const ehApenasNumero = /^\d+$/.test(promptDigitado.trim());
-      const temPalavrasDeGasto = ["gastei", "comprei", "paguei", "valor", "custou", "registra", "lança"].some(p => promptDigitado.toLowerCase().includes(p));
       const temNumeros = /\d/.test(promptDigitado);
-      let temperaturaDinamica = (temPalavrasDeGasto || temNumeros) ? 0.3 : 0.8;
+      const temPalavrasDeGasto = ["gastei", "comprei", "paguei", "valor", "custou", "registra", "lança"].some(p => promptDigitado.toLowerCase().includes(p));
+      let temperaturaDinamica = (temPalavrasDeGasto || temNumeros) ? 0.1 : 0.7; // Baixamos ainda mais a temperatura para precisão total
 
-      // --- CONTEXTO REFORMULADO PARA VERIFICAÇÃO EXTREMA ---
-      const contexto = `Você é o "Cérebro", mentor financeiro de precisão cirúrgica.
+      const contexto = `Você é o "Cérebro", mentor financeiro. 
+      
+      ### REGRAS DE INTEGRIDADE NUMÉRICA (LEI):
+      1. Use EXATAMENTE o valor em [DADO_BRUTO_SISTEMA]. 
+      2. Se o valor é 2885.50, é PROIBIDO escrever 7885.50. 
+      3. O primeiro dígito DEVE ser o que consta em [DÍGITO_INICIAL].
+      4. Você não tem permissão para alterar os dados do sistema.
 
-      ### VERIFICAÇÃO DE DÍGITOS (REGRA CRÍTICA):
-      1. Ao ler o "VALOR ACUMULADO ATUAL", verifique o primeiro dígito com atenção extrema. 
-      2. Se o valor começa com "2", não o transforme em "7". Confie na variável "INFO" fornecida abaixo.
-      3. O valor dentro dos colchetes [ ] é a única verdade absoluta.
-
-      ### DADOS REAIS DO DASHBOARD:
+      ### DADOS DO BANCO DE DADOS:
       ${listaSaldosAtuais}
 
-      ### ESPECIFICAÇÃO DE CATEGORIAS:
-      - 🚗 **Transporte**: Uber, 99, combustível, manutenção.
-      - 💊 **Saúde**: Farmácia, exames, academia.
-      - 💳 **Assinaturas**: Netflix, Spotify, iCloud.
-      - 🛍 **Compras**: Roupas, eletrônicos.
-      - ⚡️ **Outros**: Taxas, multas.
-      - 🍔 **Alimentação**: Mercado, iFood, restaurante.
-      - 🎬 **Lazer**: Cinema, bar, festas.
-      - 🏠 **Moradia**: Aluguel, luz, água.
+      ### CATEGORIAS:
+      Transporte, Saúde, Assinaturas, Compras, Outros, Alimentação, Lazer, Moradia.
 
-      ### ALGORITMO DE CÁLCULO:
-      1. NOVO_TOTAL = (VALOR ACUMULADO ATUAL + Novo Gasto).
-      2. PORCENTAGEM = (NOVO_TOTAL / LIMITE DE TETO) * 100.
-      3. Use sempre o termo "Limite de Teto". Proibido mostrar a conta matemática no texto.
+      ### INSTRUÇÕES DE RESPOSTA:
+      - Identifique o novo gasto do usuário.
+      - Some ao [DADO_BRUTO_SISTEMA] da categoria correta.
+      - Calcule a porcentagem sobre o [LIMITE_TETO_SISTEMA].
+      - Use o termo "Limite de Teto". 
+      - Proibido mostrar fórmulas matemáticas como (X/Y)*100. Apenas o resultado.
 
-      ### GESTÃO DE LIMITE:
-      - Abaixo de 80%: "Feito, mestre! Consumiu [P]% do seu limite de teto."
-      - 80% a 100%: Alerta: "Atenção, comandante: atingiu [P]% do limite."
-      - Acima de 100%: Puxão de orelha sério + 3 passos práticos para economizar.
+      ### TONS DE ALERTA:
+      - Até 100%: "Consumiu [P]% do seu Limite de Teto."
+      - Acima de 100%: Alerta de estouro e 3 dicas curtas de economia.
 
-      SAÍDA TÉCNICA: {"action": "insert" ou "none", "type": "saida", "amount": valor, "category": "nome"}`;
+      SAÍDA TÉCNICA OBRIGATÓRIA NO FINAL: {"action": "insert" ou "none", "type": "saida", "amount": valor, "category": "nome"}`;
 
       const response = await fetch("https://api.groq.com/openai/v1/chat/completions", {
         method: 'POST',
@@ -138,6 +132,7 @@ export default function AIAnalyticsPage() {
     }
   }
 
+  // O restante do componente (Return) permanece o mesmo...
   return (
     <div className="flex flex-col h-screen bg-black text-white font-sans">
       <div className="p-6 border-b border-white/5 flex items-center gap-4 bg-black/50 backdrop-blur-md sticky top-0 z-50">
@@ -165,7 +160,7 @@ export default function AIAnalyticsPage() {
           <div key={i} className={`flex ${m.role === 'user' ? 'justify-end' : 'justify-start'}`}>
             <div className={`max-w-[85%] p-4 rounded-[1.5rem] shadow-xl ${
               m.role === 'user' 
-              ? 'bg-yellow-400 text-black font-bold' 
+              ? 'bg-yellow-400 text-black font-bold shadow-yellow-400/5' 
               : 'bg-zinc-900 border border-white/10 text-zinc-100 italic font-medium'
             }`}>
               <p className="text-sm whitespace-pre-wrap">{m.text}</p>
