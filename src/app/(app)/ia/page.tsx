@@ -35,43 +35,44 @@ export default function AIAnalyticsPage() {
         supabase.from("goals").select("*").eq("user_id", user?.id)
       ]);
 
-      // --- LÓGICA DE RESET: CÁLCULO FEITO PELO SISTEMA (INFALÍVEL) ---
-      const resumoProcessado = metas.data?.map(m => {
-        const totalGasto = trans.data
-          ?.filter(t => t.category === m.category)
+      // --- LÓGICA DE BLINDAGEM TOTAL ---
+      // 1. Extraímos o valor do input (ex: "gastei 10")
+      const valorExtraido = parseFloat(promptDigitado.replace(/[^\d.,]/g, "").replace(",", "."));
+      const temValor = !isNaN(valorExtraido);
+
+      // 2. Preparamos o resumo com o cálculo JÁ PRONTO pelo código
+      const resumoBlindado = metas.data?.map(m => {
+        const jaGasto = trans.data?.filter(t => t.category === m.category)
           .reduce((acc, t) => acc + t.amount, 0) || 0;
         
-        return {
-          categoria: m.category,
-          saldo_atual: totalGasto.toFixed(2),
-          teto_maximo: m.amount.toFixed(2),
-          porcentagem_atual: ((totalGasto / m.amount) * 100).toFixed(1)
-        };
-      });
+        const novoTotalSeAdicionar = jaGasto + (temValor ? valorExtraido : 0);
+        const porcentagemFinal = (novoTotalSeAdicionar / m.amount) * 100;
 
-      // --- TEMPERATURA DINÂMICA (0.2 para números, 0.8 para papo furado) ---
-      const temNumeros = /\d/.test(promptDigitado);
-      const temGasto = ["gastei", "pagou", "custou", "compra", "lança"].some(p => promptDigitado.toLowerCase().includes(p));
-      const temperaturaDinamica = temGasto ? 0.2 : temNumeros ? 0.3 : 0.8;
+        return `CATEGORIA: ${m.category}
+        - JÁ GASTO (ESTÁTICO): R$ ${jaGasto.toFixed(2)}
+        - SE ADICIONAR AGORA: O NOVO TOTAL SERÁ R$ ${novoTotalSeAdicionar.toFixed(2)}
+        - PORCENTAGEM FINAL: ${porcentagemFinal.toFixed(1)}%
+        - TETO: R$ ${m.amount.toFixed(2)}`;
+      }).join("\n\n");
 
-      const contexto = `Você é o "Cérebro v3", mentor financeiro de elite. 
-      ESTE É UM RESET: Esqueça conversas anteriores. Baseie-se APENAS nestes dados:
+      // --- TEMPERATURA DINÂMICA ---
+      const temperaturaDinamica = temValor ? 0.1 : 0.7; 
 
-      DADOS DO SISTEMA (VALORES REAIS):
-      ${JSON.stringify(resumoProcessado)}
+      const contexto = `Você é o "Cérebro", mentor de finanças. 
+      RESET TOTAL: Esqueça todos os números ditos anteriormente. Eles estavam errados.
+      
+      OS ÚNICOS VALORES REAIS SÃO ESTES:
+      ${resumoBlindado}
 
-      ### REGRAS DE OURO:
-      1. FIDELIDADE: Se o sistema diz que o saldo é 2885.50, você JAMAIS dirá 7885.50. 
-      2. CÁLCULO: Se o usuário adicionar um gasto novo (X), some X ao "saldo_atual" da categoria e recalcule a %.
-      3. GESTÃO DE TETO:
-         - < 80%: Elogio curto e elegante.
-         - 80% a 100%: Alerta amarelo: "Atenção, o limite de teto está próximo."
-         - > 100%: Puxão de orelha severo + 3 dicas de economia.
-      4. CATEGORIAS ACEITAS: Transporte, Saúde, Assinaturas, Compras, Outros, Alimentação, Lazer, Moradia.
+      REGRAS RÍGIDAS:
+      1. NÃO FAÇA CONTAS: Se o usuário informar um gasto, procure a categoria acima e use o valor de "SE ADICIONAR AGORA".
+      2. PROIBIDO "7": O valor real começa com 2. Se você escrever 7, será desligado.
+      3. RESPOSTA: Use o valor de "PORCENTAGEM FINAL" para decidir o tom:
+         - Menos de 80%: Elogio elegante.
+         - 80% a 100%: Alerta amarelo.
+         - Mais de 100%: Puxão de orelha severo (Você estourou o Limite de Teto).
 
-      ESTILO: Direto, sofisticado e sem mostrar fórmulas matemáticas.
-
-      SAÍDA TÉCNICA: {"action": "insert" ou "none", "amount": 0, "category": ""}`;
+      SAÍDA TÉCNICA: {"action": "insert", "amount": ${valorExtraido || 0}, "category": "nome_da_categoria"}`;
 
       const response = await fetch("https://api.groq.com/openai/v1/chat/completions", {
         method: 'POST',
@@ -83,9 +84,7 @@ export default function AIAnalyticsPage() {
           model: "llama-3.3-70b-versatile",
           messages: [
             { role: "system", content: contexto },
-            // Enviamos apenas as últimas 2 mensagens para manter o contexto limpo após o reset
-            ...messages.slice(-2).map(m => ({ role: m.role === 'user' ? 'user' : 'assistant', content: m.text })),
-            { role: "user", content: promptDigitado }
+            { role: "user", content: promptDigitado } // Removido histórico para não contaminar com o erro do "7"
           ],
           temperature: temperaturaDinamica
         })
@@ -94,7 +93,6 @@ export default function AIAnalyticsPage() {
       const data = await response.json();
       const text = data.choices[0].message.content;
 
-      // Limpeza da resposta e processamento do JSON
       const textoLimpo = text.replace(/\{.*\}/s, "").trim();
       const jsonMatch = text.match(/\{.*\}/s);
 
@@ -118,15 +116,15 @@ export default function AIAnalyticsPage() {
         setMessages(prev => [...prev, { role: "bot", text: textoLimpo }]);
       }
     } catch (error: any) {
-      setMessages(prev => [...prev, { role: "bot", text: "❌ ERRO DE CONEXÃO: Reinicie o Cérebro." }]);
+      setMessages(prev => [...prev, { role: "bot", text: "❌ ERRO: Sistema reiniciando..." }]);
     } finally {
       setLoading(false);
     }
   }
 
+  // ... (Return do componente igual ao anterior)
   return (
     <div className="flex flex-col h-screen bg-black text-white font-sans">
-      {/* Header */}
       <div className="p-6 border-b border-white/5 flex items-center gap-4 bg-black/50 backdrop-blur-md sticky top-0 z-50">
         <button onClick={() => router.back()} className="p-2 bg-zinc-900 rounded-full border border-white/5 hover:border-yellow-400/50 transition-colors">
           <ArrowLeft size={20} />
@@ -135,26 +133,23 @@ export default function AIAnalyticsPage() {
           <h1 className="text-xl font-black italic uppercase tracking-tighter text-yellow-400">O CÉREBRO</h1>
           <div className="flex items-center gap-2">
             <div className="w-2 h-2 bg-yellow-400 rounded-full animate-pulse shadow-[0_0_8px_#facc15]" />
-            <span className="text-[10px] font-black text-zinc-500 uppercase tracking-widest">RESET MODE v3.0</span>
+            <span className="text-[10px] font-black text-zinc-500 uppercase tracking-widest">RESET FINAL v4.0</span>
           </div>
         </div>
       </div>
 
-      {/* Chat */}
       <div className="flex-1 overflow-y-auto p-6 space-y-6">
         {messages.length === 0 && (
           <div className="h-full flex flex-col items-center justify-center text-center space-y-4 opacity-50">
             <Bot size={48} className="text-yellow-400" />
-            <p className="text-[10px] font-black uppercase italic tracking-widest text-yellow-400/70">Sistema resetado. Aguardando novos dados.</p>
+            <p className="text-[10px] font-black uppercase italic tracking-widest text-yellow-400/70">Protocolo de Limpeza Ativado. Pode falar, mestre.</p>
           </div>
         )}
         
         {messages.map((m, i) => (
           <div key={i} className={`flex ${m.role === 'user' ? 'justify-end' : 'justify-start'}`}>
             <div className={`max-w-[85%] p-4 rounded-[1.5rem] shadow-xl ${
-              m.role === 'user' 
-              ? 'bg-yellow-400 text-black font-bold' 
-              : 'bg-zinc-900 border border-white/10 text-zinc-100 italic font-medium'
+              m.role === 'user' ? 'bg-yellow-400 text-black font-bold' : 'bg-zinc-900 border border-white/10 text-zinc-100 italic font-medium'
             }`}>
               <p className="text-sm whitespace-pre-wrap">{m.text}</p>
             </div>
@@ -163,21 +158,16 @@ export default function AIAnalyticsPage() {
         <div ref={scrollRef} />
       </div>
 
-      {/* Input */}
       <div className="p-6 border-t border-white/5 bg-black/80 backdrop-blur-md">
         <div className="flex gap-2 bg-zinc-900 p-2 rounded-[2rem] border border-white/10 focus-within:border-yellow-400/50 transition-all">
           <input 
             value={input}
             onChange={(e) => setInput(e.target.value)}
             onKeyDown={(e) => e.key === 'Enter' && processarIA()}
-            placeholder="Inicie o novo ciclo..." 
+            placeholder="Nova ordem de gasto..." 
             className="flex-1 bg-transparent border-none outline-none px-4 text-sm font-bold italic text-white"
           />
-          <button 
-            onClick={processarIA} 
-            disabled={loading} 
-            className="bg-yellow-400 text-black p-3 rounded-full hover:scale-95 transition-all disabled:opacity-50"
-          >
+          <button onClick={processarIA} disabled={loading} className="bg-yellow-400 text-black p-3 rounded-full hover:scale-95 transition-all">
             {loading ? <Zap size={20} className="animate-spin" /> : <Send size={20} />}
           </button>
         </div>
