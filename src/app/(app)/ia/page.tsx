@@ -5,7 +5,7 @@ import { supabase } from "@/lib/supabase";
 import { Send, Bot, ArrowLeft, Zap } from "lucide-react";
 import { useRouter } from "next/navigation";
 
-// CHAVE DE API DO GEMINI
+// Certifica-te que esta chave está no teu .env.local como NEXT_PUBLIC_GEMINI_API_KEY
 const GEMINI_API_KEY = process.env.NEXT_PUBLIC_GEMINI_API_KEY;
 
 export default function AIAnalyticsPage() {
@@ -36,82 +36,95 @@ export default function AIAnalyticsPage() {
         supabase.from("goals").select("*").eq("user_id", user?.id)
       ]);
 
+      // --- CÁLCULO DE PRECISÃO NO TYPESCRIPT ---
       const valorInput = parseFloat(promptDigitado.replace(/[^\d.,]/g, "").replace(",", "."));
       const temValor = !isNaN(valorInput);
 
-      const dadosBlindados = metas.data?.map(m => {
-        const jaGasto = trans.data?.filter(t => t.category === m.category)
+      const dadosSistema = metas.data?.map(m => {
+        const acumuladoNoBanco = trans.data?.filter(t => t.category === m.category)
           .reduce((acc, t) => acc + t.amount, 0) || 0;
-        const novoTotal = jaGasto + (temValor ? valorInput : 0);
+        
+        const novoTotalCalculado = acumuladoNoBanco + (temValor ? valorInput : 0);
+        const porcentagem = (novoTotalCalculado / m.amount) * 100;
+
         return {
           categoria: m.category,
-          saldo_atual: jaGasto.toFixed(2),
-          novo_saldo: novoTotal.toFixed(2),
-          porcentagem: ((novoTotal / m.amount) * 100).toFixed(1),
-          teto: m.amount.toFixed(2)
+          saldo_antes: acumuladoNoBanco.toFixed(2),
+          resultado_final: novoTotalCalculado.toFixed(2),
+          porcentagem: porcentagem.toFixed(1),
+          limite_teto: m.amount.toFixed(2)
         };
       });
 
-      // CHAMADA PARA O GEMINI (Ajustada para evitar erros de bloqueio)
-      const response = await fetch(
-        `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${GEMINI_API_KEY}`,
-        {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            contents: [{
-              parts: [{
-                text: `Você é o Cérebro Financeiro.
-                DADOS: ${JSON.stringify(dadosBlindados)}
-                REGRAS: 
-                1. Use o "novo_saldo" e "porcentagem" dos dados. 
-                2. Se começa com 2, não diga 7.
-                3. Responda de forma motivadora com base na porcentagem.
-                4. Finalize com JSON: {"action": "insert", "amount": ${valorInput || 0}, "category": "nome"}
-                
-                USUÁRIO: ${promptDigitado}`
-              }]
-            }],
-            generationConfig: { temperature: 0.2 }
-          })
-        }
-      );
+      // --- CONFIGURAÇÃO DA CHAMADA (VERSÃO v1 ESTÁVEL) ---
+      const url = `https://generativelanguage.googleapis.com/v1/models/gemini-1.5-flash:generateContent?key=${GEMINI_API_KEY}`;
+
+      const contexto = `Você é o "Cérebro v6", mentor financeiro de precisão absoluta.
+      
+      ### DADOS REAIS DO SISTEMA (TABELA DE VERDADE):
+      ${JSON.stringify(dadosSistema)}
+
+      ### REGRAS CRÍTICAS:
+      1. NÃO FAÇA CONTAS: Use apenas os valores de "resultado_final" e "porcentagem" da tabela acima.
+      2. ZERO ALUCINAÇÃO: Se o valor começa com 2, você jamais escreverá 7. 
+      3. TOM DE VOZ (Baseado na Porcentagem):
+         - Abaixo de 80%: Elogio motivador.
+         - 80% a 100%: Alerta amarelo: "Atenção: o limite de teto está próximo."
+         - Acima de 100%: Puxão de orelha sério + 3 dicas práticas de economia.
+      
+      4. SAÍDA TÉCNICA: Finalize SEMPRE com o JSON: {"action": "insert", "amount": ${valorInput || 0}, "category": "NOME_DA_CATEGORIA"}`;
+
+      const response = await fetch(url, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          contents: [{
+            parts: [{ text: contexto + "\n\nUsuário: " + promptDigitado }]
+          }],
+          generationConfig: {
+            temperature: 0.1, // Precisão máxima
+            maxOutputTokens: 1000
+          }
+        })
+      });
 
       if (!response.ok) {
         const errorData = await response.json();
-        throw new Error(errorData.error?.message || "Erro na API");
+        throw new Error(errorData.error?.message || "Falha na comunicação com o Google.");
       }
 
       const data = await response.json();
       const text = data.candidates[0].content.parts[0].text;
 
+      // Limpeza de texto e extração de JSON
       const textoLimpo = text.replace(/\{.*\}/s, "").trim();
       const jsonMatch = text.match(/\{.*\}/s);
 
       if (jsonMatch) {
-        const json = JSON.parse(jsonMatch[0]);
-        if (json.action === "insert" && json.amount > 0) {
-          await supabase.from("transactions").insert({
-            user_id: user?.id,
-            type: "saida",
-            amount: json.amount,
-            category: json.category,
-            created_at: new Date()
-          });
-        }
+        try {
+          const json = JSON.parse(jsonMatch[0]);
+          if (json.action === "insert" && json.amount > 0) {
+            await supabase.from("transactions").insert({
+              user_id: user?.id,
+              type: "saida",
+              amount: json.amount,
+              category: json.category,
+              created_at: new Date()
+            });
+          }
+        } catch (e) { console.error("Erro no JSON", e); }
       }
       
       setMessages(prev => [...prev, { role: "bot", text: textoLimpo }]);
 
     } catch (error: any) {
-      console.error("ERRO DETALHADO:", error);
-      setMessages(prev => [...prev, { role: "bot", text: `❌ FALHA NO CÉREBRO: ${error.message}` }]);
+      console.error("ERRO:", error.message);
+      setMessages(prev => [...prev, { role: "bot", text: `❌ FALHA: ${error.message}` }]);
     } finally {
       setLoading(false);
     }
   }
 
-  // O Return (Interface) permanece o mesmo do código anterior
   return (
     <div className="flex flex-col h-screen bg-black text-white font-sans">
       <div className="p-6 border-b border-white/5 flex items-center gap-4 bg-black/50 backdrop-blur-md sticky top-0 z-50">
@@ -121,8 +134,8 @@ export default function AIAnalyticsPage() {
         <div>
           <h1 className="text-xl font-black italic uppercase tracking-tighter text-yellow-400">O CÉREBRO</h1>
           <div className="flex items-center gap-2">
-            <div className="w-2 h-2 bg-cyan-400 rounded-full animate-pulse shadow-[0_0_8px_#22d3ee]" />
-            <span className="text-[10px] font-black text-zinc-500 uppercase tracking-widest text-zinc-400">GEMINI ENGINE v6.2</span>
+            <div className="w-2 h-2 bg-cyan-500 rounded-full animate-pulse shadow-[0_0_8px_#06b6d4]" />
+            <span className="text-[10px] font-black text-zinc-500 uppercase tracking-widest">GEMINI v1 ENGINE</span>
           </div>
         </div>
       </div>
@@ -131,7 +144,7 @@ export default function AIAnalyticsPage() {
         {messages.length === 0 && (
           <div className="h-full flex flex-col items-center justify-center text-center space-y-4 opacity-50">
             <Bot size={48} className="text-yellow-400" />
-            <p className="text-[10px] font-black uppercase italic tracking-widest text-yellow-400/70">Aguardando ordem, mestre.</p>
+            <p className="text-[10px] font-black uppercase italic tracking-widest text-yellow-400/70">Novo motor de precisão ativado. Sistema pronto.</p>
           </div>
         )}
         
