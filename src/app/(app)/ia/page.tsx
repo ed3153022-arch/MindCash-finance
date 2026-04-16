@@ -41,29 +41,31 @@ export default function AIAnalyticsPage() {
         return acc;
       }, {});
 
-      // --- LISTA DE SALDOS BLINDADA (PARA EVITAR ALUCINAÇÃO) ---
+      // --- LISTA DE SALDOS COM BLINDAGEM DE DÍGITOS (A TROCA AQUI) ---
       const listaSaldosAtuais = metas.data?.map(m => {
         const acumuladoAteAgora = resumoGastosDashboard[m.category] || 0;
+        const valorTexto = acumuladoAteAgora.toFixed(2);
         return `CATEGORIA: ${m.category}
-        - VALOR_ACUMULADO_REAL: R$ ${acumuladoAteAgora.toFixed(2)}
-        - LIMITE_MAXIMO_PERMITIDO (TETO): R$ ${m.amount.toFixed(2)}`;
+        - VALOR ACUMULADO ATUAL: [ R$ ${valorTexto} ]
+        - LIMITE DE TETO: [ R$ ${m.amount.toFixed(2)} ]
+        - INFO: O primeiro dígito do acumulado é ${valorTexto.charAt(0)}.`;
       }).join('\n\n');
 
-      // --- LÓGICA DE TEMPERATURA DINÂMICA (REINSTALADA) ---
       const ehApenasNumero = /^\d+$/.test(promptDigitado.trim());
       const temPalavrasDeGasto = ["gastei", "comprei", "paguei", "valor", "custou", "registra", "lança"].some(p => promptDigitado.toLowerCase().includes(p));
       const temNumeros = /\d/.test(promptDigitado);
       let temperaturaDinamica = (temPalavrasDeGasto || temNumeros) ? 0.3 : 0.8;
 
+      // --- CONTEXTO REFORMULADO PARA VERIFICAÇÃO EXTREMA ---
       const contexto = `Você é o "Cérebro", mentor financeiro de precisão cirúrgica.
 
-      ### DADOS REAIS E EXATOS (USE ESTA BASE):
-      ${listaSaldosAtuais}
+      ### VERIFICAÇÃO DE DÍGITOS (REGRA CRÍTICA):
+      1. Ao ler o "VALOR ACUMULADO ATUAL", verifique o primeiro dígito com atenção extrema. 
+      2. Se o valor começa com "2", não o transforme em "7". Confie na variável "INFO" fornecida abaixo.
+      3. O valor dentro dos colchetes [ ] é a única verdade absoluta.
 
-      ### REGRA DE OURO (DIFERENCIAÇÃO):
-      1. TRANSAÇÃO: Só use "action": "insert" se o mestre confirmar um gasto que JÁ OCORREU.
-      2. CONVERSA/ESTIMATIVA: Se for apenas uma dúvida ou plano, use "action": "none".
-      3. INTEGRIDADE: Se o "VALOR_ACUMULADO_REAL" for R$ 2885.50, não leia como 7885.50. Seja fiel aos dígitos.
+      ### DADOS REAIS DO DASHBOARD:
+      ${listaSaldosAtuais}
 
       ### ESPECIFICAÇÃO DE CATEGORIAS:
       - 🚗 **Transporte**: Uber, 99, combustível, manutenção.
@@ -76,14 +78,13 @@ export default function AIAnalyticsPage() {
       - 🏠 **Moradia**: Aluguel, luz, água.
 
       ### ALGORITMO DE CÁLCULO:
-      1. Identifique a categoria.
-      2. NOVO_TOTAL = (VALOR_ACUMULADO_REAL desta categoria + Novo Gasto).
-      3. PORCENTAGEM = (NOVO_TOTAL / LIMITE_MAXIMO_TETO) * 100.
-      4. PROIBIDO: Não mostre contas matemáticas. Diga apenas o resultado de forma elegante.
+      1. NOVO_TOTAL = (VALOR ACUMULADO ATUAL + Novo Gasto).
+      2. PORCENTAGEM = (NOVO_TOTAL / LIMITE DE TETO) * 100.
+      3. Use sempre o termo "Limite de Teto". Proibido mostrar a conta matemática no texto.
 
       ### GESTÃO DE LIMITE:
       - Abaixo de 80%: "Feito, mestre! Consumiu [P]% do seu limite de teto."
-      - 80% a 100%: Alerta: "Atenção, comandante: atingiu [P]% do limite. O muro está próximo."
+      - 80% a 100%: Alerta: "Atenção, comandante: atingiu [P]% do limite."
       - Acima de 100%: Puxão de orelha sério + 3 passos práticos para economizar.
 
       SAÍDA TÉCNICA: {"action": "insert" ou "none", "type": "saida", "amount": valor, "category": "nome"}`;
@@ -164,7 +165,7 @@ export default function AIAnalyticsPage() {
           <div key={i} className={`flex ${m.role === 'user' ? 'justify-end' : 'justify-start'}`}>
             <div className={`max-w-[85%] p-4 rounded-[1.5rem] shadow-xl ${
               m.role === 'user' 
-              ? 'bg-yellow-400 text-black font-bold shadow-yellow-400/5' 
+              ? 'bg-yellow-400 text-black font-bold' 
               : 'bg-zinc-900 border border-white/10 text-zinc-100 italic font-medium'
             }`}>
               <p className="text-sm whitespace-pre-wrap">{m.text}</p>
