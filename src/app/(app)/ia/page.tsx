@@ -35,38 +35,43 @@ export default function AIAnalyticsPage() {
         supabase.from("goals").select("*").eq("user_id", user?.id)
       ]);
 
-      // --- 1. LÓGICA DE CÁLCULO PRECISO (EXTRAÍDO DO DASHBOARD) ---
-      // Calculamos a soma exata por categoria via código (infalível)
       const resumoGastosDashboard = trans.data?.reduce((acc: any, t: any) => {
         const cat = t.category;
         acc[cat] = (acc[cat] || 0) + t.amount;
         return acc;
       }, {});
 
-      // Criamos a lista mastigada para a IA não precisar somar nada
+      // --- SUBSTITUIÇÃO 1: LISTA DE SALDOS BLINDADA ---
       const listaSaldosAtuais = metas.data?.map(m => {
-        const gastoAtual = resumoGastosDashboard[m.category] || 0;
-        return `- ${m.category}: Limite R$ ${m.amount.toFixed(2)} | Já gasto no Dashboard: R$ ${gastoAtual.toFixed(2)}`;
-      }).join('\n');
+        const acumuladoAteAgora = resumoGastosDashboard[m.category] || 0;
+        return `CATEGORIA: ${m.category}
+        - O QUE JÁ FOI GASTO REALMENTE: R$ ${acumuladoAteAgora.toFixed(2)}
+        - LIMITE MÁXIMO PERMITIDO (TETO): R$ ${m.amount.toFixed(2)}`;
+      }).join('\n\n');
 
-      // --- 2. LÓGICA DE TEMPERATURA DINÂMICA ---
       const temNumeros = /\d/.test(promptDigitado);
       const temPalavrasDeGasto = ["gastei", "comprei", "paguei", "valor", "custou", "registra", "lança"].some(p => promptDigitado.toLowerCase().includes(p));
       
-      // Precisão (0.3) para números/gastos, Criatividade (0.8) para conversa
       let temperaturaDinamica = (temPalavrasDeGasto || temNumeros) ? 0.3 : 0.8;
 
+      // --- SUBSTITUIÇÃO 2: CONTEXTO COM RACIOCÍNIO DE CÁLCULO ---
       const contexto = `Você é o "Cérebro", mentor financeiro de elite.
 
-      ### DADOS REAIS E EXATOS (USE ESTA BASE):
-      Abaixo estão os saldos atuais vindos diretamente do banco de dados:
+      ### BANCO DE DADOS ATUALIZADO (VALORES REAIS DO DASHBOARD):
       ${listaSaldosAtuais}
 
+      ### INSTRUÇÕES CRÍTICAS DE CÁLCULO:
+      1. IDENTIFIQUE a categoria do novo gasto.
+      2. PEGUE o valor "O QUE JÁ FOI GASTO REALMENTE" daquela categoria na lista acima.
+      3. SOME o novo gasto a esse valor para obter o "TOTAL ATUALIZADO".
+      4. PEGUE o "LIMITE MÁXIMO PERMITIDO (TETO)" daquela mesma categoria.
+      5. CÁLCULO DA PORCENTAGEM: (TOTAL ATUALIZADO / LIMITE MÁXIMO) * 100.
+
       ### REGRAS DE OURO:
-      1. NÃO SOME O HISTÓRICO: Use o valor "Já gasto no Dashboard" acima como ponto de partida.
-      2. CÁLCULO DA PORCENTAGEM: Se o usuário adicionar um gasto novo (V), faça: ((Gasto no Dashboard + V) / Limite) * 100.
-      3. TRANSAÇÃO: Só use "action": "insert" se for um gasto que JÁ aconteceu. Se for plano ou dúvida, "action": "none".
-      4. TETO: Use sempre o termo "Limite de Teto". Proibido mostrar contas matemáticas no texto.
+      - NUNCA some o gasto novo ao Limite/Teto. O Limite é fixo e imutável.
+      - NÃO tente somar o histórico manualmente. Confie apenas no valor "O QUE JÁ FOI GASTO REALMENTE" que eu te passei.
+      - TRANSAÇÃO: Só use "action": "insert" se for um gasto que JÁ aconteceu.
+      - TETO: Use sempre o termo "Limite de Teto". Proibido mostrar contas matemáticas.
 
       ### PERSONALIDADE:
       Seja elegante, direto e aja como um mentor de alto nível.
@@ -124,7 +129,6 @@ export default function AIAnalyticsPage() {
 
   return (
     <div className="flex flex-col h-screen bg-black text-white font-sans">
-      {/* Header */}
       <div className="p-6 border-b border-white/5 flex items-center gap-4 bg-black/50 backdrop-blur-md sticky top-0 z-50">
         <button onClick={() => router.back()} className="p-2 bg-zinc-900 rounded-full border border-white/5 hover:border-yellow-400/50 transition-colors">
           <ArrowLeft size={20} />
@@ -138,7 +142,6 @@ export default function AIAnalyticsPage() {
         </div>
       </div>
 
-      {/* Chat */}
       <div className="flex-1 overflow-y-auto p-6 space-y-6">
         {messages.length === 0 && (
           <div className="h-full flex flex-col items-center justify-center text-center space-y-4 opacity-50">
@@ -161,7 +164,6 @@ export default function AIAnalyticsPage() {
         <div ref={scrollRef} />
       </div>
 
-      {/* Input */}
       <div className="p-6 border-t border-white/5 bg-black/80 backdrop-blur-md">
         <div className="flex gap-2 bg-zinc-900 p-2 rounded-[2rem] border border-white/10 focus-within:border-yellow-400/50 transition-all">
           <input 
