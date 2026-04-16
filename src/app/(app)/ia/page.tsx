@@ -31,57 +31,47 @@ export default function AIAnalyticsPage() {
       const { data: { user } } = await supabase.auth.getUser();
       
       const [trans, metas] = await Promise.all([
-        supabase.from("transactions").select("*").eq("user_id", user?.id).order('created_at', { ascending: false }),
+        supabase.from("transactions").select("*").eq("user_id", user?.id),
         supabase.from("goals").select("*").eq("user_id", user?.id)
       ]);
 
-      const resumoGastosDashboard = trans.data?.reduce((acc: any, t: any) => {
-        const cat = t.category;
-        acc[cat] = (acc[cat] || 0) + t.amount;
-        return acc;
-      }, {});
+      // --- LÓGICA DE RESET: CÁLCULO FEITO PELO SISTEMA (INFALÍVEL) ---
+      const resumoProcessado = metas.data?.map(m => {
+        const totalGasto = trans.data
+          ?.filter(t => t.category === m.category)
+          .reduce((acc, t) => acc + t.amount, 0) || 0;
+        
+        return {
+          categoria: m.category,
+          saldo_atual: totalGasto.toFixed(2),
+          teto_maximo: m.amount.toFixed(2),
+          porcentagem_atual: ((totalGasto / m.amount) * 100).toFixed(1)
+        };
+      });
 
-      // --- LISTA DE SALDOS COM BLINDAGEM MÁXIMA ---
-      const listaSaldosAtuais = metas.data?.map(m => {
-        const acumuladoAteAgora = resumoGastosDashboard[m.category] || 0;
-        const valorTexto = acumuladoAteAgora.toFixed(2);
-        // Injetamos o valor de forma ultra-explícita
-        return `CATEGORIA: ${m.category}
-        - [DADO_BRUTO_SISTEMA]: R$ ${valorTexto}
-        - [LIMITE_TETO_SISTEMA]: R$ ${m.amount.toFixed(2)}
-        - [DÍGITO_INICIAL]: ${valorTexto.charAt(0)}`;
-      }).join('\n\n');
-
+      // --- TEMPERATURA DINÂMICA (0.2 para números, 0.8 para papo furado) ---
       const temNumeros = /\d/.test(promptDigitado);
-      const temPalavrasDeGasto = ["gastei", "comprei", "paguei", "valor", "custou", "registra", "lança"].some(p => promptDigitado.toLowerCase().includes(p));
-      let temperaturaDinamica = (temPalavrasDeGasto || temNumeros) ? 0.1 : 0.7; // Baixamos ainda mais a temperatura para precisão total
+      const temGasto = ["gastei", "pagou", "custou", "compra", "lança"].some(p => promptDigitado.toLowerCase().includes(p));
+      const temperaturaDinamica = temGasto ? 0.2 : temNumeros ? 0.3 : 0.8;
 
-      const contexto = `Você é o "Cérebro", mentor financeiro. 
-      
-      ### REGRAS DE INTEGRIDADE NUMÉRICA (LEI):
-      1. Use EXATAMENTE o valor em [DADO_BRUTO_SISTEMA]. 
-      2. Se o valor é 2885.50, é PROIBIDO escrever 7885.50. 
-      3. O primeiro dígito DEVE ser o que consta em [DÍGITO_INICIAL].
-      4. Você não tem permissão para alterar os dados do sistema.
+      const contexto = `Você é o "Cérebro v3", mentor financeiro de elite. 
+      ESTE É UM RESET: Esqueça conversas anteriores. Baseie-se APENAS nestes dados:
 
-      ### DADOS DO BANCO DE DADOS:
-      ${listaSaldosAtuais}
+      DADOS DO SISTEMA (VALORES REAIS):
+      ${JSON.stringify(resumoProcessado)}
 
-      ### CATEGORIAS:
-      Transporte, Saúde, Assinaturas, Compras, Outros, Alimentação, Lazer, Moradia.
+      ### REGRAS DE OURO:
+      1. FIDELIDADE: Se o sistema diz que o saldo é 2885.50, você JAMAIS dirá 7885.50. 
+      2. CÁLCULO: Se o usuário adicionar um gasto novo (X), some X ao "saldo_atual" da categoria e recalcule a %.
+      3. GESTÃO DE TETO:
+         - < 80%: Elogio curto e elegante.
+         - 80% a 100%: Alerta amarelo: "Atenção, o limite de teto está próximo."
+         - > 100%: Puxão de orelha severo + 3 dicas de economia.
+      4. CATEGORIAS ACEITAS: Transporte, Saúde, Assinaturas, Compras, Outros, Alimentação, Lazer, Moradia.
 
-      ### INSTRUÇÕES DE RESPOSTA:
-      - Identifique o novo gasto do usuário.
-      - Some ao [DADO_BRUTO_SISTEMA] da categoria correta.
-      - Calcule a porcentagem sobre o [LIMITE_TETO_SISTEMA].
-      - Use o termo "Limite de Teto". 
-      - Proibido mostrar fórmulas matemáticas como (X/Y)*100. Apenas o resultado.
+      ESTILO: Direto, sofisticado e sem mostrar fórmulas matemáticas.
 
-      ### TONS DE ALERTA:
-      - Até 100%: "Consumiu [P]% do seu Limite de Teto."
-      - Acima de 100%: Alerta de estouro e 3 dicas curtas de economia.
-
-      SAÍDA TÉCNICA OBRIGATÓRIA NO FINAL: {"action": "insert" ou "none", "type": "saida", "amount": valor, "category": "nome"}`;
+      SAÍDA TÉCNICA: {"action": "insert" ou "none", "amount": 0, "category": ""}`;
 
       const response = await fetch("https://api.groq.com/openai/v1/chat/completions", {
         method: 'POST',
@@ -93,7 +83,8 @@ export default function AIAnalyticsPage() {
           model: "llama-3.3-70b-versatile",
           messages: [
             { role: "system", content: contexto },
-            ...messages.slice(-6).map(m => ({ role: m.role === 'user' ? 'user' : 'assistant', content: m.text })),
+            // Enviamos apenas as últimas 2 mensagens para manter o contexto limpo após o reset
+            ...messages.slice(-2).map(m => ({ role: m.role === 'user' ? 'user' : 'assistant', content: m.text })),
             { role: "user", content: promptDigitado }
           ],
           temperature: temperaturaDinamica
@@ -103,7 +94,8 @@ export default function AIAnalyticsPage() {
       const data = await response.json();
       const text = data.choices[0].message.content;
 
-      const textoLimpo = text.replace(/json/gi, "").replace(/\{.*\}/s, "").trim();
+      // Limpeza da resposta e processamento do JSON
+      const textoLimpo = text.replace(/\{.*\}/s, "").trim();
       const jsonMatch = text.match(/\{.*\}/s);
 
       if (jsonMatch) {
@@ -112,7 +104,7 @@ export default function AIAnalyticsPage() {
           if (json.action === "insert" && json.amount > 0) {
             await supabase.from("transactions").insert({
               user_id: user?.id,
-              type: json.type,
+              type: "saida",
               amount: json.amount,
               category: json.category,
               created_at: new Date()
@@ -126,15 +118,15 @@ export default function AIAnalyticsPage() {
         setMessages(prev => [...prev, { role: "bot", text: textoLimpo }]);
       }
     } catch (error: any) {
-      setMessages(prev => [...prev, { role: "bot", text: "❌ ERRO: " + error.message }]);
+      setMessages(prev => [...prev, { role: "bot", text: "❌ ERRO DE CONEXÃO: Reinicie o Cérebro." }]);
     } finally {
       setLoading(false);
     }
   }
 
-  // O restante do componente (Return) permanece o mesmo...
   return (
     <div className="flex flex-col h-screen bg-black text-white font-sans">
+      {/* Header */}
       <div className="p-6 border-b border-white/5 flex items-center gap-4 bg-black/50 backdrop-blur-md sticky top-0 z-50">
         <button onClick={() => router.back()} className="p-2 bg-zinc-900 rounded-full border border-white/5 hover:border-yellow-400/50 transition-colors">
           <ArrowLeft size={20} />
@@ -143,16 +135,17 @@ export default function AIAnalyticsPage() {
           <h1 className="text-xl font-black italic uppercase tracking-tighter text-yellow-400">O CÉREBRO</h1>
           <div className="flex items-center gap-2">
             <div className="w-2 h-2 bg-yellow-400 rounded-full animate-pulse shadow-[0_0_8px_#facc15]" />
-            <span className="text-[10px] font-black text-zinc-500 uppercase tracking-widest text-zinc-400">MindCash Mentor v2.2</span>
+            <span className="text-[10px] font-black text-zinc-500 uppercase tracking-widest">RESET MODE v3.0</span>
           </div>
         </div>
       </div>
 
+      {/* Chat */}
       <div className="flex-1 overflow-y-auto p-6 space-y-6">
         {messages.length === 0 && (
           <div className="h-full flex flex-col items-center justify-center text-center space-y-4 opacity-50">
             <Bot size={48} className="text-yellow-400" />
-            <p className="text-[10px] font-black uppercase italic tracking-widest text-yellow-400/70">Aguardando ordens, mestre.</p>
+            <p className="text-[10px] font-black uppercase italic tracking-widest text-yellow-400/70">Sistema resetado. Aguardando novos dados.</p>
           </div>
         )}
         
@@ -160,7 +153,7 @@ export default function AIAnalyticsPage() {
           <div key={i} className={`flex ${m.role === 'user' ? 'justify-end' : 'justify-start'}`}>
             <div className={`max-w-[85%] p-4 rounded-[1.5rem] shadow-xl ${
               m.role === 'user' 
-              ? 'bg-yellow-400 text-black font-bold shadow-yellow-400/5' 
+              ? 'bg-yellow-400 text-black font-bold' 
               : 'bg-zinc-900 border border-white/10 text-zinc-100 italic font-medium'
             }`}>
               <p className="text-sm whitespace-pre-wrap">{m.text}</p>
@@ -170,14 +163,15 @@ export default function AIAnalyticsPage() {
         <div ref={scrollRef} />
       </div>
 
+      {/* Input */}
       <div className="p-6 border-t border-white/5 bg-black/80 backdrop-blur-md">
         <div className="flex gap-2 bg-zinc-900 p-2 rounded-[2rem] border border-white/10 focus-within:border-yellow-400/50 transition-all">
           <input 
             value={input}
             onChange={(e) => setInput(e.target.value)}
             onKeyDown={(e) => e.key === 'Enter' && processarIA()}
-            placeholder="Comande o cérebro..." 
-            className="flex-1 bg-transparent border-none outline-none px-4 text-sm font-bold italic text-white placeholder:text-zinc-600"
+            placeholder="Inicie o novo ciclo..." 
+            className="flex-1 bg-transparent border-none outline-none px-4 text-sm font-bold italic text-white"
           />
           <button 
             onClick={processarIA} 
