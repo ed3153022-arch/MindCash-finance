@@ -41,40 +41,50 @@ export default function AIAnalyticsPage() {
         return acc;
       }, {});
 
-      // --- SUBSTITUIÇÃO 1: LISTA DE SALDOS BLINDADA ---
+      // --- LISTA DE SALDOS BLINDADA (PARA EVITAR ALUCINAÇÃO) ---
       const listaSaldosAtuais = metas.data?.map(m => {
         const acumuladoAteAgora = resumoGastosDashboard[m.category] || 0;
         return `CATEGORIA: ${m.category}
-        - O QUE JÁ FOI GASTO REALMENTE: R$ ${acumuladoAteAgora.toFixed(2)}
-        - LIMITE MÁXIMO PERMITIDO (TETO): R$ ${m.amount.toFixed(2)}`;
+        - VALOR_ACUMULADO_REAL: R$ ${acumuladoAteAgora.toFixed(2)}
+        - LIMITE_MAXIMO_PERMITIDO (TETO): R$ ${m.amount.toFixed(2)}`;
       }).join('\n\n');
 
-      const temNumeros = /\d/.test(promptDigitado);
+      // --- LÓGICA DE TEMPERATURA DINÂMICA (REINSTALADA) ---
+      const ehApenasNumero = /^\d+$/.test(promptDigitado.trim());
       const temPalavrasDeGasto = ["gastei", "comprei", "paguei", "valor", "custou", "registra", "lança"].some(p => promptDigitado.toLowerCase().includes(p));
-      
+      const temNumeros = /\d/.test(promptDigitado);
       let temperaturaDinamica = (temPalavrasDeGasto || temNumeros) ? 0.3 : 0.8;
 
-      // --- SUBSTITUIÇÃO 2: CONTEXTO COM RACIOCÍNIO DE CÁLCULO ---
-      const contexto = `Você é o "Cérebro", mentor financeiro de elite.
+      const contexto = `Você é o "Cérebro", mentor financeiro de precisão cirúrgica.
 
-      ### BANCO DE DADOS ATUALIZADO (VALORES REAIS DO DASHBOARD):
+      ### DADOS REAIS E EXATOS (USE ESTA BASE):
       ${listaSaldosAtuais}
 
-      ### INSTRUÇÕES CRÍTICAS DE CÁLCULO:
-      1. IDENTIFIQUE a categoria do novo gasto.
-      2. PEGUE o valor "O QUE JÁ FOI GASTO REALMENTE" daquela categoria na lista acima.
-      3. SOME o novo gasto a esse valor para obter o "TOTAL ATUALIZADO".
-      4. PEGUE o "LIMITE MÁXIMO PERMITIDO (TETO)" daquela mesma categoria.
-      5. CÁLCULO DA PORCENTAGEM: (TOTAL ATUALIZADO / LIMITE MÁXIMO) * 100.
+      ### REGRA DE OURO (DIFERENCIAÇÃO):
+      1. TRANSAÇÃO: Só use "action": "insert" se o mestre confirmar um gasto que JÁ OCORREU.
+      2. CONVERSA/ESTIMATIVA: Se for apenas uma dúvida ou plano, use "action": "none".
+      3. INTEGRIDADE: Se o "VALOR_ACUMULADO_REAL" for R$ 2885.50, não leia como 7885.50. Seja fiel aos dígitos.
 
-      ### REGRAS DE OURO:
-      - NUNCA some o gasto novo ao Limite/Teto. O Limite é fixo e imutável.
-      - NÃO tente somar o histórico manualmente. Confie apenas no valor "O QUE JÁ FOI GASTO REALMENTE" que eu te passei.
-      - TRANSAÇÃO: Só use "action": "insert" se for um gasto que JÁ aconteceu.
-      - TETO: Use sempre o termo "Limite de Teto". Proibido mostrar contas matemáticas.
+      ### ESPECIFICAÇÃO DE CATEGORIAS:
+      - 🚗 **Transporte**: Uber, 99, combustível, manutenção.
+      - 💊 **Saúde**: Farmácia, exames, academia.
+      - 💳 **Assinaturas**: Netflix, Spotify, iCloud.
+      - 🛍 **Compras**: Roupas, eletrônicos.
+      - ⚡️ **Outros**: Taxas, multas.
+      - 🍔 **Alimentação**: Mercado, iFood, restaurante.
+      - 🎬 **Lazer**: Cinema, bar, festas.
+      - 🏠 **Moradia**: Aluguel, luz, água.
 
-      ### PERSONALIDADE:
-      Seja elegante, direto e aja como um mentor de alto nível.
+      ### ALGORITMO DE CÁLCULO:
+      1. Identifique a categoria.
+      2. NOVO_TOTAL = (VALOR_ACUMULADO_REAL desta categoria + Novo Gasto).
+      3. PORCENTAGEM = (NOVO_TOTAL / LIMITE_MAXIMO_TETO) * 100.
+      4. PROIBIDO: Não mostre contas matemáticas. Diga apenas o resultado de forma elegante.
+
+      ### GESTÃO DE LIMITE:
+      - Abaixo de 80%: "Feito, mestre! Consumiu [P]% do seu limite de teto."
+      - 80% a 100%: Alerta: "Atenção, comandante: atingiu [P]% do limite. O muro está próximo."
+      - Acima de 100%: Puxão de orelha sério + 3 passos práticos para economizar.
 
       SAÍDA TÉCNICA: {"action": "insert" ou "none", "type": "saida", "amount": valor, "category": "nome"}`;
 
@@ -154,7 +164,7 @@ export default function AIAnalyticsPage() {
           <div key={i} className={`flex ${m.role === 'user' ? 'justify-end' : 'justify-start'}`}>
             <div className={`max-w-[85%] p-4 rounded-[1.5rem] shadow-xl ${
               m.role === 'user' 
-              ? 'bg-yellow-400 text-black font-bold' 
+              ? 'bg-yellow-400 text-black font-bold shadow-yellow-400/5' 
               : 'bg-zinc-900 border border-white/10 text-zinc-100 italic font-medium'
             }`}>
               <p className="text-sm whitespace-pre-wrap">{m.text}</p>
