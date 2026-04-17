@@ -37,27 +37,30 @@ export default function AIAnalyticsPage() {
         supabase.from("limits").select("*").eq("user_id", user?.id)
       ]);
 
+      // --- MOTOR DE CÁLCULO (PRECISÃO MATEMÁTICA) ---
       const valorDetectado = parseFloat(promptOriginal.replace(/[^\d.,]/g, "").replace(",", "."));
       
-      const dadosBlindados = {
-        categorias_atuais: metas.data?.map(m => {
-          const jaGasto = trans.data?.filter(t => t.category === m.category)
-            .reduce((acc, t) => acc + t.amount, 0) || 0;
-          return {
-            categoria: m.category,
-            atual: jaGasto.toFixed(2),
-            teto: m.amount.toFixed(2),
-            porcentagem: ((jaGasto / m.amount) * 100).toFixed(1)
-          };
-        }),
-        objetivos_sonhos: sonhos.data,
-        limites_definidos: limites.data
-      };
+      const categoriasProcessadas = metas.data?.map(m => {
+        // Forçamos a conversão para número para evitar o erro de concatenação/strings
+        const teto = Number(m.amount) || 0;
+        const jaGasto = trans.data?.filter(t => t.category === m.category && t.type === 'saida')
+          .reduce((acc, t) => acc + (Number(t.amount) || 0), 0) || 0;
+        
+        const porcentagem = teto > 0 ? (jaGasto / teto) * 100 : 0;
 
-      let temp = 0.2;
-      const lowerInput = promptOriginal.toLowerCase();
-      if (lowerInput.includes("veredito") || lowerInput.includes("como estou")) temp = 0.7;
-      else if (valorDetectado || lowerInput.includes("sonho") || lowerInput.includes("limite")) temp = 0.3;
+        return {
+          categoria: m.category,
+          gasto_real: jaGasto.toFixed(2),
+          limite_teto: teto.toFixed(2),
+          porcentagem_uso: porcentagem.toFixed(1) + "%"
+        };
+      });
+
+      const dadosParaIA = {
+        relatorio_atual: categoriasProcessadas,
+        objetivos: sonhos.data,
+        config_limites: limites.data
+      };
 
       const response = await fetch("https://openrouter.ai/api/v1/chat/completions", {
         method: 'POST',
@@ -72,40 +75,34 @@ export default function AIAnalyticsPage() {
           messages: [
             { 
               role: "system", 
-              content: `Você é o CÉREBRO v7, Mentor Financeiro. 
-              PERSONA: Use "Mestre", "Comandante", "Veredito".
-              CONTEXTO DO DASHBOARD: ${JSON.stringify(dadosBlindados)}
+              content: `Você é o CÉREBRO v7. Mentor de Elite.
+              REGRAS MATEMÁTICAS: Use APENAS os números do relatório. Não faça cálculos.
+              
+              CONTEXTO: ${JSON.stringify(dadosParaIA)}
 
-              REGRAS:
-              1. ALERTA 70%: Avise se o gasto chegar perto do teto.
-              2. ALERTA 100%: Puxão de orelha se passar.
-              3. IDIOMA: Português do Brasil. Proibido barras repetidas.
-              4. ANTI-ERRO: Se valor começa com 2, nunca escreva 7.
+              COMANDOS DE JSON:
+              - Saída: {"action": "transaction", "type": "saida", "amount": VALOR, "category": "nome"}
+              - Entrada: {"action": "transaction", "type": "entrada", "amount": VALOR, "category": "Receita"}
+              - Objetivo: {"action": "dream", "title": "nome", "target": VALOR}
+              - Limite: {"action": "limit", "category": "nome", "amount": VALOR}
 
-              AÇÕES SUPORTADAS (Obrigatório JSON no final):
-              - Transação: {"action": "transaction", "type": "saida/entrada", "amount": 0, "category": "nome"}
-              - Sonho/Objetivo: {"action": "dream", "title": "nome", "target": 0}
-              - Limite: {"action": "limit", "category": "nome", "amount": 0}
-              - Fixo: {"action": "fixo", "amount": 0, "category": "nome"}` 
+              IMPORTANTE: Se o usuário não disser a categoria da entrada, use "Receita". 
+              O JSON deve ser a última linha.` 
             },
             { role: "user", content: promptOriginal }
           ],
-          temperature: temp
+          temperature: 0.2
         })
       });
 
       const data = await response.json();
-      if (data.error) throw new Error(data.error.message);
-
       const fullText = data.choices[0].message.content;
       
-      // --- EXTRAÇÃO BLINDADA DE JSON (SUBSTITUIÇÃO APLICADA) ---
       const jsonMatch = fullText.match(/\{[\s\S]*?\}/); 
       let textoExibir = fullText;
 
       if (jsonMatch) {
         textoExibir = fullText.replace(jsonMatch[0], "").trim();
-        
         try {
           const res = JSON.parse(jsonMatch[0]);
 
@@ -114,7 +111,7 @@ export default function AIAnalyticsPage() {
               user_id: user?.id,
               type: res.type,
               amount: res.amount || valorDetectado,
-              category: res.category,
+              category: res.category || (res.type === 'entrada' ? 'Receita' : 'Geral'),
               created_at: new Date()
             });
           } 
@@ -133,31 +130,19 @@ export default function AIAnalyticsPage() {
               amount: res.amount || valorDetectado
             });
           }
-          else if (res.action === "fixo") {
-            await supabase.from("transactions").insert({
-              user_id: user?.id,
-              type: "fixo",
-              amount: res.amount,
-              category: res.category,
-              description: "Gasto Fixo Mensal"
-            });
-          }
-        } catch (e) {
-          console.error("Erro no Parse JSON:", e);
-        }
+        } catch (e) { console.error("Erro JSON:", e); }
       }
       
-      // Limpeza final de caracteres repetidos e barras no texto do chat
-      textoExibir = textoExibir.replace(/[/\\_]{2,}/g, "").trim();
-      setMessages(prev => [...prev, { role: "bot", text: textoExibir || "Comando processado, mestre." }]);
+      setMessages(prev => [...prev, { role: "bot", text: textoExibir.replace(/[/\\_]{2,}/g, "") }]);
 
     } catch (error: any) {
-      setMessages(prev => [...prev, { role: "bot", text: `❌ COMANDANTE, ERRO NA MANOBRA: ${error.message}` }]);
+      setMessages(prev => [...prev, { role: "bot", text: `❌ COMANDANTE: ${error.message}` }]);
     } finally {
       setLoading(false);
     }
   }
 
+  // ... (UI mantida igual)
   return (
     <div className="flex flex-col h-screen bg-black text-white font-sans">
       <div className="p-6 border-b border-white/5 flex items-center gap-4 bg-black/50 backdrop-blur-md sticky top-0 z-50">
