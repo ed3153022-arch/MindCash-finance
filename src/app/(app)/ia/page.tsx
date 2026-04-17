@@ -5,7 +5,6 @@ import { supabase } from "@/lib/supabase";
 import { Send, Bot, ArrowLeft, Zap } from "lucide-react";
 import { useRouter } from "next/navigation";
 
-// A Vercel lerá a chave desta variável de ambiente
 const OPENROUTER_API_KEY = process.env.NEXT_PUBLIC_OPENROUTER_API_KEY;
 
 export default function AIAnalyticsPage() {
@@ -25,7 +24,7 @@ export default function AIAnalyticsPage() {
     
     const userMsg = { role: "user", text: input };
     setMessages(prev => [...prev, userMsg]);
-    const promptDigitado = input;
+    const promptOriginal = input;
     setInput("");
 
     try {
@@ -36,24 +35,31 @@ export default function AIAnalyticsPage() {
         supabase.from("goals").select("*").eq("user_id", user?.id)
       ]);
 
-      // --- CÁLCULO DE BLINDAGEM (TypeScript resolve antes da IA) ---
-      const valorInput = parseFloat(promptDigitado.replace(/[^\d.,]/g, "").replace(",", "."));
-      const temValor = !isNaN(valorInput);
+      // --- DETECÇÃO DE VALOR E CONTEXTO ---
+      const valorDetectado = parseFloat(promptOriginal.replace(/[^\d.,]/g, "").replace(",", "."));
+      const temValor = !isNaN(valorDetectado);
 
       const dadosBlindados = metas.data?.map(m => {
         const jaGasto = trans.data?.filter(t => t.category === m.category)
           .reduce((acc, t) => acc + t.amount, 0) || 0;
-        const novoTotal = jaGasto + (temValor ? valorInput : 0);
         return {
           categoria: m.category,
-          saldo_atual: jaGasto.toFixed(2),
-          resultado_final: novoTotal.toFixed(2),
-          porcentagem: ((novoTotal / m.amount) * 100).toFixed(1),
-          teto: m.amount.toFixed(2)
+          atual: jaGasto.toFixed(2),
+          teto: m.amount.toFixed(2),
+          porcentagem: ((jaGasto / m.amount) * 100).toFixed(1)
         };
       });
 
-      // --- CHAMADA OPENROUTER COM TRATAMENTO DE ERRO ROBUSTO ---
+      // --- LÓGICA DE TEMPERATURA DINÂMICA ---
+      let temp = 0.2;
+      const lowerInput = promptOriginal.toLowerCase();
+      if (lowerInput.includes("veredito") || lowerInput.includes("disciplina") || lowerInput.includes("como estou")) {
+        temp = 0.7;
+      } else if (temValor || lowerInput.includes("objetivo") || lowerInput.includes("fixo") || lowerInput.includes("ganhei")) {
+        temp = 0.3;
+      }
+
+      // --- CHAMADA OPENROUTER ---
       const response = await fetch("https://openrouter.ai/api/v1/chat/completions", {
         method: 'POST',
         headers: { 
@@ -67,57 +73,64 @@ export default function AIAnalyticsPage() {
           messages: [
             { 
               role: "system", 
-              content: `Você é o Cérebro, mentor financeiro. 
-              ### DADOS: ${JSON.stringify(dadosBlindados)}
-              ### REGRAS:
-              1. Use os valores de "resultado_final" e "porcentagem" da tabela.
-              2. Anti-erro: Se o valor começa com 2, nunca escreva 7.
-              3. Tom: <80% elogio, 80-100% alerta, >100% bronca.
-              Finalize com JSON: {"action": "insert", "amount": ${valorInput || 0}, "category": "NOME"}` 
+              content: `Você é o CÉREBRO v7, Mentor Financeiro de Elite.
+              
+              PERSONA: Use termos como "Mestre", "Chefe", "Comandante", "Veredito", "Estratégia". Seja direto e implacável.
+              
+              DADOS REAIS: ${JSON.stringify(dadosBlindados)}
+
+              REGRAS DE CONDUTA:
+              1. ALERTA 70%: Se o usuário gastar e a categoria passar de 70%, avise que o teto está próximo.
+              2. ALERTA 100%: Se passar de 100%, dê um puxão de orelha severo.
+              3. ENTRADAS/OBJETIVOS: Se o usuário adicionar dinheiro ou criar objetivo, dê parabéns pela iniciativa.
+              4. ANTI-ERRO: Se o valor começa com 2, nunca escreva 7.
+              5. IDIOMA: Português do Brasil.
+
+              AÇÕES SUPORTADAS (JSON final):
+              - {"action": "insert", "type": "saida", "amount": 0, "category": "nome"}
+              - {"action": "insert", "type": "entrada", "amount": 0, "category": "nome"}
+              - {"action": "upsert_goal", "category": "nome", "amount": 0}
+              - {"action": "fixo", "amount": 0, "category": "nome"}` 
             },
-            { role: "user", content: promptDigitado }
+            { role: "user", content: promptOriginal }
           ],
-          temperature: 0.1
+          temperature: temp
         })
       });
 
       const data = await response.json();
-
-      // Verifica se a API do OpenRouter retornou erro (como o 404 anterior)
-      if (data.error) {
-        throw new Error(`OpenRouter: ${data.error.message} (Código: ${data.error.code})`);
-      }
-
-      if (!data.choices || data.choices.length === 0) {
-        throw new Error("A IA não retornou nenhuma resposta.");
-      }
+      if (data.error) throw new Error(data.error.message);
 
       const text = data.choices[0].message.content;
       const textoLimpo = text.replace(/\{.*\}/s, "").trim();
       const jsonMatch = text.match(/\{.*\}/s);
 
       if (jsonMatch) {
-        try {
-          const json = JSON.parse(jsonMatch[0]);
-          if (json.action === "insert" && json.amount > 0) {
-            await supabase.from("transactions").insert({
-              user_id: user?.id,
-              type: "saida",
-              amount: json.amount,
-              category: json.category,
-              created_at: new Date()
-            });
-          }
-        } catch (e) { 
-          console.error("Erro ao processar JSON da IA", e); 
+        const json = JSON.parse(jsonMatch[0]);
+        
+        // --- PROCESSAMENTO DE AÇÕES ---
+        if (json.action === "insert") {
+          await supabase.from("transactions").insert({
+            user_id: user?.id,
+            type: json.type || "saida",
+            amount: json.amount || valorDetectado,
+            category: json.category,
+            created_at: new Date()
+          });
+        } else if (json.action === "upsert_goal") {
+          await supabase.from("goals").upsert({
+            user_id: user?.id,
+            category: json.category,
+            amount: json.amount || valorDetectado
+          });
         }
+        // Adicione aqui outras lógicas como "fixo" se tiver tabela para isso.
       }
       
       setMessages(prev => [...prev, { role: "bot", text: textoLimpo }]);
 
     } catch (error: any) {
-      // Exibe o erro real na tela para sabermos como agir
-      setMessages(prev => [...prev, { role: "bot", text: `❌ FALHA TÉCNICA: ${error.message}` }]);
+      setMessages(prev => [...prev, { role: "bot", text: `❌ COMANDANTE, TIVEMOS UM PROBLEMA: ${error.message}` }]);
     } finally {
       setLoading(false);
     }
@@ -125,7 +138,6 @@ export default function AIAnalyticsPage() {
 
   return (
     <div className="flex flex-col h-screen bg-black text-white font-sans">
-      {/* Header */}
       <div className="p-6 border-b border-white/5 flex items-center gap-4 bg-black/50 backdrop-blur-md sticky top-0 z-50">
         <button onClick={() => router.back()} className="p-2 bg-zinc-900 rounded-full border border-white/5 hover:border-yellow-400/50 transition-colors">
           <ArrowLeft size={20} />
@@ -133,18 +145,17 @@ export default function AIAnalyticsPage() {
         <div>
           <h1 className="text-xl font-black italic uppercase tracking-tighter text-yellow-400">O CÉREBRO</h1>
           <div className="flex items-center gap-2">
-            <div className="w-2 h-2 bg-green-400 rounded-full animate-pulse shadow-[0_0_8px_#4ade80]" />
-            <span className="text-[10px] font-black text-zinc-500 uppercase tracking-widest text-zinc-400">V7.5 - MODO DIAGNÓSTICO</span>
+            <div className="w-2 h-2 bg-yellow-400 rounded-full animate-pulse" />
+            <span className="text-[10px] font-black text-zinc-500 uppercase tracking-widest">Elite Finance v7.0</span>
           </div>
         </div>
       </div>
 
-      {/* Chat */}
       <div className="flex-1 overflow-y-auto p-6 space-y-6">
         {messages.length === 0 && (
           <div className="h-full flex flex-col items-center justify-center text-center space-y-4 opacity-50">
             <Bot size={48} className="text-yellow-400" />
-            <p className="text-[10px] font-black uppercase italic tracking-widest text-yellow-400/70">Sistema pronto. Relate seu gasto.</p>
+            <p className="text-[10px] font-black uppercase italic tracking-widest text-yellow-400/70">Aguardando ordens, Comandante.</p>
           </div>
         )}
         
@@ -160,14 +171,13 @@ export default function AIAnalyticsPage() {
         <div ref={scrollRef} />
       </div>
 
-      {/* Input */}
       <div className="p-6 border-t border-white/5 bg-black/80 backdrop-blur-md">
         <div className="flex gap-2 bg-zinc-900 p-2 rounded-[2rem] border border-white/10 focus-within:border-yellow-400/50 transition-all">
           <input 
             value={input}
             onChange={(e) => setInput(e.target.value)}
             onKeyDown={(e) => e.key === 'Enter' && processarIA()}
-            placeholder="Ex: Gastei 25 no mercado" 
+            placeholder="Mande o relatório, Chefe..." 
             className="flex-1 bg-transparent border-none outline-none px-4 text-sm font-bold italic text-white"
           />
           <button onClick={processarIA} disabled={loading} className="bg-yellow-400 text-black p-3 rounded-full hover:scale-95 transition-all">
