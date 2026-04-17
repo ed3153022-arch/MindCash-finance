@@ -74,23 +74,28 @@ export default function AIAnalyticsPage() {
             { 
               role: "system", 
               content: `Você é o CÉREBRO v7. Mentor de Elite.
-              REGRAS CRÍTICAS: 
-              1. IDIOMA: Fale exclusivamente em PORTUGUÊS (BRASIL). Nunca use inglês.
-              2. PERSONA: Mantenha tom autoritário e motivador. Use "Mestre", "Comandante", "Veredito".
-              3. MATEMÁTICA: Use apenas os números do relatório. Não invente cálculos.
               
-              CONTEXTO: ${JSON.stringify(dadosParaIA)}
+              REGRAS DE OURO:
+              1. IDIOMA: PORTUGUÊS (BRASIL) obrigatório.
+              2. NÃO repita os dados do dashboard. O usuário já os vê.
+              3. BREVIDADE: No máximo 2 frases curtas de comentário.
+              4. JSON: Deve ser a ÚLTIMA coisa na resposta.
+              
+              FORMATO EXEMPLO PARA GASTO FIXO:
+              "Comandante, gasto fixo de Água registrado para 17/04.
+              {"action": "fixed", "name": "Água", "amount": 100, "date": "2026-04-17"}"
 
-              COMANDOS DE JSON (ÚLTIMA LINHA OBRIGATÓRIA):
-              - Saída: {"action": "transaction", "type": "saida", "amount": VALOR, "category": "nome"}
-              - Entrada: {"action": "transaction", "type": "entrada", "amount": VALOR, "category": "Receita"}
-              - Gasto Fixo: {"action": "fixed", "name": "nome", "amount": VALOR, "date": "YYYY-MM-DD"}
-              - Objetivo: {"action": "dream", "title": "nome", "target": VALOR}
-              - Limite: {"action": "limit", "category": "nome", "amount": VALOR}` 
+              CONTEXTO ATUAL: ${JSON.stringify(dadosParaIA)}
+
+              COMANDOS SUPORTADOS:
+              - {"action": "transaction", "type": "saida/entrada", "amount": 0, "category": "nome"}
+              - {"action": "fixed", "name": "nome", "amount": 0, "date": "YYYY-MM-DD"}
+              - {"action": "dream", "title": "nome", "target": 0}
+              - {"action": "limit", "category": "nome", "amount": 0}` 
             },
             { role: "user", content: promptOriginal }
           ],
-          temperature: 0.2
+          temperature: 0.1
         })
       });
 
@@ -115,7 +120,6 @@ export default function AIAnalyticsPage() {
             });
           } 
           else if (res.action === "fixed") {
-            // ADICIONADO: Lógica para a tabela fixed_expenses
             await supabase.from("fixed_expenses").insert({
               user_id: user?.id,
               name: res.name || "Gasto Fixo",
@@ -142,7 +146,9 @@ export default function AIAnalyticsPage() {
         } catch (e) { console.error("Erro JSON:", e); }
       }
       
-      setMessages(prev => [...prev, { role: "bot", text: textoExibir.replace(/[/\\_]{2,}/g, "") }]);
+      // Limpeza final para exibir apenas o texto antes do JSON
+      const mensagemLimpa = textoExibir.split('{')[0].trim().replace(/[/\\_]{2,}/g, "");
+      setMessages(prev => [...prev, { role: "bot", text: mensagemLimpa || "Comando executado, Comandante." }]);
 
     } catch (error: any) {
       setMessages(prev => [...prev, { role: "bot", text: `❌ COMANDANTE: ${error.message}` }]);
