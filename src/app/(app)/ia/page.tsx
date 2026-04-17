@@ -35,10 +35,8 @@ export default function AIAnalyticsPage() {
         supabase.from("goals").select("*").eq("user_id", user?.id)
       ]);
 
-      // --- DETECÇÃO DE VALOR E CONTEXTO ---
       const valorDetectado = parseFloat(promptOriginal.replace(/[^\d.,]/g, "").replace(",", "."));
-      const temValor = !isNaN(valorDetectado);
-
+      
       const dadosBlindados = metas.data?.map(m => {
         const jaGasto = trans.data?.filter(t => t.category === m.category)
           .reduce((acc, t) => acc + t.amount, 0) || 0;
@@ -50,16 +48,10 @@ export default function AIAnalyticsPage() {
         };
       });
 
-      // --- LÓGICA DE TEMPERATURA DINÂMICA ---
-      let temp = 0.2;
+      let temp = 0.3;
       const lowerInput = promptOriginal.toLowerCase();
-      if (lowerInput.includes("veredito") || lowerInput.includes("disciplina") || lowerInput.includes("como estou")) {
-        temp = 0.7;
-      } else if (temValor || lowerInput.includes("objetivo") || lowerInput.includes("fixo") || lowerInput.includes("ganhei")) {
-        temp = 0.3;
-      }
+      if (lowerInput.includes("veredito") || lowerInput.includes("disciplina")) temp = 0.7;
 
-      // --- CHAMADA OPENROUTER ---
       const response = await fetch("https://openrouter.ai/api/v1/chat/completions", {
         method: 'POST',
         headers: { 
@@ -73,24 +65,23 @@ export default function AIAnalyticsPage() {
           messages: [
             { 
               role: "system", 
-              content: `Você é o CÉREBRO v7, Mentor Financeiro de Elite.
+              content: `Você é o CÉREBRO v7. Mentor de Elite.
               
-              PERSONA: Use termos como "Mestre", "Chefe", "Comandante", "Veredito", "Estratégia". Seja direto e implacável.
+              PERSONA: Use "Mestre", "Comandante", "Veredito". 
+              DADOS: ${JSON.stringify(dadosBlindados)}
+
+              REGRAS:
+              1. ALERTA 70%: Avise se chegar perto.
+              2. ALERTA 100%: Dê bronca se passar.
+              3. Se for entrada/ganho ou novo objetivo, dê parabéns.
+              4. IDIOMA: Português Brasil.
+              5. JAMAIS mostre o JSON ou termos técnicos como "banco de dados" ou "tabela".
               
-              DADOS REAIS: ${JSON.stringify(dadosBlindados)}
-
-              REGRAS DE CONDUTA:
-              1. ALERTA 70%: Se o usuário gastar e a categoria passar de 70%, avise que o teto está próximo.
-              2. ALERTA 100%: Se passar de 100%, dê um puxão de orelha severo.
-              3. ENTRADAS/OBJETIVOS: Se o usuário adicionar dinheiro ou criar objetivo, dê parabéns pela iniciativa.
-              4. ANTI-ERRO: Se o valor começa com 2, nunca escreva 7.
-              5. IDIOMA: Português do Brasil.
-
-              AÇÕES SUPORTADAS (JSON final):
-              - {"action": "insert", "type": "saida", "amount": 0, "category": "nome"}
-              - {"action": "insert", "type": "entrada", "amount": 0, "category": "nome"}
-              - {"action": "upsert_goal", "category": "nome", "amount": 0}
-              - {"action": "fixo", "amount": 0, "category": "nome"}` 
+              FORMATO OBRIGATÓRIO:
+              [Seu comentário de mentor aqui]
+              {"action": "insert", "type": "saida ou entrada", "amount": ${valorDetectado || 0}, "category": "NOME"}
+              
+              Nota: O JSON deve ser a última coisa. Não escreva nada depois dele.` 
             },
             { role: "user", content: promptOriginal }
           ],
@@ -101,36 +92,42 @@ export default function AIAnalyticsPage() {
       const data = await response.json();
       if (data.error) throw new Error(data.error.message);
 
-      const text = data.choices[0].message.content;
-      const textoLimpo = text.replace(/\{.*\}/s, "").trim();
-      const jsonMatch = text.match(/\{.*\}/s);
+      const fullText = data.choices[0].message.content;
+
+      // --- NOVA LÓGICA DE EXTRAÇÃO DE JSON (MAIS FORTE) ---
+      const jsonMatch = fullText.match(/\{.*\}/s);
+      let textoLimpo = fullText;
 
       if (jsonMatch) {
-        const json = JSON.parse(jsonMatch[0]);
-        
-        // --- PROCESSAMENTO DE AÇÕES ---
-        if (json.action === "insert") {
-          await supabase.from("transactions").insert({
-            user_id: user?.id,
-            type: json.type || "saida",
-            amount: json.amount || valorDetectado,
-            category: json.category,
-            created_at: new Date()
-          });
-        } else if (json.action === "upsert_goal") {
-          await supabase.from("goals").upsert({
-            user_id: user?.id,
-            category: json.category,
-            amount: json.amount || valorDetectado
-          });
+        textoLimpo = fullText.replace(jsonMatch[0], "").trim();
+        try {
+          const jsonAction = JSON.parse(jsonMatch[0]);
+          
+          if (jsonAction.action === "insert" && jsonAction.amount > 0) {
+            const { error: insertError } = await supabase.from("transactions").insert({
+              user_id: user?.id,
+              type: jsonAction.type || "saida",
+              amount: jsonAction.amount,
+              category: jsonAction.category,
+              created_at: new Date()
+            });
+            if (insertError) console.error("Erro Supabase:", insertError);
+          } else if (jsonAction.action === "upsert_goal") {
+            await supabase.from("goals").upsert({
+              user_id: user?.id,
+              category: jsonAction.category,
+              amount: jsonAction.amount
+            });
+          }
+        } catch (e) {
+          console.error("Erro ao ler JSON da IA", e);
         }
-        // Adicione aqui outras lógicas como "fixo" se tiver tabela para isso.
       }
       
       setMessages(prev => [...prev, { role: "bot", text: textoLimpo }]);
 
     } catch (error: any) {
-      setMessages(prev => [...prev, { role: "bot", text: `❌ COMANDANTE, TIVEMOS UM PROBLEMA: ${error.message}` }]);
+      setMessages(prev => [...prev, { role: "bot", text: `❌ COMANDANTE: ${error.message}` }]);
     } finally {
       setLoading(false);
     }
