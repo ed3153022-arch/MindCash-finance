@@ -63,7 +63,7 @@ export default function AIAnalyticsPage() {
           'X-Title': 'MindCash'
         },
         body: JSON.stringify({
-          model: "google/gemini-flash-1.5-8b:free", // Versão estável free
+          model: "google/gemini-2.0-flash-exp:free",
           messages: [
             { 
               role: "system", 
