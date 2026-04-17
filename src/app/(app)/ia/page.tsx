@@ -30,27 +30,36 @@ export default function AIAnalyticsPage() {
     try {
       const { data: { user } } = await supabase.auth.getUser();
       
-      const [trans, metas] = await Promise.all([
+      // BUSCA DE TODAS AS TABELAS DO DASHBOARD PARA O CÉREBRO TER CONTEXTO
+      const [trans, metas, sonhos, limites] = await Promise.all([
         supabase.from("transactions").select("*").eq("user_id", user?.id),
-        supabase.from("goals").select("*").eq("user_id", user?.id)
+        supabase.from("goals").select("*").eq("user_id", user?.id),
+        supabase.from("dream_goals").select("*").eq("user_id", user?.id),
+        supabase.from("limits").select("*").eq("user_id", user?.id)
       ]);
 
       const valorDetectado = parseFloat(promptOriginal.replace(/[^\d.,]/g, "").replace(",", "."));
       
-      const dadosBlindados = metas.data?.map(m => {
-        const jaGasto = trans.data?.filter(t => t.category === m.category)
-          .reduce((acc, t) => acc + t.amount, 0) || 0;
-        return {
-          categoria: m.category,
-          atual: jaGasto.toFixed(2),
-          teto: m.amount.toFixed(2),
-          porcentagem: ((jaGasto / m.amount) * 100).toFixed(1)
-        };
-      });
+      const dadosBlindados = {
+        categorias_atuais: metas.data?.map(m => {
+          const jaGasto = trans.data?.filter(t => t.category === m.category)
+            .reduce((acc, t) => acc + t.amount, 0) || 0;
+          return {
+            categoria: m.category,
+            atual: jaGasto.toFixed(2),
+            teto: m.amount.toFixed(2),
+            porcentagem: ((jaGasto / m.amount) * 100).toFixed(1)
+          };
+        }),
+        objetivos_sonhos: sonhos.data,
+        limites_definidos: limites.data
+      };
 
-      let temp = 0.3;
+      // LÓGICA DE TEMPERATURA DINÂMICA
+      let temp = 0.2;
       const lowerInput = promptOriginal.toLowerCase();
-      if (lowerInput.includes("veredito") || lowerInput.includes("disciplina")) temp = 0.7;
+      if (lowerInput.includes("veredito") || lowerInput.includes("como estou")) temp = 0.7;
+      else if (valorDetectado || lowerInput.includes("sonho") || lowerInput.includes("limite")) temp = 0.3;
 
       const response = await fetch("https://openrouter.ai/api/v1/chat/completions", {
         method: 'POST',
@@ -65,23 +74,21 @@ export default function AIAnalyticsPage() {
           messages: [
             { 
               role: "system", 
-              content: `Você é o CÉREBRO v7. Mentor de Elite.
-              
-              PERSONA: Use "Mestre", "Comandante", "Veredito". 
-              DADOS: ${JSON.stringify(dadosBlindados)}
+              content: `Você é o CÉREBRO v7, Mentor Financeiro. 
+              PERSONA: Use "Mestre", "Comandante", "Veredito".
+              CONTEXTO DO DASHBOARD: ${JSON.stringify(dadosBlindados)}
 
               REGRAS:
-              1. ALERTA 70%: Avise se chegar perto.
-              2. ALERTA 100%: Dê bronca se passar.
-              3. Se for entrada/ganho ou novo objetivo, dê parabéns.
-              4. IDIOMA: Português Brasil.
-              5. JAMAIS mostre o JSON ou termos técnicos como "banco de dados" ou "tabela".
-              
-              FORMATO OBRIGATÓRIO:
-              [Seu comentário de mentor aqui]
-              {"action": "insert", "type": "saida ou entrada", "amount": ${valorDetectado || 0}, "category": "NOME"}
-              
-              Nota: O JSON deve ser a última coisa. Não escreva nada depois dele.` 
+              1. ALERTA 70%: Avise se o gasto chegar perto do teto.
+              2. ALERTA 100%: Puxão de orelha se passar.
+              3. IDIOMA: Português do Brasil. Proibido barras repetidas (////).
+              4. ANTI-ERRO: Se valor começa com 2, nunca escreva 7.
+
+              AÇÕES SUPORTADAS (Obrigatório JSON no final):
+              - Transação: {"action": "transaction", "type": "saida/entrada", "amount": 0, "category": "nome"}
+              - Sonho/Objetivo: {"action": "dream", "title": "nome", "target": 0}
+              - Limite: {"action": "limit", "category": "nome", "amount": 0}
+              - Fixo: {"action": "fixo", "amount": 0, "category": "nome"}` 
             },
             { role: "user", content: promptOriginal }
           ],
@@ -93,41 +100,55 @@ export default function AIAnalyticsPage() {
       if (data.error) throw new Error(data.error.message);
 
       const fullText = data.choices[0].message.content;
-
-      // --- NOVA LÓGICA DE EXTRAÇÃO DE JSON (MAIS FORTE) ---
+      
+      // LIMPEZA DE TEXTO E EXTRAÇÃO DE JSON
       const jsonMatch = fullText.match(/\{.*\}/s);
-      let textoLimpo = fullText;
+      let textoExibir = fullText.replace(/[/\\_]{2,}/g, ""); // Remove as barras chatas
 
       if (jsonMatch) {
-        textoLimpo = fullText.replace(jsonMatch[0], "").trim();
-        try {
-          const jsonAction = JSON.parse(jsonMatch[0]);
-          
-          if (jsonAction.action === "insert" && jsonAction.amount > 0) {
-            const { error: insertError } = await supabase.from("transactions").insert({
-              user_id: user?.id,
-              type: jsonAction.type || "saida",
-              amount: jsonAction.amount,
-              category: jsonAction.category,
-              created_at: new Date()
-            });
-            if (insertError) console.error("Erro Supabase:", insertError);
-          } else if (jsonAction.action === "upsert_goal") {
-            await supabase.from("goals").upsert({
-              user_id: user?.id,
-              category: jsonAction.category,
-              amount: jsonAction.amount
-            });
-          }
-        } catch (e) {
-          console.error("Erro ao ler JSON da IA", e);
+        textoExibir = textoExibir.replace(jsonMatch[0], "").trim();
+        const res = JSON.parse(jsonMatch[0]);
+
+        // ESPELHAMENTO DO DASHBOARD - EXECUÇÃO NAS TABELAS CERTAS
+        if (res.action === "transaction") {
+          await supabase.from("transactions").insert({
+            user_id: user?.id,
+            type: res.type,
+            amount: res.amount || valorDetectado,
+            category: res.category,
+            created_at: new Date()
+          });
+        } 
+        else if (res.action === "dream") {
+          await supabase.from("dream_goals").insert({
+            user_id: user?.id,
+            title: res.title,
+            target_amount: res.target || valorDetectado,
+            current_amount: 0
+          });
+        }
+        else if (res.action === "limit") {
+          await supabase.from("limits").upsert({
+            user_id: user?.id,
+            category: res.category,
+            amount: res.amount || valorDetectado
+          });
+        }
+        else if (res.action === "fixo") {
+          await supabase.from("transactions").insert({
+            user_id: user?.id,
+            type: "fixo",
+            amount: res.amount,
+            category: res.category,
+            description: "Gasto Fixo Mensal"
+          });
         }
       }
       
-      setMessages(prev => [...prev, { role: "bot", text: textoLimpo }]);
+      setMessages(prev => [...prev, { role: "bot", text: textoExibir }]);
 
     } catch (error: any) {
-      setMessages(prev => [...prev, { role: "bot", text: `❌ COMANDANTE: ${error.message}` }]);
+      setMessages(prev => [...prev, { role: "bot", text: `❌ COMANDANTE, ERRO NA MANOBRA: ${error.message}` }]);
     } finally {
       setLoading(false);
     }
@@ -142,8 +163,8 @@ export default function AIAnalyticsPage() {
         <div>
           <h1 className="text-xl font-black italic uppercase tracking-tighter text-yellow-400">O CÉREBRO</h1>
           <div className="flex items-center gap-2">
-            <div className="w-2 h-2 bg-yellow-400 rounded-full animate-pulse" />
-            <span className="text-[10px] font-black text-zinc-500 uppercase tracking-widest">Elite Finance v7.0</span>
+            <div className="w-2 h-2 bg-yellow-400 rounded-full animate-pulse shadow-[0_0_8px_#facc15]" />
+            <span className="text-[10px] font-black text-zinc-500 uppercase tracking-widest">MASTER COMMAND v7.8</span>
           </div>
         </div>
       </div>
@@ -152,7 +173,7 @@ export default function AIAnalyticsPage() {
         {messages.length === 0 && (
           <div className="h-full flex flex-col items-center justify-center text-center space-y-4 opacity-50">
             <Bot size={48} className="text-yellow-400" />
-            <p className="text-[10px] font-black uppercase italic tracking-widest text-yellow-400/70">Aguardando ordens, Comandante.</p>
+            <p className="text-[10px] font-black uppercase italic tracking-widest text-yellow-400/70">Aguardando ordens estratégicas.</p>
           </div>
         )}
         
@@ -174,7 +195,7 @@ export default function AIAnalyticsPage() {
             value={input}
             onChange={(e) => setInput(e.target.value)}
             onKeyDown={(e) => e.key === 'Enter' && processarIA()}
-            placeholder="Mande o relatório, Chefe..." 
+            placeholder="Relate a estratégia, Comandante..." 
             className="flex-1 bg-transparent border-none outline-none px-4 text-sm font-bold italic text-white"
           />
           <button onClick={processarIA} disabled={loading} className="bg-yellow-400 text-black p-3 rounded-full hover:scale-95 transition-all">
