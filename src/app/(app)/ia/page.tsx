@@ -30,7 +30,6 @@ export default function AIAnalyticsPage() {
     try {
       const { data: { user } } = await supabase.auth.getUser();
       
-      // BUSCA DE TODAS AS TABELAS DO DASHBOARD PARA O CÉREBRO TER CONTEXTO
       const [trans, metas, sonhos, limites] = await Promise.all([
         supabase.from("transactions").select("*").eq("user_id", user?.id),
         supabase.from("goals").select("*").eq("user_id", user?.id),
@@ -55,7 +54,6 @@ export default function AIAnalyticsPage() {
         limites_definidos: limites.data
       };
 
-      // LÓGICA DE TEMPERATURA DINÂMICA
       let temp = 0.2;
       const lowerInput = promptOriginal.toLowerCase();
       if (lowerInput.includes("veredito") || lowerInput.includes("como estou")) temp = 0.7;
@@ -81,7 +79,7 @@ export default function AIAnalyticsPage() {
               REGRAS:
               1. ALERTA 70%: Avise se o gasto chegar perto do teto.
               2. ALERTA 100%: Puxão de orelha se passar.
-              3. IDIOMA: Português do Brasil. Proibido barras repetidas (////).
+              3. IDIOMA: Português do Brasil. Proibido barras repetidas.
               4. ANTI-ERRO: Se valor começa com 2, nunca escreva 7.
 
               AÇÕES SUPORTADAS (Obrigatório JSON no final):
@@ -101,51 +99,57 @@ export default function AIAnalyticsPage() {
 
       const fullText = data.choices[0].message.content;
       
-      // LIMPEZA DE TEXTO E EXTRAÇÃO DE JSON
-      const jsonMatch = fullText.match(/\{.*\}/s);
-      let textoExibir = fullText.replace(/[/\\_]{2,}/g, ""); // Remove as barras chatas
+      // --- EXTRAÇÃO BLINDADA DE JSON (SUBSTITUIÇÃO APLICADA) ---
+      const jsonMatch = fullText.match(/\{[\s\S]*?\}/); 
+      let textoExibir = fullText;
 
       if (jsonMatch) {
-        textoExibir = textoExibir.replace(jsonMatch[0], "").trim();
-        const res = JSON.parse(jsonMatch[0]);
+        textoExibir = fullText.replace(jsonMatch[0], "").trim();
+        
+        try {
+          const res = JSON.parse(jsonMatch[0]);
 
-        // ESPELHAMENTO DO DASHBOARD - EXECUÇÃO NAS TABELAS CERTAS
-        if (res.action === "transaction") {
-          await supabase.from("transactions").insert({
-            user_id: user?.id,
-            type: res.type,
-            amount: res.amount || valorDetectado,
-            category: res.category,
-            created_at: new Date()
-          });
-        } 
-        else if (res.action === "dream") {
-          await supabase.from("dream_goals").insert({
-            user_id: user?.id,
-            title: res.title,
-            target_amount: res.target || valorDetectado,
-            current_amount: 0
-          });
-        }
-        else if (res.action === "limit") {
-          await supabase.from("limits").upsert({
-            user_id: user?.id,
-            category: res.category,
-            amount: res.amount || valorDetectado
-          });
-        }
-        else if (res.action === "fixo") {
-          await supabase.from("transactions").insert({
-            user_id: user?.id,
-            type: "fixo",
-            amount: res.amount,
-            category: res.category,
-            description: "Gasto Fixo Mensal"
-          });
+          if (res.action === "transaction") {
+            await supabase.from("transactions").insert({
+              user_id: user?.id,
+              type: res.type,
+              amount: res.amount || valorDetectado,
+              category: res.category,
+              created_at: new Date()
+            });
+          } 
+          else if (res.action === "dream") {
+            await supabase.from("dream_goals").insert({
+              user_id: user?.id,
+              title: res.title,
+              target_amount: res.target || valorDetectado,
+              current_amount: 0
+            });
+          }
+          else if (res.action === "limit") {
+            await supabase.from("limits").upsert({
+              user_id: user?.id,
+              category: res.category,
+              amount: res.amount || valorDetectado
+            });
+          }
+          else if (res.action === "fixo") {
+            await supabase.from("transactions").insert({
+              user_id: user?.id,
+              type: "fixo",
+              amount: res.amount,
+              category: res.category,
+              description: "Gasto Fixo Mensal"
+            });
+          }
+        } catch (e) {
+          console.error("Erro no Parse JSON:", e);
         }
       }
       
-      setMessages(prev => [...prev, { role: "bot", text: textoExibir }]);
+      // Limpeza final de caracteres repetidos e barras no texto do chat
+      textoExibir = textoExibir.replace(/[/\\_]{2,}/g, "").trim();
+      setMessages(prev => [...prev, { role: "bot", text: textoExibir || "Comando processado, mestre." }]);
 
     } catch (error: any) {
       setMessages(prev => [...prev, { role: "bot", text: `❌ COMANDANTE, ERRO NA MANOBRA: ${error.message}` }]);
