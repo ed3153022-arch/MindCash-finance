@@ -30,28 +30,45 @@ export default function AIAnalyticsPage() {
     try {
       const { data: { user } } = await supabase.auth.getUser();
       
+      // SINCRONIZAÇÃO DE DATA (IDÊNTICA AO DASHBOARD)
+      const agora = new Date();
+      const mesAtual = agora.getMonth();
+      const anoAtual = agora.getFullYear();
+
       const [trans, metas] = await Promise.all([
         supabase.from("transactions").select("*").eq("user_id", user?.id),
         supabase.from("goals").select("*").eq("user_id", user?.id)
       ]);
 
-      // --- MOTOR DE CÁLCULO PRÉVIO (SUBSTITUÍDO: DADOS MASTIGADOS DO DASHBOARD) ---
+      // --- ESTRATÉGIA: DADOS MASTIGADOS DO DASHBOARD ---
       const listaCategorias = metas.data?.map(m => m.category).join(", ") || "Geral";
-      const resumoFinanceiro = metas.data?.map(m => {
-        const teto = Number(m.amount) || 0;
-        // Pega o gasto real que já está consolidado no banco para o Dashboard
-        const gastoJaCalculado = trans.data?.filter(t => t.category === m.category && t.type === 'saida')
-          .reduce((acc, t) => acc + (Number(t.amount) || 0), 0) || 0;
+      
+      const resumoFinanceiro = metas.data?.map(meta => {
+        const teto = Number(meta.amount) || 0;
+        
+        // FILTRO DE PRECISÃO: Apenas saídas do mês e ano atual (Igual ao Dashboard)
+        const gastoJaCalculado = trans.data?.filter(t => {
+          const d = new Date(t.created_at);
+          return t.type === "saida" && 
+                 t.category?.toLowerCase() === meta.category?.toLowerCase() &&
+                 d.getMonth() === mesAtual && 
+                 d.getFullYear() === anoAtual;
+        }).reduce((acc, t) => acc + Number(t.amount), 0) || 0;
+
         const porcentagem = teto > 0 ? (gastoJaCalculado / teto) * 100 : 0;
 
         return {
-          categoria: m.category,
-          gasto_real: gastoJaCalculado.toFixed(2),
-          limite_teto: teto.toFixed(2),
-          status: `${porcentagem.toFixed(1)}% usado`,
+          categoria: meta.category,
+          gasto_real: `R$ ${gastoJaCalculado.toFixed(2)}`,
+          limite_teto: `R$ ${teto.toFixed(2)}`,
+          progresso: `${porcentagem.toFixed(1)}%`,
           alerta: porcentagem >= 100
         };
       });
+
+      // Cálculo do Saldo Geral (Total histórico)
+      const saldoGeral = trans.data?.reduce((acc, t) => 
+        t.type === "entrada" ? acc + Number(t.amount) : acc - Number(t.amount), 0) || 0;
 
       const response = await fetch("https://openrouter.ai/api/v1/chat/completions", {
         method: 'POST',
@@ -68,17 +85,15 @@ export default function AIAnalyticsPage() {
               role: "system", 
               content: `Você é o CÉREBRO v7. Mentor Financeiro de Elite.
               
-              PERSONA: Autoridade máxima. Use "Mestre", "Comandante".
-              IDIOMA: APENAS PORTUGUÊS (BRASIL).
-              CATEGORIAS VÁLIDAS: ${listaCategorias}.
-              
-              CONTEXTO ATUAL (USE ESTES NÚMEROS): ${JSON.stringify(resumoFinanceiro)}
+              CONTEXTO REAL DO DASHBOARD (MÊS ATUAL):
+              - Saldo Geral em Conta: R$ ${saldoGeral.toFixed(2)}
+              - Resumo por Categoria: ${JSON.stringify(resumoFinanceiro)}
 
-              REGRAS:
-              1. Se o usuário relatar gasto/ganho, confirme e envie JSON de 'transaction'.
-              2. Se o usuário pedir análise/veredito, use JSON de 'chat'.
-              3. Se uma categoria estiver com Alerta=true, dê uma bronca severa.
-              4. Mapeie itens específicos (ex: Roupa) para a categoria correta (ex: Compras).
+              REGRAS CRÍTICAS:
+              1. CATEGORIAS VÁLIDAS: ${listaCategorias}.
+              2. Use EXATAMENTE os valores acima. Não invente números.
+              3. Se for ganho/entrada, a categoria DEVE ser "Receita".
+              4. Itens como "Roupa", "Tênis", "Blusa" mapeie para "Compras".
               
               JSON (Sempre na última linha):
               - {"action": "transaction", "type": "saida/entrada", "amount": 0, "category": "nome da categoria"}
@@ -86,7 +101,7 @@ export default function AIAnalyticsPage() {
             },
             { role: "user", content: promptOriginal }
           ],
-          temperature: 0.1 // Temperatura baixa para evitar invenções de nomes
+          temperature: 0.1
         })
       });
 
@@ -102,10 +117,10 @@ export default function AIAnalyticsPage() {
         try {
           const res = JSON.parse(jsonMatch[0]);
           
-          // --- EXECUÇÃO BLINDADA (SUBSTITUÍDO: TRAVA DE RECEITA E CATEGORIA) ---
           if (res.action === "transaction") {
             const valorLimpo = res.amount || parseFloat(promptOriginal.replace(/[^\d.,]/g, "").replace(",", "."));
             
+            // TRAVA DE SEGURANÇA: Receita para entradas e Categoria para saídas
             const categoriaFinal = res.type === 'entrada' 
               ? 'Receita' 
               : (res.category && res.category !== 'escolha da lista' ? res.category : 'Outros');
