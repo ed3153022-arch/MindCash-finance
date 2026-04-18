@@ -30,35 +30,26 @@ export default function AIAnalyticsPage() {
     try {
       const { data: { user } } = await supabase.auth.getUser();
       
-      const [trans, metas, sonhos, limites] = await Promise.all([
+      const [trans, metas] = await Promise.all([
         supabase.from("transactions").select("*").eq("user_id", user?.id),
-        supabase.from("goals").select("*").eq("user_id", user?.id),
-        supabase.from("dream_goals").select("*").eq("user_id", user?.id),
-        supabase.from("limits").select("*").eq("user_id", user?.id)
+        supabase.from("goals").select("*").eq("user_id", user?.id)
       ]);
 
-      const valorDetectado = parseFloat(promptOriginal.replace(/[^\d.,]/g, "").replace(",", "."));
-      
-      const categoriasProcessadas = metas.data?.map(m => {
+      // --- MOTOR DE CÁLCULO (O APP RESOLVE A MATEMÁTICA) ---
+      const resumoFinanceiro = metas.data?.map(m => {
         const teto = Number(m.amount) || 0;
         const jaGasto = trans.data?.filter(t => t.category === m.category && t.type === 'saida')
           .reduce((acc, t) => acc + (Number(t.amount) || 0), 0) || 0;
-        
         const porcentagem = teto > 0 ? (jaGasto / teto) * 100 : 0;
 
         return {
           categoria: m.category,
-          gasto_real: jaGasto.toFixed(2),
-          limite_teto: teto.toFixed(2),
-          porcentagem_uso: porcentagem.toFixed(1) + "%"
+          status: `${porcentagem.toFixed(1)}% usado`,
+          valor_gasto: `R$ ${jaGasto.toFixed(2)}`,
+          limite: `R$ ${teto.toFixed(2)}`,
+          alerta: porcentagem >= 80
         };
       });
-
-      const dadosParaIA = {
-        relatorio_atual: categoriasProcessadas,
-        objetivos: sonhos.data,
-        config_limites: limites.data
-      };
 
       const response = await fetch("https://openrouter.ai/api/v1/chat/completions", {
         method: 'POST',
@@ -73,35 +64,32 @@ export default function AIAnalyticsPage() {
           messages: [
             { 
               role: "system", 
-              content: `Você é o CÉREBRO v7. Mentor de Elite.
+              content: `Você é o CÉREBRO v7. Mentor Financeiro de Elite.
               
-              REGRAS DE OURO:
-              1. IDIOMA: PORTUGUÊS (BRASIL) obrigatório.
-              2. NÃO repita os dados do dashboard. O usuário já os vê.
-              3. BREVIDADE: No máximo 2 frases curtas de comentário.
-              4. JSON: Deve ser a ÚLTIMA coisa na resposta.
+              PERSONA: Use "Mestre", "Comandante", "Veredito". Seja motivador e direto.
+              IDIOMA: Responda SEMPRE em PORTUGUÊS (BRASIL). Nunca use inglês.
               
-              FORMATO EXEMPLO PARA GASTO FIXO:
-              "Comandante, gasto fixo de Água registrado para 17/04.
-              {"action": "fixed", "name": "Água", "amount": 100, "date": "2026-04-17"}"
+              CONTEXTO ATUAL (NÃO REPITA ESSES DADOS): ${JSON.stringify(resumoFinanceiro)}
 
-              CONTEXTO ATUAL: ${JSON.stringify(dadosParaIA)}
+              REGRAS:
+              1. Se o usuário relatar gasto ou ganho, confirme brevemente e envie o JSON.
+              2. Se o usuário pedir análise ou estiver estourando limites, dê um VEREDITO detalhado.
+              3. O JSON deve ser a última linha da resposta.
 
-              COMANDOS SUPORTADOS:
-              - {"action": "transaction", "type": "saida/entrada", "amount": 0, "category": "nome"}
-              - {"action": "fixed", "name": "nome", "amount": 0, "date": "YYYY-MM-DD"}
-              - {"action": "dream", "title": "nome", "target": 0}
-              - {"action": "limit", "category": "nome", "amount": 0}` 
+              AÇÕES (JSON):
+              - Transação: {"action": "transaction", "type": "saida/entrada", "amount": 0, "category": "nome"}
+              - Apenas conversa: {"action": "chat"}` 
             },
             { role: "user", content: promptOriginal }
           ],
-          temperature: 0.1
+          temperature: 0.3
         })
       });
 
       const data = await response.json();
       const fullText = data.choices[0].message.content;
       
+      // EXTRAÇÃO ROBUSTA DE JSON
       const jsonMatch = fullText.match(/\{[\s\S]*?\}/); 
       let textoExibir = fullText;
 
@@ -111,47 +99,25 @@ export default function AIAnalyticsPage() {
           const res = JSON.parse(jsonMatch[0]);
 
           if (res.action === "transaction") {
+            const valorLimpo = res.amount || parseFloat(promptOriginal.replace(/[^\d.,]/g, "").replace(",", "."));
+            
             await supabase.from("transactions").insert({
               user_id: user?.id,
               type: res.type,
-              amount: res.amount || valorDetectado,
-              category: res.category || (res.type === 'entrada' ? 'Receita' : 'Geral'),
+              amount: valorLimpo,
+              category: res.category || (res.type === 'entrada' ? 'Receita' : 'Outros'),
               created_at: new Date()
-            });
-          } 
-          else if (res.action === "fixed") {
-            await supabase.from("fixed_expenses").insert({
-              user_id: user?.id,
-              name: res.name || "Gasto Fixo",
-              amount: res.amount || valorDetectado,
-              due_date: res.date || new Date().toISOString().split('T')[0],
-              status: 'pendente'
-            });
-          }
-          else if (res.action === "dream") {
-            await supabase.from("dream_goals").insert({
-              user_id: user?.id,
-              title: res.title,
-              target_amount: res.target || valorDetectado,
-              current_amount: 0
-            });
-          }
-          else if (res.action === "limit") {
-            await supabase.from("limits").upsert({
-              user_id: user?.id,
-              category: res.category,
-              amount: res.amount || valorDetectado
             });
           }
         } catch (e) { console.error("Erro JSON:", e); }
       }
       
-      // Limpeza final para exibir apenas o texto antes do JSON
-      const mensagemLimpa = textoExibir.split('{')[0].trim().replace(/[/\\_]{2,}/g, "");
-      setMessages(prev => [...prev, { role: "bot", text: mensagemLimpa || "Comando executado, Comandante." }]);
+      // Limpeza de texto para exibição
+      const mensagemFinal = textoExibir.split('{')[0].trim().replace(/[/\\_]{2,}/g, "");
+      setMessages(prev => [...prev, { role: "bot", text: mensagemFinal || "Comando processado, Mestre." }]);
 
     } catch (error: any) {
-      setMessages(prev => [...prev, { role: "bot", text: `❌ COMANDANTE: ${error.message}` }]);
+      setMessages(prev => [...prev, { role: "bot", text: `❌ COMANDANTE: Erro na manobra técnica.` }]);
     } finally {
       setLoading(false);
     }
@@ -176,7 +142,7 @@ export default function AIAnalyticsPage() {
         {messages.length === 0 && (
           <div className="h-full flex flex-col items-center justify-center text-center space-y-4 opacity-50">
             <Bot size={48} className="text-yellow-400" />
-            <p className="text-[10px] font-black uppercase italic tracking-widest text-yellow-400/70">Aguardando ordens estratégicas.</p>
+            <p className="text-[10px] font-black uppercase italic tracking-widest text-yellow-400/70">Aguardando ordens, Comandante.</p>
           </div>
         )}
         
