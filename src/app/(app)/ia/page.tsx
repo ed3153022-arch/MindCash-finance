@@ -23,6 +23,13 @@ export default function AIAnalyticsPage() {
     setLoading(true);
     
     const userMsg = { role: "user", text: input };
+    
+    // --- PEÇA 1: MEMÓRIA (ÚLTIMAS 7 MENSAGENS) ---
+    const historicoParaIA = [...messages, userMsg].slice(-7).map(m => ({
+      role: m.role === "user" ? "user" : "assistant",
+      content: m.text
+    }));
+
     setMessages(prev => [...prev, userMsg]);
     const promptOriginal = input;
     setInput("");
@@ -30,23 +37,22 @@ export default function AIAnalyticsPage() {
     try {
       const { data: { user } } = await supabase.auth.getUser();
       
-      // SINCRONIZAÇÃO DE DATA (IDÊNTICA AO DASHBOARD)
       const agora = new Date();
       const mesAtual = agora.getMonth();
       const anoAtual = agora.getFullYear();
 
-      const [trans, metas] = await Promise.all([
+      // --- PEÇA 2: CONEXÃO COM OBJETIVOS (DREAM_GOALS) ---
+      const [trans, metas, sonhos] = await Promise.all([
         supabase.from("transactions").select("*").eq("user_id", user?.id),
-        supabase.from("goals").select("*").eq("user_id", user?.id)
+        supabase.from("goals").select("*").eq("user_id", user?.id),
+        supabase.from("dream_goals").select("*").eq("user_id", user?.id)
       ]);
 
-      // --- ESTRATÉGIA: DADOS MASTIGADOS DO DASHBOARD ---
       const listaCategorias = metas.data?.map(m => m.category).join(", ") || "Geral";
+      const listaObjetivos = sonhos.data?.map(s => `OBJ: ${s.name}`).join(", ") || "";
       
       const resumoFinanceiro = metas.data?.map(meta => {
         const teto = Number(meta.amount) || 0;
-        
-        // FILTRO DE PRECISÃO: Apenas saídas do mês e ano atual (Igual ao Dashboard)
         const gastoJaCalculado = trans.data?.filter(t => {
           const d = new Date(t.created_at);
           return t.type === "saida" && 
@@ -66,7 +72,6 @@ export default function AIAnalyticsPage() {
         };
       });
 
-      // Cálculo do Saldo Geral (Total histórico)
       const saldoGeral = trans.data?.reduce((acc, t) => 
         t.type === "entrada" ? acc + Number(t.amount) : acc - Number(t.amount), 0) || 0;
 
@@ -87,19 +92,21 @@ export default function AIAnalyticsPage() {
               
               CONTEXTO REAL DO DASHBOARD (MÊS ATUAL):
               - Saldo Geral em Conta: R$ ${saldoGeral.toFixed(2)}
-              - Resumo por Categoria: ${JSON.stringify(resumoFinanceiro)}
+              - Categorias de Limite: ${listaCategorias}
+              - OBJETIVOS (SONHOS): ${listaObjetivos}
+              - Resumo de Gastos: ${JSON.stringify(resumoFinanceiro)}
 
               REGRAS CRÍTICAS:
-              1. CATEGORIAS VÁLIDAS: ${listaCategorias}.
-              2. Use EXATAMENTE os valores acima. Não invente números.
-              3. Se for ganho/entrada, a categoria DEVE ser "Receita".
-              4. Itens como "Roupa", "Tênis", "Blusa" mapeie para "Compras".
+              1. Se o usuário quiser guardar para um objetivo, a categoria DEVE ser exatamente o nome da lista de OBJETIVOS (ex: OBJ: VIAGEM).
+              2. Não pergunte o valor novamente se ele já foi dito antes na conversa.
+              3. Para ganhos comuns, a categoria é "Receita".
+              4. Mapeie "Roupa", "Tênis" para "Compras".
               
               JSON (Sempre na última linha):
               - {"action": "transaction", "type": "saida/entrada", "amount": 0, "category": "nome da categoria"}
               - {"action": "chat"}` 
             },
-            { role: "user", content: promptOriginal }
+            ...historicoParaIA // Aplicação da memória no prompt
           ],
           temperature: 0.1
         })
@@ -120,9 +127,8 @@ export default function AIAnalyticsPage() {
           if (res.action === "transaction") {
             const valorLimpo = res.amount || parseFloat(promptOriginal.replace(/[^\d.,]/g, "").replace(",", "."));
             
-            // TRAVA DE SEGURANÇA: Receita para entradas e Categoria para saídas
             const categoriaFinal = res.type === 'entrada' 
-              ? 'Receita' 
+              ? (res.category && res.category.startsWith('OBJ:') ? res.category : 'Receita') 
               : (res.category && res.category !== 'escolha da lista' ? res.category : 'Outros');
 
             await supabase.from("transactions").insert({
@@ -142,7 +148,7 @@ export default function AIAnalyticsPage() {
       setMessages(prev => [...prev, { role: "bot", text: mensagemFinal || "Comandante, missão cumprida." }]);
 
     } catch (error: any) {
-      setMessages(prev => [...prev, { role: "bot", text: `❌ COMANDANTE: Falha na comunicação com a base. Tente novamente.` }]);
+      setMessages(prev => [...prev, { role: "bot", text: `❌ COMANDANTE: Falha na comunicação com a base.` }]);
     } finally {
       setLoading(false);
     }
