@@ -35,19 +35,20 @@ export default function AIAnalyticsPage() {
         supabase.from("goals").select("*").eq("user_id", user?.id)
       ]);
 
-      // --- MOTOR DE CÁLCULO PRÉVIO ---
+      // --- MOTOR DE CÁLCULO PRÉVIO (SUBSTITUÍDO: DADOS MASTIGADOS DO DASHBOARD) ---
       const listaCategorias = metas.data?.map(m => m.category).join(", ") || "Geral";
       const resumoFinanceiro = metas.data?.map(m => {
         const teto = Number(m.amount) || 0;
-        const jaGasto = trans.data?.filter(t => t.category === m.category && t.type === 'saida')
+        // Pega o gasto real que já está consolidado no banco para o Dashboard
+        const gastoJaCalculado = trans.data?.filter(t => t.category === m.category && t.type === 'saida')
           .reduce((acc, t) => acc + (Number(t.amount) || 0), 0) || 0;
-        const porcentagem = teto > 0 ? (jaGasto / teto) * 100 : 0;
+        const porcentagem = teto > 0 ? (gastoJaCalculado / teto) * 100 : 0;
 
         return {
           categoria: m.category,
+          gasto_real: gastoJaCalculado.toFixed(2),
+          limite_teto: teto.toFixed(2),
           status: `${porcentagem.toFixed(1)}% usado`,
-          valor_gasto: `R$ ${jaGasto.toFixed(2)}`,
-          limite: `R$ ${teto.toFixed(2)}`,
           alerta: porcentagem >= 100
         };
       });
@@ -71,54 +72,57 @@ export default function AIAnalyticsPage() {
               IDIOMA: APENAS PORTUGUÊS (BRASIL).
               CATEGORIAS VÁLIDAS: ${listaCategorias}.
               
-              CONTEXTO ATUAL: ${JSON.stringify(resumoFinanceiro)}
+              CONTEXTO ATUAL (USE ESTES NÚMEROS): ${JSON.stringify(resumoFinanceiro)}
 
               REGRAS:
               1. Se o usuário relatar gasto/ganho, confirme e envie JSON de 'transaction'.
               2. Se o usuário pedir análise/veredito, use JSON de 'chat'.
               3. Se uma categoria estiver com Alerta=true, dê uma bronca severa.
+              4. Mapeie itens específicos (ex: Roupa) para a categoria correta (ex: Compras).
               
               JSON (Sempre na última linha):
-              - {"action": "transaction", "type": "saida/entrada", "amount": 0, "category": "escolha da lista"}
+              - {"action": "transaction", "type": "saida/entrada", "amount": 0, "category": "nome da categoria"}
               - {"action": "chat"}` 
             },
             { role: "user", content: promptOriginal }
           ],
-          temperature: 0.3
+          temperature: 0.1 // Temperatura baixa para evitar invenções de nomes
         })
       });
 
       const data = await response.json();
       const fullText = data.choices[0].message.content;
       
-      // --- CAPTURA E EXECUÇÃO BLINDADA ---
       const jsonMatch = fullText.match(/\{[\s\S]*?\}/); 
       let textoParaExibir = fullText;
 
       if (jsonMatch) {
-        // Limpa o texto: remove o JSON e qualquer resquício de blocos de código
         textoParaExibir = fullText.replace(/```json|```/g, "").replace(jsonMatch[0], "").trim();
         
         try {
           const res = JSON.parse(jsonMatch[0]);
+          
+          // --- EXECUÇÃO BLINDADA (SUBSTITUÍDO: TRAVA DE RECEITA E CATEGORIA) ---
           if (res.action === "transaction") {
             const valorLimpo = res.amount || parseFloat(promptOriginal.replace(/[^\d.,]/g, "").replace(",", "."));
             
+            const categoriaFinal = res.type === 'entrada' 
+              ? 'Receita' 
+              : (res.category && res.category !== 'escolha da lista' ? res.category : 'Outros');
+
             await supabase.from("transactions").insert({
               user_id: user?.id,
               type: res.type,
               amount: valorLimpo,
-              category: res.category || 'Geral',
+              category: categoriaFinal,
               created_at: new Date()
             });
           }
-          // Se for "chat", não fazemos nada no banco, apenas deixamos o texto fluir.
         } catch (e) {
           console.warn("Falha silenciosa na execução do comando:", e);
         }
       }
       
-      // Limpeza final de caracteres especiais que a IA possa ter gerado
       const mensagemFinal = textoParaExibir.split('{')[0].trim().replace(/[/\\_]{2,}/g, "");
       setMessages(prev => [...prev, { role: "bot", text: mensagemFinal || "Comandante, missão cumprida." }]);
 
@@ -131,7 +135,6 @@ export default function AIAnalyticsPage() {
 
   return (
     <div className="flex flex-col h-screen bg-black text-white font-sans">
-      {/* HEADER */}
       <div className="p-6 border-b border-white/5 flex items-center gap-4 bg-black/50 backdrop-blur-md sticky top-0 z-50">
         <button onClick={() => router.back()} className="p-2 bg-zinc-900 rounded-full border border-white/5 hover:border-yellow-400/50 transition-colors">
           <ArrowLeft size={20} />
@@ -145,7 +148,6 @@ export default function AIAnalyticsPage() {
         </div>
       </div>
 
-      {/* CHAT AREA */}
       <div className="flex-1 overflow-y-auto p-6 space-y-6">
         {messages.length === 0 && (
           <div className="h-full flex flex-col items-center justify-center text-center space-y-4 opacity-50">
@@ -166,7 +168,6 @@ export default function AIAnalyticsPage() {
         <div ref={scrollRef} />
       </div>
 
-      {/* INPUT AREA */}
       <div className="p-6 border-t border-white/5 bg-black/80 backdrop-blur-md">
         <div className="flex gap-2 bg-zinc-900 p-2 rounded-[2rem] border border-white/10 focus-within:border-yellow-400/50 transition-all">
           <input 
