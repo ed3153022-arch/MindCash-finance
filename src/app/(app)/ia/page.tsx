@@ -23,9 +23,9 @@ export default function AIAnalyticsPage() {
     setLoading(true);
     
     const userMsg = { role: "user", text: input };
-    
-    // --- PEÇA 1: MEMÓRIA (ÚLTIMAS 7 MENSAGENS) ---
-    const historicoParaIA = [...messages, userMsg].slice(-7).map(m => ({
+
+    // --- PEÇA 1: HISTÓRICO PARA ACABAR COM A AMNÉSIA (Últimas 7) ---
+    const historicoFormatado = [...messages, userMsg].slice(-7).map(m => ({
       role: m.role === "user" ? "user" : "assistant",
       content: m.text
     }));
@@ -41,7 +41,7 @@ export default function AIAnalyticsPage() {
       const mesAtual = agora.getMonth();
       const anoAtual = agora.getFullYear();
 
-      // --- PEÇA 2: CONEXÃO COM OBJETIVOS (DREAM_GOALS) ---
+      // --- PEÇA 2: BUSCA DE METAS E OBJETIVOS (DREAM_GOALS) ---
       const [trans, metas, sonhos] = await Promise.all([
         supabase.from("transactions").select("*").eq("user_id", user?.id),
         supabase.from("goals").select("*").eq("user_id", user?.id),
@@ -49,7 +49,8 @@ export default function AIAnalyticsPage() {
       ]);
 
       const listaCategorias = metas.data?.map(m => m.category).join(", ") || "Geral";
-      const listaObjetivos = sonhos.data?.map(s => `OBJ: ${s.name}`).join(", ") || "";
+      // Mapeia os sonhos para o formato OBJ:NOME para a IA conhecer
+      const listaObjetivos = sonhos.data?.map(s => `OBJ:${s.name.toUpperCase()}`).join(", ") || "";
       
       const resumoFinanceiro = metas.data?.map(meta => {
         const teto = Number(meta.amount) || 0;
@@ -89,24 +90,25 @@ export default function AIAnalyticsPage() {
             { 
               role: "system", 
               content: `Você é o CÉREBRO v7. Mentor Financeiro de Elite.
+              PERSONA: Autoridade máxima. Use "Mestre", "Comandante".
+              IDIOMA: APENAS PORTUGUÊS (BRASIL).
               
-              CONTEXTO REAL DO DASHBOARD (MÊS ATUAL):
-              - Saldo Geral em Conta: R$ ${saldoGeral.toFixed(2)}
-              - Categorias de Limite: ${listaCategorias}
+              CONTEXTO REAL DO DASHBOARD:
+              - Saldo Geral: R$ ${saldoGeral.toFixed(2)}
+              - Categorias de Gasto: ${listaCategorias}
               - OBJETIVOS (SONHOS): ${listaObjetivos}
-              - Resumo de Gastos: ${JSON.stringify(resumoFinanceiro)}
+              - Resumo por Categoria: ${JSON.stringify(resumoFinanceiro)}
 
               REGRAS CRÍTICAS:
-              1. Se o usuário quiser guardar para um objetivo, a categoria DEVE ser exatamente o nome da lista de OBJETIVOS (ex: OBJ: VIAGEM).
-              2. Não pergunte o valor novamente se ele já foi dito antes na conversa.
-              3. Para ganhos comuns, a categoria é "Receita".
-              4. Mapeie "Roupa", "Tênis" para "Compras".
+              1. Para aportes em objetivos, use a categoria EXATA da lista: OBJ:NOME (ex: OBJ:VIAGEM).
+              2. Não pergunte valores ou objetivos que já foram ditos nas últimas mensagens.
+              3. Se for ganho comum, use "Receita". Itens como "Roupa" mapeie para "Compras".
               
               JSON (Sempre na última linha):
               - {"action": "transaction", "type": "saida/entrada", "amount": 0, "category": "nome da categoria"}
               - {"action": "chat"}` 
             },
-            ...historicoParaIA // Aplicação da memória no prompt
+            ...historicoFormatado // Injeção da memória aqui
           ],
           temperature: 0.1
         })
@@ -114,7 +116,6 @@ export default function AIAnalyticsPage() {
 
       const data = await response.json();
       const fullText = data.choices[0].message.content;
-      
       const jsonMatch = fullText.match(/\{[\s\S]*?\}/); 
       let textoParaExibir = fullText;
 
@@ -127,9 +128,18 @@ export default function AIAnalyticsPage() {
           if (res.action === "transaction") {
             const valorLimpo = res.amount || parseFloat(promptOriginal.replace(/[^\d.,]/g, "").replace(",", "."));
             
-            const categoriaFinal = res.type === 'entrada' 
-              ? (res.category && res.category.startsWith('OBJ:') ? res.category : 'Receita') 
-              : (res.category && res.category !== 'escolha da lista' ? res.category : 'Outros');
+            // --- TRAVA DE PRECISÃO PARA O DASHBOARD (OBJ:VIAGEM) ---
+            let categoriaFinal = 'Outros';
+            if (res.type === 'entrada') {
+              if (res.category && res.category.toUpperCase().includes('OBJ:')) {
+                // Remove espaços e garante MAIÚSCULAS para bater com o Dashboard
+                categoriaFinal = res.category.toUpperCase().replace(/\s+/g, '');
+              } else {
+                categoriaFinal = 'Receita';
+              }
+            } else {
+              categoriaFinal = (res.category && res.category !== 'escolha da lista' ? res.category : 'Outros');
+            }
 
             await supabase.from("transactions").insert({
               user_id: user?.id,
@@ -148,7 +158,7 @@ export default function AIAnalyticsPage() {
       setMessages(prev => [...prev, { role: "bot", text: mensagemFinal || "Comandante, missão cumprida." }]);
 
     } catch (error: any) {
-      setMessages(prev => [...prev, { role: "bot", text: `❌ COMANDANTE: Falha na comunicação com a base.` }]);
+      setMessages(prev => [...prev, { role: "bot", text: `❌ COMANDANTE: Falha na comunicação com a base. Tente novamente.` }]);
     } finally {
       setLoading(false);
     }
