@@ -24,7 +24,7 @@ export default function AIAnalyticsPage() {
     
     const userMsg = { role: "user", text: input };
 
-    // --- PEÇA 1: HISTÓRICO PARA ACABAR COM A AMNÉSIA ---
+    // --- PEÇA 1: HISTÓRICO PARA ACABAR COM A AMNÉSIA (Últimas 7) ---
     const historicoFormatado = [...messages, userMsg].slice(-7).map(m => ({
       role: m.role === "user" ? "user" : "assistant",
       content: m.text
@@ -41,7 +41,7 @@ export default function AIAnalyticsPage() {
       const mesAtual = agora.getMonth();
       const anoAtual = agora.getFullYear();
 
-      // --- PEÇA 2: BUSCA DE METAS E OBJETIVOS ---
+      // --- PEÇA 2: BUSCA DE METAS E OBJETIVOS (DREAM_GOALS) ---
       const [trans, metas, sonhos] = await Promise.all([
         supabase.from("transactions").select("*").eq("user_id", user?.id),
         supabase.from("goals").select("*").eq("user_id", user?.id),
@@ -49,7 +49,8 @@ export default function AIAnalyticsPage() {
       ]);
 
       const listaCategorias = metas.data?.map(m => m.category).join(", ") || "Geral";
-      const listaObjetivos = sonhos.data?.map(s => `OBJ: ${s.name.toUpperCase()}`).join(", ") || "";
+      // Mapeia os sonhos para o formato OBJ:NOME para a IA conhecer
+      const listaObjetivos = sonhos.data?.map(s => `OBJ:${s.name.toUpperCase()}`).join(", ") || "";
       
       const resumoFinanceiro = metas.data?.map(meta => {
         const teto = Number(meta.amount) || 0;
@@ -61,10 +62,14 @@ export default function AIAnalyticsPage() {
                  d.getFullYear() === anoAtual;
         }).reduce((acc, t) => acc + Number(t.amount), 0) || 0;
 
+        const porcentagem = teto > 0 ? (gastoJaCalculado / teto) * 100 : 0;
+
         return {
           categoria: meta.category,
           gasto_real: `R$ ${gastoJaCalculado.toFixed(2)}`,
-          limite_teto: `R$ ${teto.toFixed(2)}`
+          limite_teto: `R$ ${teto.toFixed(2)}`,
+          progresso: `${porcentagem.toFixed(1)}%`,
+          alerta: porcentagem >= 100
         };
       });
 
@@ -88,21 +93,22 @@ export default function AIAnalyticsPage() {
               PERSONA: Autoridade máxima. Use "Mestre", "Comandante".
               IDIOMA: APENAS PORTUGUÊS (BRASIL).
               
-              CONTEXTO ATUAL:
-              - Saldo: R$ ${saldoGeral.toFixed(2)}
-              - Categorias: ${listaCategorias}
-              - OBJETIVOS: ${listaObjetivos}
+              CONTEXTO REAL DO DASHBOARD:
+              - Saldo Geral: R$ ${saldoGeral.toFixed(2)}
+              - Categorias de Gasto: ${listaCategorias}
+              - OBJETIVOS (SONHOS): ${listaObjetivos}
+              - Resumo por Categoria: ${JSON.stringify(resumoFinanceiro)}
 
-              REGRAS:
-              1. Você NÃO ensina a fazer. Você EXECUTA a transação via JSON.
-              2. Entrada para objetivo: category deve ser "OBJ: NOME" (com espaço e maiúsculo).
-              3. Se for saída comum, use as categorias da lista ou "Outros".
-              4. Não peça informações já ditas no histórico.
+              REGRAS CRÍTICAS:
+              1. Para aportes em objetivos, use a categoria EXATA da lista: OBJ:NOME (ex: OBJ:VIAGEM).
+              2. Não pergunte valores ou objetivos que já foram ditos nas últimas mensagens.
+              3. Se for ganho comum, use "Receita". Itens como "Roupa" mapeie para "Compras".
               
               JSON (Sempre na última linha):
-              {"action": "transaction", "type": "saida/entrada", "amount": 0, "category": "nome"}` 
+              - {"action": "transaction", "type": "saida/entrada", "amount": 0, "category": "nome da categoria"}
+              - {"action": "chat"}` 
             },
-            ...historicoFormatado
+            ...historicoFormatado // Injeção da memória aqui
           ],
           temperature: 0.1
         })
@@ -114,47 +120,45 @@ export default function AIAnalyticsPage() {
       let textoParaExibir = fullText;
 
       if (jsonMatch) {
-        textoParaExibir = fullText.split('{')[0].trim().replace(/```json|```/g, "");
+        textoParaExibir = fullText.replace(/```json|```/g, "").replace(jsonMatch[0], "").trim();
         
         try {
           const res = JSON.parse(jsonMatch[0]);
           
           if (res.action === "transaction") {
-            // TRAVA DE SEGURANÇA: Extrai valor do texto se o JSON vier zerado
-            const valorFinal = res.amount > 0 ? res.amount : parseFloat(promptOriginal.replace(/[^\d.,]/g, "").replace(",", "."));
+            const valorLimpo = res.amount || parseFloat(promptOriginal.replace(/[^\d.,]/g, "").replace(",", "."));
             
+            // --- TRAVA DE PRECISÃO PARA O DASHBOARD (OBJ:VIAGEM) ---
             let categoriaFinal = 'Outros';
-            
             if (res.type === 'entrada') {
               if (res.category && res.category.toUpperCase().includes('OBJ:')) {
-                // TRAVA DE PRECISÃO: Garante "OBJ: NOME"
-                const nomeLimpo = res.category.replace(/OBJ:\s*/i, "").trim().toUpperCase();
-                categoriaFinal = `OBJ: ${nomeLimpo}`;
+                // Remove espaços e garante MAIÚSCULAS para bater com o Dashboard
+                categoriaFinal = res.category.toUpperCase().replace(/\s+/g, '');
               } else {
                 categoriaFinal = 'Receita';
               }
             } else {
-              categoriaFinal = res.category || 'Outros';
+              categoriaFinal = (res.category && res.category !== 'escolha da lista' ? res.category : 'Outros');
             }
 
             await supabase.from("transactions").insert({
               user_id: user?.id,
               type: res.type,
-              amount: valorFinal,
+              amount: valorLimpo,
               category: categoriaFinal,
-              created_at: new Date().toISOString()
+              created_at: new Date()
             });
           }
         } catch (e) {
-          console.warn("Falha na execução técnica:", e);
+          console.warn("Falha silenciosa na execução do comando:", e);
         }
       }
       
-      const mensagemFinal = textoParaExibir.replace(/[/\\_]{2,}/g, "");
+      const mensagemFinal = textoParaExibir.split('{')[0].trim().replace(/[/\\_]{2,}/g, "");
       setMessages(prev => [...prev, { role: "bot", text: mensagemFinal || "Comandante, missão cumprida." }]);
 
     } catch (error: any) {
-      setMessages(prev => [...prev, { role: "bot", text: `❌ COMANDANTE: Falha na base. Tente novamente.` }]);
+      setMessages(prev => [...prev, { role: "bot", text: `❌ COMANDANTE: Falha na comunicação com a base. Tente novamente.` }]);
     } finally {
       setLoading(false);
     }
