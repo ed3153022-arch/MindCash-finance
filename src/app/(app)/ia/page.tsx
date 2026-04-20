@@ -23,8 +23,6 @@ export default function AIAnalyticsPage() {
     setLoading(true);
     
     const userMsg = { role: "user", text: input };
-
-    // --- PEÇA 1: HISTÓRICO PARA ACABAR COM A AMNÉSIA (Últimas 7) ---
     const historicoFormatado = [...messages, userMsg].slice(-7).map(m => ({
       role: m.role === "user" ? "user" : "assistant",
       content: m.text
@@ -36,12 +34,10 @@ export default function AIAnalyticsPage() {
 
     try {
       const { data: { user } } = await supabase.auth.getUser();
-      
       const agora = new Date();
       const mesAtual = agora.getMonth();
       const anoAtual = agora.getFullYear();
 
-      // --- PEÇA 2: BUSCA DE METAS E OBJETIVOS (DREAM_GOALS) ---
       const [trans, metas, sonhos] = await Promise.all([
         supabase.from("transactions").select("*").eq("user_id", user?.id),
         supabase.from("goals").select("*").eq("user_id", user?.id),
@@ -49,32 +45,19 @@ export default function AIAnalyticsPage() {
       ]);
 
       const listaCategorias = metas.data?.map(m => m.category).join(", ") || "Geral";
-      // Mapeia os sonhos para o formato OBJ:NOME para a IA conhecer
-      const listaObjetivos = sonhos.data?.map(s => `OBJ:${s.name.toUpperCase()}`).join(", ") || "";
+      const listaObjetivos = sonhos.data?.map(s => `OBJ: ${s.name.toUpperCase()}`).join(", ") || "";
       
       const resumoFinanceiro = metas.data?.map(meta => {
         const teto = Number(meta.amount) || 0;
         const gastoJaCalculado = trans.data?.filter(t => {
           const d = new Date(t.created_at);
-          return t.type === "saida" && 
-                 t.category?.toLowerCase() === meta.category?.toLowerCase() &&
-                 d.getMonth() === mesAtual && 
-                 d.getFullYear() === anoAtual;
+          return t.type === "saida" && t.category?.toLowerCase() === meta.category?.toLowerCase() &&
+                 d.getMonth() === mesAtual && d.getFullYear() === anoAtual;
         }).reduce((acc, t) => acc + Number(t.amount), 0) || 0;
-
-        const porcentagem = teto > 0 ? (gastoJaCalculado / teto) * 100 : 0;
-
-        return {
-          categoria: meta.category,
-          gasto_real: `R$ ${gastoJaCalculado.toFixed(2)}`,
-          limite_teto: `R$ ${teto.toFixed(2)}`,
-          progresso: `${porcentagem.toFixed(1)}%`,
-          alerta: porcentagem >= 100
-        };
+        return { categoria: meta.category, gasto_real: `R$ ${gastoJaCalculado.toFixed(2)}`, limite_teto: `R$ ${teto.toFixed(2)}` };
       });
 
-      const saldoGeral = trans.data?.reduce((acc, t) => 
-        t.type === "entrada" ? acc + Number(t.amount) : acc - Number(t.amount), 0) || 0;
+      const saldoGeral = trans.data?.reduce((acc, t) => t.type === "entrada" ? acc + Number(t.amount) : acc - Number(t.amount), 0) || 0;
 
       const response = await fetch("https://openrouter.ai/api/v1/chat/completions", {
         method: 'POST',
@@ -93,22 +76,16 @@ export default function AIAnalyticsPage() {
               PERSONA: Autoridade máxima. Use "Mestre", "Comandante".
               IDIOMA: APENAS PORTUGUÊS (BRASIL).
               
-              CONTEXTO REAL DO DASHBOARD:
-              - Saldo Geral: R$ ${saldoGeral.toFixed(2)}
-              - Categorias de Gasto: ${listaCategorias}
-              - OBJETIVOS (SONHOS): ${listaObjetivos}
-              - Resumo por Categoria: ${JSON.stringify(resumoFinanceiro)}
+              STATUS DO USUÁRIO:
+              - Saldo: R$ ${saldoGeral.toFixed(2)}
+              - Objetivos: ${listaObjetivos}
 
-              REGRAS CRÍTICAS:
-              1. Para aportes em objetivos, use a categoria EXATA da lista: OBJ:NOME (ex: OBJ:VIAGEM).
-              2. Não pergunte valores ou objetivos que já foram ditos nas últimas mensagens.
-              3. Se for ganho comum, use "Receita". Itens como "Roupa" mapeie para "Compras".
-              
-              JSON (Sempre na última linha):
-              - {"action": "transaction", "type": "saida/entrada", "amount": 0, "category": "nome da categoria"}
-              - {"action": "chat"}` 
+              REGRAS:
+              1. NUNCA ensine o usuário. EXECUTE.
+              2. Transações de Objetivo DEVEM ser: {"action": "transaction", "type": "entrada", "amount": 50, "category": "OBJ: NOME_DO_OBJETIVO"}
+              3. O JSON deve ser a ÚLTIMA coisa na sua resposta, sem blocos de código markdown (\`\`\`).` 
             },
-            ...historicoFormatado // Injeção da memória aqui
+            ...historicoFormatado 
           ],
           temperature: 0.1
         })
@@ -116,54 +93,61 @@ export default function AIAnalyticsPage() {
 
       const data = await response.json();
       const fullText = data.choices[0].message.content;
+      
+      // LIMPEZA EXTRA: Tenta encontrar o JSON mesmo que a IA erre a formatação
       const jsonMatch = fullText.match(/\{[\s\S]*?\}/); 
       let textoParaExibir = fullText;
 
       if (jsonMatch) {
-        textoParaExibir = fullText.replace(/```json|```/g, "").replace(jsonMatch[0], "").trim();
-        
+        textoParaExibir = fullText.split('{')[0].trim();
         try {
-          const res = JSON.parse(jsonMatch[0]);
+          // Limpa caracteres invisíveis que quebram o JSON
+          const rawJson = jsonMatch[0].replace(/[\u0000-\u001F\u007F-\u009F]/g, "");
+          const res = JSON.parse(rawJson);
           
           if (res.action === "transaction") {
-            const valorLimpo = res.amount || parseFloat(promptOriginal.replace(/[^\d.,]/g, "").replace(",", "."));
+            // Extração inteligente do valor se o JSON vier zerado
+            const valorExtraido = res.amount > 0 ? res.amount : parseFloat(promptOriginal.replace(/[^\d.,]/g, "").replace(",", "."));
             
-            // --- TRAVA DE PRECISÃO PARA O DASHBOARD (OBJ:VIAGEM) ---
             let categoriaFinal = 'Outros';
             if (res.type === 'entrada') {
               if (res.category && res.category.toUpperCase().includes('OBJ:')) {
-                // Remove espaços e garante MAIÚSCULAS para bater com o Dashboard
-                categoriaFinal = res.category.toUpperCase().replace(/\s+/g, '');
+                const nomeLimpo = res.category.replace(/OBJ:\s*/i, "").trim().toUpperCase();
+                categoriaFinal = `OBJ: ${nomeLimpo}`;
               } else {
                 categoriaFinal = 'Receita';
               }
             } else {
-              categoriaFinal = (res.category && res.category !== 'escolha da lista' ? res.category : 'Outros');
+              categoriaFinal = res.category || 'Outros';
             }
 
-            await supabase.from("transactions").insert({
+            // EXECUÇÃO NO SUPABASE
+            const { error } = await supabase.from("transactions").insert({
               user_id: user?.id,
               type: res.type,
-              amount: valorLimpo,
+              amount: valorExtraido,
               category: categoriaFinal,
-              created_at: new Date()
+              created_at: new Date().toISOString()
             });
+
+            if (error) throw error;
+            console.log("Transação salva com sucesso!");
           }
         } catch (e) {
-          console.warn("Falha silenciosa na execução do comando:", e);
+          console.error("Erro ao processar transação:", e);
         }
       }
       
-      const mensagemFinal = textoParaExibir.split('{')[0].trim().replace(/[/\\_]{2,}/g, "");
-      setMessages(prev => [...prev, { role: "bot", text: mensagemFinal || "Comandante, missão cumprida." }]);
+      setMessages(prev => [...prev, { role: "bot", text: textoParaExibir || "Comandante, missão cumprida. Transação registrada." }]);
 
     } catch (error: any) {
-      setMessages(prev => [...prev, { role: "bot", text: `❌ COMANDANTE: Falha na comunicação com a base. Tente novamente.` }]);
+      setMessages(prev => [...prev, { role: "bot", text: `❌ ERRO TÉCNICO: Não consegui salvar a transação no banco de dados.` }]);
     } finally {
       setLoading(false);
     }
   }
 
+  // ... (Restante do código de retorno igual ao seu anterior)
   return (
     <div className="flex flex-col h-screen bg-black text-white font-sans">
       <div className="p-6 border-b border-white/5 flex items-center gap-4 bg-black/50 backdrop-blur-md sticky top-0 z-50">
