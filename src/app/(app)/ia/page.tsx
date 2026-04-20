@@ -45,30 +45,23 @@ export default function AIAnalyticsPage() {
       ]);
 
       const categoriasOficiais = metas.data?.map(m => m.category) || [];
-      const listaCategorias = categoriasOficiais.join(", ") || "Geral";
       const listaObjetivos = sonhos.data?.map(s => `OBJ: ${s.name.toUpperCase()}`).join(", ") || "";
       
-      const resumoFinanceiro = metas.data?.map(meta => {
+      // CÁLCULO EXATO DOS VEREDITOS (O CÉREBRO NÃO PRECISA FAZER CONTA)
+      const vereditoPronto = metas.data?.map(meta => {
         const teto = Number(meta.amount) || 0;
-        const gastoJaCalculado = trans.data?.filter(t => {
+        const gasto = trans.data?.filter(t => {
           const d = new Date(t.created_at);
           return t.type === "saida" && 
                  t.category?.toLowerCase() === meta.category?.toLowerCase() &&
-                 d.getMonth() === mesAtual && 
-                 d.getFullYear() === anoAtual;
+                 d.getMonth() === mesAtual && d.getFullYear() === anoAtual;
         }).reduce((acc, t) => acc + Number(t.amount), 0) || 0;
 
-        const porcentagem = teto > 0 ? (gastoJaCalculado / teto) * 100 : 0;
-        const restante = teto - gastoJaCalculado;
+        const porcentagem = teto > 0 ? (gasto / teto) * 100 : 0;
+        const falta = teto - gasto;
 
-        return {
-          categoria: meta.category,
-          gasto_real: gastoJaCalculado,
-          limite_teto: teto,
-          progresso: `${porcentagem.toFixed(1)}%`,
-          falta_para_teto: restante > 0 ? restante : 0
-        };
-      });
+        return `Categoria ${meta.category}: Gasto R$ ${gasto.toFixed(2)} de R$ ${teto.toFixed(2)}. Progresso: ${porcentagem.toFixed(1)}%. ${falta > 0 ? `Falta R$ ${falta.toFixed(2)} para o teto.` : `Excedeu o teto em R$ ${Math.abs(falta).toFixed(2)}.`}`;
+      }).join("\n");
 
       const saldoGeral = trans.data?.reduce((acc, t) => 
         t.type === "entrada" ? acc + Number(t.amount) : acc - Number(t.amount), 0) || 0;
@@ -86,25 +79,34 @@ export default function AIAnalyticsPage() {
           messages: [
             { 
               role: "system", 
-              content: `Você é o CÉREBRO v7. Mentor Financeiro de Elite. Persona: Comandante.
+              content: `Você é o CÉREBRO v8. Mentor Financeiro de Elite. Persona: Comandante.
+              IDIOMA: APENAS PORTUGUÊS (BRASIL).
               
-              CONTEXTO REAL:
-              - Saldo Geral: R$ ${saldoGeral.toFixed(2)}
-              - Categorias Permitidas: ${listaCategorias}
-              - OBJETIVOS (SONHOS): ${listaObjetivos}
-              - RESUMO DETALHADO: ${JSON.stringify(resumoFinanceiro)}
+              CONTEXTO REAL DO USUÁRIO:
+              - Saldo Geral em Caixa: R$ ${saldoGeral.toFixed(2)}
+              - Objetivos Disponíveis: ${listaObjetivos}
+              - VEREDITO PRONTO (Use estes dados para responder):
+              ${vereditoPronto}
+
+              MAPA DE CATEGORIAS OFICIAIS (8):
+              1. Transporte: Uber, gasolina, ônibus, oficina.
+              2. Saúde: Farmácia, médico, exames.
+              3. Assinaturas: Netflix, Spotify, Internet, iCloud.
+              4. Compras: Relógio, camiseta, tênis, shopping, eletrônicos.
+              5. Alimentação: iFood, restaurante, mercado, lanche.
+              6. Lazer: Cinema, viagem, festa, shows.
+              7. Moradia: Aluguel, luz, água, reforma.
+              8. Outros: Qualquer coisa que não se encaixe acima.
 
               REGRAS CRÍTICAS:
-              1. EXECUÇÃO: Sempre gere JSON para transações. Se for entrada sem objetivo, categoria "Receita".
-              2. VEREDITO/TETO: Use os valores exatos de "RESUMO DETALHADO". Para "quanto falta", subtraia o gasto do limite teto conforme o JSON fornecido.
-              3. PRECISÃO: Nunca invente valores de saldo ou categorias fora da lista.
-              4. Se for apenas conversa, responda de forma curta e técnica.
-
-              JSON: {"action": "transaction", "type": "saida/entrada", "amount": 0, "category": "nome"}` 
+              1. NÃO FAÇA CONTAS. Use os dados do "VEREDITO PRONTO" acima.
+              2. ENTRADAS: Se for para objetivo, use "OBJ: NOME". Se for ganho solto, use "Receita".
+              3. RESPOSTA: Seja curto, grosso e estratégico.
+              4. JSON (Obrigatório na última linha para o sistema, será ocultado do usuário): {"action": "transaction", "type": "saida/entrada", "amount": 0, "category": "nome"}` 
             },
             ...historicoFormatado 
           ],
-          temperature: 0.1
+          temperature: 0.2
         })
       });
 
@@ -115,7 +117,6 @@ export default function AIAnalyticsPage() {
 
       if (jsonMatch) {
         textoParaExibir = fullText.replace(jsonMatch[0], "").trim();
-        
         try {
           const res = JSON.parse(jsonMatch[0]);
           if (res.action === "transaction") {
@@ -124,14 +125,21 @@ export default function AIAnalyticsPage() {
             let categoriaFinal = 'Outros';
             if (res.type === 'entrada') {
               if (res.category?.toUpperCase().includes('OBJ:')) {
-                const nomeLimpo = res.category.replace(/OBJ:\s*/i, "").trim().toUpperCase();
-                categoriaFinal = `OBJ: ${nomeLimpo}`;
+                categoriaFinal = res.category.toUpperCase().trim();
               } else {
                 categoriaFinal = 'Receita';
               }
             } else {
-              const existe = categoriasOficiais.some(c => c.toLowerCase() === res.category?.toLowerCase());
-              categoriaFinal = existe ? res.category : 'Outros';
+              // Mapeamento forçado para as 8 categorias
+              const c = res.category?.toLowerCase() || "";
+              if (c.includes("transporte")) categoriaFinal = "Transporte";
+              else if (c.includes("saúde") || c.includes("saude")) categoriaFinal = "Saúde";
+              else if (c.includes("assinatura")) categoriaFinal = "Assinaturas";
+              else if (c.includes("compra")) categoriaFinal = "Compras";
+              else if (c.includes("alimenta")) categoriaFinal = "Alimentação";
+              else if (c.includes("lazer")) categoriaFinal = "Lazer";
+              else if (c.includes("moradia")) categoriaFinal = "Moradia";
+              else categoriaFinal = "Outros";
             }
 
             if (!isNaN(valorFinal) && valorFinal > 0) {
@@ -144,14 +152,14 @@ export default function AIAnalyticsPage() {
               });
             }
           }
-        } catch (e) { console.warn(e); }
+        } catch (e) { console.warn("Erro JSON:", e); }
       }
       
       const mensagemFinal = textoParaExibir.split('{')[0].trim().replace(/[/\\_]{2,}/g, "");
-      setMessages(prev => [...prev, { role: "bot", text: mensagemFinal || "Missão cumprida, Comandante." }]);
+      setMessages(prev => [...prev, { role: "bot", text: mensagemFinal || "Comandante, ordem executada." }]);
 
     } catch (error) {
-      setMessages(prev => [...prev, { role: "bot", text: `❌ Erro técnico na base.` }]);
+      setMessages(prev => [...prev, { role: "bot", text: `❌ COMANDANTE: Falha na base de dados.` }]);
     } finally {
       setLoading(false);
     }
@@ -167,7 +175,7 @@ export default function AIAnalyticsPage() {
           <h1 className="text-xl font-black italic uppercase tracking-tighter text-yellow-400">O CÉREBRO</h1>
           <div className="flex items-center gap-2">
             <div className="w-2 h-2 bg-yellow-400 rounded-full animate-pulse shadow-[0_0_8px_#facc15]" />
-            <span className="text-[10px] font-black text-zinc-500 uppercase tracking-widest">MASTER COMMAND v7.8</span>
+            <span className="text-[10px] font-black text-zinc-500 uppercase tracking-widest">MASTER COMMAND v8.0</span>
           </div>
         </div>
       </div>
@@ -176,7 +184,7 @@ export default function AIAnalyticsPage() {
         {messages.map((m, i) => (
           <div key={i} className={`flex ${m.role === 'user' ? 'justify-end' : 'justify-start'}`}>
             <div className={`max-w-[85%] p-4 rounded-[1.5rem] shadow-xl ${
-              m.role === 'user' ? 'bg-yellow-400 text-black font-bold' : 'bg-zinc-900 border border-white/10 text-zinc-100 italic font-medium'
+              m.role === 'user' ? 'bg-yellow-400 text-black font-bold' : 'bg-zinc-900 border border-white/10 text-zinc-100 italic'
             }`}>
               <p className="text-sm whitespace-pre-wrap">{m.text}</p>
             </div>
