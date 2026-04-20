@@ -49,8 +49,8 @@ export default function AIAnalyticsPage() {
       ]);
 
       const listaCategorias = metas.data?.map(m => m.category).join(", ") || "Geral";
-      // Mapeia os sonhos para o formato OBJ:NOME para a IA conhecer
-      const listaObjetivos = sonhos.data?.map(s => `OBJ:${s.name.toUpperCase()}`).join(", ") || "";
+      // AJUSTE: Mapeia com o espaço para a IA já ver o padrão correto: OBJ: VIAGEM
+      const listaObjetivos = sonhos.data?.map(s => `OBJ: ${s.name.toUpperCase()}`).join(", ") || "";
       
       const resumoFinanceiro = metas.data?.map(meta => {
         const teto = Number(meta.amount) || 0;
@@ -100,15 +100,16 @@ export default function AIAnalyticsPage() {
               - Resumo por Categoria: ${JSON.stringify(resumoFinanceiro)}
 
               REGRAS CRÍTICAS:
-              1. Para aportes em objetivos, use a categoria EXATA da lista: OBJ:NOME (ex: OBJ:VIAGEM).
-              2. Não pergunte valores ou objetivos que já foram ditos nas últimas mensagens.
-              3. Se for ganho comum, use "Receita". Itens como "Roupa" mapeie para "Compras".
+              1. Você NÃO ensina como fazer. Você EXECUTA a transação imediatamente via JSON.
+              2. Para aportes em objetivos, use EXATAMENTE: OBJ: NOME (Maiúsculo e com espaço após o :).
+              3. Não pergunte valores ou objetivos já ditos nas últimas mensagens.
+              4. Se for ganho comum, use "Receita".
               
               JSON (Sempre na última linha):
               - {"action": "transaction", "type": "saida/entrada", "amount": 0, "category": "nome da categoria"}
               - {"action": "chat"}` 
             },
-            ...historicoFormatado // Injeção da memória aqui
+            ...historicoFormatado 
           ],
           temperature: 0.1
         })
@@ -128,12 +129,13 @@ export default function AIAnalyticsPage() {
           if (res.action === "transaction") {
             const valorLimpo = res.amount || parseFloat(promptOriginal.replace(/[^\d.,]/g, "").replace(",", "."));
             
-            // --- TRAVA DE PRECISÃO PARA O DASHBOARD (OBJ:VIAGEM) ---
+            // --- AJUSTE DE PRECISÃO: "OBJ: NOME" (Com Espaço e Maiúsculo) ---
             let categoriaFinal = 'Outros';
             if (res.type === 'entrada') {
               if (res.category && res.category.toUpperCase().includes('OBJ:')) {
-                // Remove espaços e garante MAIÚSCULAS para bater com o Dashboard
-                categoriaFinal = res.category.toUpperCase().replace(/\s+/g, '');
+                // Remove espaços extras e força o padrão "OBJ: NOME"
+                const nomeSemPrefixo = res.category.replace(/OBJ:\s*/i, "").trim().toUpperCase();
+                categoriaFinal = `OBJ: ${nomeSemPrefixo}`;
               } else {
                 categoriaFinal = 'Receita';
               }
