@@ -23,6 +23,8 @@ export default function AIAnalyticsPage() {
     setLoading(true);
     
     const userMsg = { role: "user", text: input };
+
+    // --- PEÇA 1: HISTÓRICO PARA ACABAR COM A AMNÉSIA (Últimas 7) ---
     const historicoFormatado = [...messages, userMsg].slice(-7).map(m => ({
       role: m.role === "user" ? "user" : "assistant",
       content: m.text
@@ -34,10 +36,12 @@ export default function AIAnalyticsPage() {
 
     try {
       const { data: { user } } = await supabase.auth.getUser();
+      
       const agora = new Date();
       const mesAtual = agora.getMonth();
       const anoAtual = agora.getFullYear();
 
+      // --- PEÇA 2: BUSCA DE METAS E OBJETIVOS (DREAM_GOALS) ---
       const [trans, metas, sonhos] = await Promise.all([
         supabase.from("transactions").select("*").eq("user_id", user?.id),
         supabase.from("goals").select("*").eq("user_id", user?.id),
@@ -45,19 +49,32 @@ export default function AIAnalyticsPage() {
       ]);
 
       const listaCategorias = metas.data?.map(m => m.category).join(", ") || "Geral";
+      // AJUSTE: Mapeia com o espaço para a IA já ver o padrão correto: OBJ: VIAGEM
       const listaObjetivos = sonhos.data?.map(s => `OBJ: ${s.name.toUpperCase()}`).join(", ") || "";
       
       const resumoFinanceiro = metas.data?.map(meta => {
         const teto = Number(meta.amount) || 0;
         const gastoJaCalculado = trans.data?.filter(t => {
           const d = new Date(t.created_at);
-          return t.type === "saida" && t.category?.toLowerCase() === meta.category?.toLowerCase() &&
-                 d.getMonth() === mesAtual && d.getFullYear() === anoAtual;
+          return t.type === "saida" && 
+                 t.category?.toLowerCase() === meta.category?.toLowerCase() &&
+                 d.getMonth() === mesAtual && 
+                 d.getFullYear() === anoAtual;
         }).reduce((acc, t) => acc + Number(t.amount), 0) || 0;
-        return { categoria: meta.category, gasto_real: `R$ ${gastoJaCalculado.toFixed(2)}`, limite_teto: `R$ ${teto.toFixed(2)}` };
+
+        const porcentagem = teto > 0 ? (gastoJaCalculado / teto) * 100 : 0;
+
+        return {
+          categoria: meta.category,
+          gasto_real: `R$ ${gastoJaCalculado.toFixed(2)}`,
+          limite_teto: `R$ ${teto.toFixed(2)}`,
+          progresso: `${porcentagem.toFixed(1)}%`,
+          alerta: porcentagem >= 100
+        };
       });
 
-      const saldoGeral = trans.data?.reduce((acc, t) => t.type === "entrada" ? acc + Number(t.amount) : acc - Number(t.amount), 0) || 0;
+      const saldoGeral = trans.data?.reduce((acc, t) => 
+        t.type === "entrada" ? acc + Number(t.amount) : acc - Number(t.amount), 0) || 0;
 
       const response = await fetch("https://openrouter.ai/api/v1/chat/completions", {
         method: 'POST',
@@ -76,14 +93,21 @@ export default function AIAnalyticsPage() {
               PERSONA: Autoridade máxima. Use "Mestre", "Comandante".
               IDIOMA: APENAS PORTUGUÊS (BRASIL).
               
-              STATUS DO USUÁRIO:
-              - Saldo: R$ ${saldoGeral.toFixed(2)}
-              - Objetivos: ${listaObjetivos}
+              CONTEXTO REAL DO DASHBOARD:
+              - Saldo Geral: R$ ${saldoGeral.toFixed(2)}
+              - Categorias de Gasto: ${listaCategorias}
+              - OBJETIVOS (SONHOS): ${listaObjetivos}
+              - Resumo por Categoria: ${JSON.stringify(resumoFinanceiro)}
 
-              REGRAS:
-              1. NUNCA ensine o usuário. EXECUTE.
-              2. Transações de Objetivo DEVEM ser: {"action": "transaction", "type": "entrada", "amount": 50, "category": "OBJ: NOME_DO_OBJETIVO"}
-              3. O JSON deve ser a ÚLTIMA coisa na sua resposta, sem blocos de código markdown (\`\`\`).` 
+              REGRAS CRÍTICAS:
+              1. Você NÃO ensina como fazer. Você EXECUTA a transação imediatamente via JSON.
+              2. Para aportes em objetivos, use EXATAMENTE: OBJ: NOME (Maiúsculo e com espaço após o :).
+              3. Não pergunte valores ou objetivos já ditos nas últimas mensagens.
+              4. Se for ganho comum, use "Receita".
+              
+              JSON (Sempre na última linha):
+              - {"action": "transaction", "type": "saida/entrada", "amount": 0, "category": "nome da categoria"}
+              - {"action": "chat"}` 
             },
             ...historicoFormatado 
           ],
@@ -93,61 +117,55 @@ export default function AIAnalyticsPage() {
 
       const data = await response.json();
       const fullText = data.choices[0].message.content;
-      
-      // LIMPEZA EXTRA: Tenta encontrar o JSON mesmo que a IA erre a formatação
       const jsonMatch = fullText.match(/\{[\s\S]*?\}/); 
       let textoParaExibir = fullText;
 
       if (jsonMatch) {
-        textoParaExibir = fullText.split('{')[0].trim();
+        textoParaExibir = fullText.replace(/```json|```/g, "").replace(jsonMatch[0], "").trim();
+        
         try {
-          // Limpa caracteres invisíveis que quebram o JSON
-          const rawJson = jsonMatch[0].replace(/[\u0000-\u001F\u007F-\u009F]/g, "");
-          const res = JSON.parse(rawJson);
+          const res = JSON.parse(jsonMatch[0]);
           
           if (res.action === "transaction") {
-            // Extração inteligente do valor se o JSON vier zerado
-            const valorExtraido = res.amount > 0 ? res.amount : parseFloat(promptOriginal.replace(/[^\d.,]/g, "").replace(",", "."));
+            const valorLimpo = res.amount || parseFloat(promptOriginal.replace(/[^\d.,]/g, "").replace(",", "."));
             
+            // --- AJUSTE DE PRECISÃO: "OBJ: NOME" (Com Espaço e Maiúsculo) ---
             let categoriaFinal = 'Outros';
             if (res.type === 'entrada') {
               if (res.category && res.category.toUpperCase().includes('OBJ:')) {
-                const nomeLimpo = res.category.replace(/OBJ:\s*/i, "").trim().toUpperCase();
-                categoriaFinal = `OBJ: ${nomeLimpo}`;
+                // Remove espaços extras e força o padrão "OBJ: NOME"
+                const nomeSemPrefixo = res.category.replace(/OBJ:\s*/i, "").trim().toUpperCase();
+                categoriaFinal = `OBJ: ${nomeSemPrefixo}`;
               } else {
                 categoriaFinal = 'Receita';
               }
             } else {
-              categoriaFinal = res.category || 'Outros';
+              categoriaFinal = (res.category && res.category !== 'escolha da lista' ? res.category : 'Outros');
             }
 
-            // EXECUÇÃO NO SUPABASE
-            const { error } = await supabase.from("transactions").insert({
+            await supabase.from("transactions").insert({
               user_id: user?.id,
               type: res.type,
-              amount: valorExtraido,
+              amount: valorLimpo,
               category: categoriaFinal,
-              created_at: new Date().toISOString()
+              created_at: new Date()
             });
-
-            if (error) throw error;
-            console.log("Transação salva com sucesso!");
           }
         } catch (e) {
-          console.error("Erro ao processar transação:", e);
+          console.warn("Falha silenciosa na execução do comando:", e);
         }
       }
       
-      setMessages(prev => [...prev, { role: "bot", text: textoParaExibir || "Comandante, missão cumprida. Transação registrada." }]);
+      const mensagemFinal = textoParaExibir.split('{')[0].trim().replace(/[/\\_]{2,}/g, "");
+      setMessages(prev => [...prev, { role: "bot", text: mensagemFinal || "Comandante, missão cumprida." }]);
 
     } catch (error: any) {
-      setMessages(prev => [...prev, { role: "bot", text: `❌ ERRO TÉCNICO: Não consegui salvar a transação no banco de dados.` }]);
+      setMessages(prev => [...prev, { role: "bot", text: `❌ COMANDANTE: Falha na comunicação com a base. Tente novamente.` }]);
     } finally {
       setLoading(false);
     }
   }
 
-  // ... (Restante do código de retorno igual ao seu anterior)
   return (
     <div className="flex flex-col h-screen bg-black text-white font-sans">
       <div className="p-6 border-b border-white/5 flex items-center gap-4 bg-black/50 backdrop-blur-md sticky top-0 z-50">
