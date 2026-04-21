@@ -34,29 +34,35 @@ export default function AIAnalyticsPage() {
 
     try {
       const { data: { user } } = await supabase.auth.getUser();
+      if (!user) throw new Error("Sessão expirada.");
+
       const agora = new Date();
       const mesAtual = agora.getMonth();
       const anoAtual = agora.getFullYear();
 
       const [trans, metas, sonhos] = await Promise.all([
-        supabase.from("transactions").select("*").eq("user_id", user?.id),
-        supabase.from("goals").select("*").eq("user_id", user?.id),
-        supabase.from("dream_goals").select("*").eq("user_id", user?.id)
+        supabase.from("transactions").select("*").eq("user_id", user.id),
+        supabase.from("goals").select("*").eq("user_id", user.id),
+        supabase.from("dream_goals").select("*").eq("user_id", user.id)
       ]);
 
-      const listaObjetivos = sonhos.data?.map(s => `OBJ: ${s.name.toUpperCase()}`).join(", ") || "Nenhum objetivo";
+      const listaObjetivos = sonhos.data?.length 
+        ? sonhos.data.map(s => `OBJ: ${s.name.toUpperCase()}`).join(", ") 
+        : "Nenhum objetivo ativo.";
       
-      const vereditoPronto = metas.data?.map(meta => {
-        const teto = Number(meta.amount) || 0;
-        const gasto = trans.data?.filter(t => {
-          const d = new Date(t.created_at);
-          return t.type === "saida" && 
-                 t.category?.toLowerCase() === meta.category?.toLowerCase() &&
-                 d.getMonth() === mesAtual && d.getFullYear() === anoAtual;
-        }).reduce((acc, t) => acc + Number(t.amount), 0) || 0;
-        const falta = teto - gasto;
-        return `- ${meta.category}: R$ ${gasto.toFixed(2)} / R$ ${teto.toFixed(2)}. ${falta > 0 ? `Resta: R$ ${falta.toFixed(2)}` : `EXCEDEU: R$ ${Math.abs(falta).toFixed(2)}`}`;
-      }).join("\n");
+      const vereditoPronto = metas.data?.length 
+        ? metas.data.map(meta => {
+            const teto = Number(meta.amount) || 0;
+            const gasto = trans.data?.filter(t => {
+              const d = new Date(t.created_at);
+              return t.type === "saida" && 
+                     t.category?.toLowerCase() === meta.category?.toLowerCase() &&
+                     d.getMonth() === mesAtual && d.getFullYear() === anoAtual;
+            }).reduce((acc, t) => acc + Number(t.amount), 0) || 0;
+            const falta = teto - gasto;
+            return `- ${meta.category}: R$ ${gasto.toFixed(2)} / R$ ${teto.toFixed(2)}. ${falta >= 0 ? `Livre: R$ ${falta.toFixed(2)}` : `ESTOURO: R$ ${Math.abs(falta).toFixed(2)}`}`;
+          }).join("\n")
+        : "Nenhuma meta mensal configurada.";
 
       const saldoGeral = trans.data?.reduce((acc, t) => 
         t.type === "entrada" ? acc + Number(t.amount) : acc - Number(t.amount), 0) || 0;
@@ -72,76 +78,66 @@ export default function AIAnalyticsPage() {
           messages: [
             { 
               role: "system", 
-              content: `Você é o CÉREBRO v9.7. Mentor Financeiro de Elite.
+              content: `Você é o CÉREBRO v9.9. Mentor Financeiro de Elite. Persona: Comandante.
               
-              CONTEXTO:
-              - Saldo: R$ ${saldoGeral.toFixed(2)}
+              DADOS EM TEMPO REAL:
+              - Saldo Geral: R$ ${saldoGeral.toFixed(2)}
               - Objetivos: ${listaObjetivos}
-              - Relatório: ${vereditoPronto}
+              - Relatório de Metas: ${vereditoPronto}
 
               7 REGRAS DE OURO:
-              1. CATEGORIAS DE SAÍDA: Use EXCLUSIVAMENTE: Transporte, Saúde, Assinaturas, Compras, Alimentação, Lazer, Moradia ou Outros. (Relógio = Compras).
-              2. CATEGORIAS DE ENTRADA: "OBJ: NOME" ou "Receita".
-              3. NÃO FAÇA CONTAS: Use os dados do relatório.
-              4. DISCIPLINA: Dê puxão de orelha se houver excesso.
-              5. SIGILO: NUNCA mencione JSON ou código.
-              6. CURTO E GROSSO: Responda como um Comandante.
-              7. IMPACTO: Avalie se o gasto fere o saldo.
+              1. Use apenas categorias oficiais: Transporte, Saúde, Assinaturas, Compras, Alimentação, Lazer, Moradia ou Outros.
+              2. Entradas sem objetivo vão para "Receita". Com objetivo: "OBJ: NOME".
+              3. Proibido fazer cálculos. Use os dados prontos do Relatório.
+              4. Se o usuário exceder o teto de uma meta, seja severo na disciplina.
+              5. SIGILO TOTAL: Proibido falar termos técnicos, JSON ou códigos.
+              6. Fale como um Comandante: Direto, estratégico e firme.
+              7. Sempre termine a análise avaliando o impacto no Saldo Geral.
 
-              INSTRUÇÃO DE EXECUÇÃO: No fim, gere obrigatoriamente: {"action": "transaction", "type": "saida", "amount": 0, "category": "Nome"}` 
+              3 PROTOCOLOS DE REFINAMENTO:
+              1. VALIDAÇÃO: Revise se a categoria escolhida é a mais lógica para o gasto (Ex: Relógio é Compras).
+              2. CONSISTÊNCIA: Se não houver metas, exija que o usuário defina uma estratégia urgente.
+              3. SOBREVIVÊNCIA: Verifique se este gasto compromete a liquidez imediata para contas essenciais.
+
+              INSTRUÇÃO TÉCNICA DE SAÍDA (OBRIGATÓRIA):
+              Para qualquer gasto ou ganho, inclua EXATAMENTE esta linha no final:
+              {"action": "transaction", "type": "saida/entrada", "amount": valor, "category": "nome"}
+              Nota: Relógio = Compras | Lanche/Mercado = Alimentação | Uber/Gasolina = Transporte.` 
             },
             ...historicoFormatado 
           ],
-          temperature: 0.2
+          temperature: 0.1
         })
       });
 
       const data = await response.json();
       const fullText = data.choices[0].message.content;
       
-      // Captura o JSON e limpa o texto para o usuário
+      // Captura o JSON e limpa a visualização do usuário
       const jsonMatch = fullText.match(/\{[\s\S]*"action"[\s\S]*\}/);
-      let textoParaExibir = fullText.split(/\{|JSON:/)[0].trim();
+      let textoParaExibir = fullText.split(/\{|JSON:|comando:|Protocolo:/i)[0].trim();
 
       if (jsonMatch) {
         try {
           const res = JSON.parse(jsonMatch[0]);
-          // Normaliza os nomes das chaves caso a IA erre
-          const amount = res.amount || res.quantia || 0;
-          const type = res.type || res.tipo || 'saida';
-          let category = res.category || res.categoria || 'Outros';
-
-          if (amount > 0) {
-            // Inteligência de Categoria Forçada no Código
-            if (type === 'saida') {
-              const c = category.toLowerCase();
-              if (c.includes("compra") || c.includes("relógio") || c.includes("tenis")) category = "Compras";
-              else if (c.includes("alimento") || c.includes("lanche") || c.includes("comer")) category = "Alimentação";
-              else if (c.includes("uber") || c.includes("gasolina")) category = "Transporte";
-              else if (c.includes("saude") || c.includes("remedio")) category = "Saúde";
-              else if (c.includes("assinatura") || c.includes("netflix")) category = "Assinaturas";
-              else if (c.includes("lazer") || c.includes("cinema")) category = "Lazer";
-              else if (c.includes("moradia") || c.includes("aluguel")) category = "Moradia";
-              else category = "Outros";
-            } else {
-              category = category.toUpperCase().includes('OBJ:') ? category.toUpperCase() : 'Receita';
-            }
-
+          const valor = Number(res.amount || 0);
+          
+          if (valor > 0) {
             await supabase.from("transactions").insert({
-              user_id: user?.id,
-              type: type,
-              amount: amount,
-              category: category,
+              user_id: user.id,
+              type: res.type === 'entrada' ? 'entrada' : 'saida',
+              amount: valor,
+              category: res.category || 'Outros',
               created_at: new Date().toISOString()
             });
           }
-        } catch (e) { console.error("Erro no processamento tático."); }
+        } catch (e) { console.error("Erro no Protocolo Oculto."); }
       }
       
-      setMessages(prev => [...prev, { role: "bot", text: textoParaExibir || "Comandante, registro efetuado com sucesso." }]);
+      setMessages(prev => [...prev, { role: "bot", text: textoParaExibir || "Ordem executada, Comandante." }]);
 
-    } catch (error) {
-      setMessages(prev => [...prev, { role: "bot", text: `❌ Erro na base de dados.` }]);
+    } catch (error: any) {
+      setMessages(prev => [...prev, { role: "bot", text: `❌ STATUS: ${error.message}` }]);
     } finally {
       setLoading(false);
     }
@@ -154,15 +150,15 @@ export default function AIAnalyticsPage() {
           <ArrowLeft size={20} />
         </button>
         <div>
-          <h1 className="text-xl font-black text-yellow-400">O CÉREBRO</h1>
-          <span className="text-[10px] font-black text-zinc-500">MASTER COMMAND v9.7</span>
+          <h1 className="text-xl font-black text-yellow-400 italic uppercase">O CÉREBRO</h1>
+          <span className="text-[10px] font-black text-zinc-500 tracking-widest uppercase">Estrategista v9.9</span>
         </div>
       </div>
 
       <div className="flex-1 overflow-y-auto p-6 space-y-6">
         {messages.map((m, i) => (
           <div key={i} className={`flex ${m.role === 'user' ? 'justify-end' : 'justify-start'}`}>
-            <div className={`max-w-[85%] p-4 rounded-[1.5rem] ${
+            <div className={`max-w-[85%] p-4 rounded-[1.5rem] shadow-xl ${
               m.role === 'user' ? 'bg-yellow-400 text-black font-bold' : 'bg-zinc-900 border border-white/10 text-zinc-100 italic'
             }`}>
               <p className="text-sm whitespace-pre-wrap">{m.text}</p>
@@ -172,13 +168,13 @@ export default function AIAnalyticsPage() {
         <div ref={scrollRef} />
       </div>
 
-      <div className="p-6 border-t border-white/5 bg-black/80">
+      <div className="p-6 border-t border-white/5 bg-black/80 backdrop-blur-md">
         <div className="flex gap-2 bg-zinc-900 p-2 rounded-[2rem] border border-white/10">
           <input 
             value={input}
             onChange={(e) => setInput(e.target.value)}
             onKeyDown={(e) => e.key === 'Enter' && processarIA()}
-            placeholder="Relate a missão..." 
+            placeholder="Relate a missão, Comandante..." 
             className="flex-1 bg-transparent border-none outline-none px-4 text-sm font-bold text-white"
           />
           <button onClick={processarIA} disabled={loading} className="bg-yellow-400 text-black p-3 rounded-full">
