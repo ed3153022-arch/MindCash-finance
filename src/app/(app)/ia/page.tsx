@@ -44,7 +44,7 @@ export default function AIAnalyticsPage() {
         supabase.from("dream_goals").select("*").eq("user_id", user?.id)
       ]);
 
-      const listaObjetivos = sonhos.data?.map(s => `OBJ: ${s.name.toUpperCase()}`).join(", ") || "Nenhum objetivo definido";
+      const listaObjetivos = sonhos.data?.map(s => `OBJ: ${s.name.toUpperCase()}`).join(", ") || "Nenhum objetivo";
       
       const vereditoPronto = metas.data?.map(meta => {
         const teto = Number(meta.amount) || 0;
@@ -54,9 +54,8 @@ export default function AIAnalyticsPage() {
                  t.category?.toLowerCase() === meta.category?.toLowerCase() &&
                  d.getMonth() === mesAtual && d.getFullYear() === anoAtual;
         }).reduce((acc, t) => acc + Number(t.amount), 0) || 0;
-        const porcentagem = teto > 0 ? (gasto / teto) * 100 : 0;
         const falta = teto - gasto;
-        return `- ${meta.category}: Gasto R$ ${gasto.toFixed(2)} de R$ ${teto.toFixed(2)} (${porcentagem.toFixed(1)}%). ${falta > 0 ? `Restam R$ ${falta.toFixed(2)}` : `EXCEDEU R$ ${Math.abs(falta).toFixed(2)}`}`;
+        return `- ${meta.category}: R$ ${gasto.toFixed(2)} / R$ ${teto.toFixed(2)}. ${falta > 0 ? `Resta: R$ ${falta.toFixed(2)}` : `EXCEDEU: R$ ${Math.abs(falta).toFixed(2)}`}`;
       }).join("\n");
 
       const saldoGeral = trans.data?.reduce((acc, t) => 
@@ -67,34 +66,29 @@ export default function AIAnalyticsPage() {
         headers: { 
           'Content-Type': 'application/json',
           'Authorization': `Bearer ${OPENROUTER_API_KEY}`,
-          'HTTP-Referer': 'https://mindcash.vercel.app', 
-          'X-Title': 'MindCash'
         },
         body: JSON.stringify({
           model: "openrouter/auto",
           messages: [
             { 
               role: "system", 
-              content: `Você é o CÉREBRO v9.5. Mentor Financeiro de Elite.
-              PERSONA: Autoritário, focado em resultados, militar.
+              content: `Você é o CÉREBRO v9.7. Mentor Financeiro de Elite.
               
-              SITUAÇÃO ATUAL:
+              CONTEXTO:
               - Saldo: R$ ${saldoGeral.toFixed(2)}
               - Objetivos: ${listaObjetivos}
-              - Relatório de Categorias:
-              ${vereditoPronto}
+              - Relatório: ${vereditoPronto}
 
-              7 REGRAS DE OURO DO COMANDANTE:
-              1. CATEGORIAS DE SAÍDA: Use apenas: Transporte, Saúde, Assinaturas, Compras, Alimentação, Lazer, Moradia ou Outros. Não invente novas categorias.
-              2. CATEGORIAS DE ENTRADA: Se houver objetivo claro, use "OBJ: NOME". Se não houver, use "Receita".
-              3. NÃO FAÇA CONTAS: Utilize os dados do relatório acima para dar seus vereditos.
-              4. DISCIPLINA: Se houver excesso de gastos (excedeu o teto), dê um puxão de orelha severo.
-              5. SIGILO ABSOLUTO: Nunca mencione JSON, código, chaves ou termos de programação.
-              6. CURTO E GROSSO: Responda de forma estratégica, direta e sem enrolação.
-              7. ANÁLISE DE IMPACTO: Sempre avalie se o novo gasto compromete o saldo geral ou os objetivos.
+              7 REGRAS DE OURO:
+              1. CATEGORIAS DE SAÍDA: Use EXCLUSIVAMENTE: Transporte, Saúde, Assinaturas, Compras, Alimentação, Lazer, Moradia ou Outros. (Relógio = Compras).
+              2. CATEGORIAS DE ENTRADA: "OBJ: NOME" ou "Receita".
+              3. NÃO FAÇA CONTAS: Use os dados do relatório.
+              4. DISCIPLINA: Dê puxão de orelha se houver excesso.
+              5. SIGILO: NUNCA mencione JSON ou código.
+              6. CURTO E GROSSO: Responda como um Comandante.
+              7. IMPACTO: Avalie se o gasto fere o saldo.
 
-              PROTOCOLO DE SISTEMA (Invisível ao usuário): 
-              Gere sempre um JSON técnico ao final de cada transação no formato: {"action": "transaction", "type": "saida/entrada", "amount": 0, "category": "nome"}` 
+              INSTRUÇÃO DE EXECUÇÃO: No fim, gere obrigatoriamente: {"action": "transaction", "type": "saida", "amount": 0, "category": "Nome"}` 
             },
             ...historicoFormatado 
           ],
@@ -105,91 +99,87 @@ export default function AIAnalyticsPage() {
       const data = await response.json();
       const fullText = data.choices[0].message.content;
       
-      // Captura o JSON para execução mas impede que ele chegue na tela
-      const jsonMatch = fullText.match(/\{"action":\s*"transaction"[\s\S]*?\}/);
-      let textoParaExibir = fullText;
+      // Captura o JSON e limpa o texto para o usuário
+      const jsonMatch = fullText.match(/\{[\s\S]*"action"[\s\S]*\}/);
+      let textoParaExibir = fullText.split(/\{|JSON:/)[0].trim();
 
       if (jsonMatch) {
-        // Remove o JSON e qualquer menção técnica próxima a ele
-        textoParaExibir = fullText.split('{')[0].trim();
         try {
           const res = JSON.parse(jsonMatch[0]);
-          if (res.action === "transaction" && res.amount > 0) {
-            let categoriaFinal = 'Outros';
-            if (res.type === 'entrada') {
-              categoriaFinal = res.category?.toUpperCase().includes('OBJ:') ? res.category.toUpperCase() : 'Receita';
+          // Normaliza os nomes das chaves caso a IA erre
+          const amount = res.amount || res.quantia || 0;
+          const type = res.type || res.tipo || 'saida';
+          let category = res.category || res.categoria || 'Outros';
+
+          if (amount > 0) {
+            // Inteligência de Categoria Forçada no Código
+            if (type === 'saida') {
+              const c = category.toLowerCase();
+              if (c.includes("compra") || c.includes("relógio") || c.includes("tenis")) category = "Compras";
+              else if (c.includes("alimento") || c.includes("lanche") || c.includes("comer")) category = "Alimentação";
+              else if (c.includes("uber") || c.includes("gasolina")) category = "Transporte";
+              else if (c.includes("saude") || c.includes("remedio")) category = "Saúde";
+              else if (c.includes("assinatura") || c.includes("netflix")) category = "Assinaturas";
+              else if (c.includes("lazer") || c.includes("cinema")) category = "Lazer";
+              else if (c.includes("moradia") || c.includes("aluguel")) category = "Moradia";
+              else category = "Outros";
             } else {
-              const c = res.category?.toLowerCase() || "";
-              if (c.includes("transporte")) categoriaFinal = "Transporte";
-              else if (c.includes("saúde") || c.includes("saude")) categoriaFinal = "Saúde";
-              else if (c.includes("assinatura")) categoriaFinal = "Assinaturas";
-              else if (c.includes("compra")) categoriaFinal = "Compras";
-              else if (c.includes("alimenta")) categoriaFinal = "Alimentação";
-              else if (c.includes("lazer")) categoriaFinal = "Lazer";
-              else if (c.includes("moradia")) categoriaFinal = "Moradia";
-              else categoriaFinal = "Outros";
+              category = category.toUpperCase().includes('OBJ:') ? category.toUpperCase() : 'Receita';
             }
 
             await supabase.from("transactions").insert({
               user_id: user?.id,
-              type: res.type,
-              amount: res.amount,
-              category: categoriaFinal,
+              type: type,
+              amount: amount,
+              category: category,
               created_at: new Date().toISOString()
             });
           }
-        } catch (e) { console.error("Falha no Protocolo Oculto."); }
+        } catch (e) { console.error("Erro no processamento tático."); }
       }
       
-      setMessages(prev => [...prev, { role: "bot", text: textoParaExibir || "Missão cumprida, Comandante. O registro foi efetuado." }]);
+      setMessages(prev => [...prev, { role: "bot", text: textoParaExibir || "Comandante, registro efetuado com sucesso." }]);
 
     } catch (error) {
-      setMessages(prev => [...prev, { role: "bot", text: `❌ COMANDANTE: Erro na rede de inteligência.` }]);
+      setMessages(prev => [...prev, { role: "bot", text: `❌ Erro na base de dados.` }]);
     } finally {
       setLoading(false);
     }
   }
 
   return (
-    <div className="flex flex-col h-screen bg-black text-white font-sans">
+    <div className="flex flex-col h-screen bg-black text-white">
       <div className="p-6 border-b border-white/5 flex items-center gap-4 bg-black/50 backdrop-blur-md sticky top-0 z-50">
-        <button onClick={() => router.back()} className="p-2 bg-zinc-900 rounded-full border border-white/5">
+        <button onClick={() => router.back()} className="p-2 bg-zinc-900 rounded-full">
           <ArrowLeft size={20} />
         </button>
         <div>
-          <h1 className="text-xl font-black italic uppercase tracking-tighter text-yellow-400">O CÉREBRO</h1>
-          <span className="text-[10px] font-black text-zinc-500 uppercase tracking-widest">MASTER COMMAND v9.5</span>
+          <h1 className="text-xl font-black text-yellow-400">O CÉREBRO</h1>
+          <span className="text-[10px] font-black text-zinc-500">MASTER COMMAND v9.7</span>
         </div>
       </div>
 
       <div className="flex-1 overflow-y-auto p-6 space-y-6">
         {messages.map((m, i) => (
           <div key={i} className={`flex ${m.role === 'user' ? 'justify-end' : 'justify-start'}`}>
-            <div className={`max-w-[85%] p-4 rounded-[1.5rem] shadow-xl ${
+            <div className={`max-w-[85%] p-4 rounded-[1.5rem] ${
               m.role === 'user' ? 'bg-yellow-400 text-black font-bold' : 'bg-zinc-900 border border-white/10 text-zinc-100 italic'
             }`}>
               <p className="text-sm whitespace-pre-wrap">{m.text}</p>
             </div>
           </div>
         ))}
-        {loading && (
-          <div className="flex justify-start">
-            <div className="bg-zinc-900 p-4 rounded-[1.5rem] animate-pulse text-zinc-500 text-xs uppercase font-black">
-              Analisando estratégia...
-            </div>
-          </div>
-        )}
         <div ref={scrollRef} />
       </div>
 
-      <div className="p-6 border-t border-white/5 bg-black/80 backdrop-blur-md">
+      <div className="p-6 border-t border-white/5 bg-black/80">
         <div className="flex gap-2 bg-zinc-900 p-2 rounded-[2rem] border border-white/10">
           <input 
             value={input}
             onChange={(e) => setInput(e.target.value)}
             onKeyDown={(e) => e.key === 'Enter' && processarIA()}
-            placeholder="Relate a missão, Comandante..." 
-            className="flex-1 bg-transparent border-none outline-none px-4 text-sm font-bold italic text-white"
+            placeholder="Relate a missão..." 
+            className="flex-1 bg-transparent border-none outline-none px-4 text-sm font-bold text-white"
           />
           <button onClick={processarIA} disabled={loading} className="bg-yellow-400 text-black p-3 rounded-full">
             {loading ? <Zap size={20} className="animate-spin" /> : <Send size={20} />}
