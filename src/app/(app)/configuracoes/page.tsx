@@ -1,31 +1,27 @@
 "use client";
 
-import React, { useEffect, useState, useMemo, useRef } from "react"; // Adicionado useRef
+import React, { useEffect, useState, useMemo, useRef } from "react";
 import { supabase } from "@/lib/supabase";
 import { 
   Zap, ShieldCheck, Target, Activity, Flame, Gauge, BrainCircuit, 
   Loader2, AlertTriangle, Trophy, Crown, Shield, Hourglass,
-  BatteryCharging, Download // Adicionados ícones novos
+  BatteryCharging, Download 
 } from "lucide-react";
 import { useRouter } from "next/navigation";
-import html2canvas from "html2canvas"; // Importação para o PDF
-import jsPDF from "jspdf"; // Importação para o PDF
+import html2canvas from "html2canvas";
+import jsPDF from "jspdf";
 
 export default function VereditoPage() {
   const router = useRouter();
-  const printRef = useRef<HTMLDivElement>(null); // Referência para capturar o PDF
+  const printRef = useRef<HTMLDivElement>(null);
   const [loading, setLoading] = useState(true);
-  const [isExporting, setIsExporting] = useState(false); // Estado para o botão de PDF
+  const [isExporting, setIsExporting] = useState(false);
   const [burnData, setBurnData] = useState({ dias: 0, percentual: 0 });
-  
-  // --- NOVA STATE: ALOCAÇÃO DE PODER ---
   const [powerAllocation, setPowerAllocation] = useState({ manutencao: 0, prazer: 0, poder: 0 });
-  
   const [metrics, setMetrics] = useState({
     consistencia: 0, precisao: 0, previsao: 0, disciplina: 0, engajamento: 0, evolucao: 0
   });
 
-  // --- NOVA FUNÇÃO: EXPORTAR PDF ---
   const exportPDF = async () => {
     if (!printRef.current) return;
     setIsExporting(true);
@@ -63,13 +59,14 @@ export default function VereditoPage() {
         const limites = limitesRes.data || [];
         const agora = new Date();
 
+        // --- CÁLCULOS ATUALIZADOS ---
         const saídas = rawData.filter(t => t.type === 'withdrawal');
         const saldoAtual = rawData.reduce((acc, t) => t.type === 'deposit' ? acc + Number(t.amount) : acc - Math.abs(Number(t.amount)), 0);
         
-        // --- LÓGICA DE ALOCAÇÃO DE PODER (ADICIONADA) ---
+        // 1. Alocação de Poder (Refinado com Case Insensitive)
         const totalSaidas = saídas.reduce((acc, t) => acc + Math.abs(Number(t.amount)), 0) || 1;
-        const volPoder = rawData.filter(t => ["Investimentos", "Reserva", "Aportes"].includes(t.category)).reduce((acc, t) => acc + Math.abs(Number(t.amount)), 0);
-        const volPrazer = saídas.filter(t => ["Lazer", "Restaurante", "Shopping", "Viagem", "iFood"].includes(t.category)).reduce((acc, t) => acc + Math.abs(Number(t.amount)), 0);
+        const volPoder = saídas.filter(t => ["investimentos", "reserva", "aportes"].includes(t.category?.toLowerCase())).reduce((acc, t) => acc + Math.abs(Number(t.amount)), 0);
+        const volPrazer = saídas.filter(t => ["lazer", "restaurante", "shopping", "viagem", "ifood"].includes(t.category?.toLowerCase())).reduce((acc, t) => acc + Math.abs(Number(t.amount)), 0);
         const volManutencao = Math.max(0, totalSaidas - volPoder - volPrazer);
 
         setPowerAllocation({
@@ -78,20 +75,21 @@ export default function VereditoPage() {
           poder: Math.round((volPoder / totalSaidas) * 100)
         });
 
-        // --- LÓGICA DE BURN RATE (ORIGINAL MANTIDA) ---
-        const ultimos30Dias = saídas.filter(t => (agora.getTime() - new Date(t.created_at).getTime()) / (1000 * 3600 * 24) <= 30);
-        const gastoDiarioMedio = ultimos30Dias.reduce((acc, t) => acc + Math.abs(Number(t.amount)), 0) / 30;
-        const diasRestantes = gastoDiarioMedio > 0 ? Math.floor(saldoAtual / gastoDiarioMedio) : 0;
-        const percentualMes = Math.min(100, (diasRestantes / 30) * 100);
+        // 2. Autonomia (Corrigido para novos usuários)
+        const dataInicio = rawData.length > 0 ? new Date(rawData[rawData.length - 1].created_at) : agora;
+        const diasEfetivos = Math.min(30, Math.max(1, Math.floor((agora.getTime() - dataInicio.getTime()) / (1000 * 3600 * 24))));
+        const gastoTotal30d = saídas.filter(t => (agora.getTime() - new Date(t.created_at).getTime()) / (1000 * 3600 * 24) <= 30).reduce((acc, t) => acc + Math.abs(Number(t.amount)), 0);
+        const gastoDiarioMedio = gastoTotal30d / diasEfetivos;
+        
+        const diasRestantes = saldoAtual > 0 && gastoDiarioMedio > 0 ? Math.floor(saldoAtual / gastoDiarioMedio) : 0;
+        setBurnData({ dias: Math.max(0, diasRestantes), percentual: Math.min(100, (diasRestantes / 30) * 100) });
 
-        setBurnData({ dias: Math.max(0, diasRestantes), percentual: Math.max(0, percentualMes) });
-
-        // --- LÓGICA DE MÉTRICAS (ORIGINAL MANTIDA) ---
+        // 3. Métricas do Radar (Lógica de Guerrilha)
         const dias7D = new Set(rawData.filter(t => (agora.getTime() - new Date(t.created_at).getTime()) / (1000 * 3600 * 24) <= 7).map(t => new Date(t.created_at).toDateString())).size;
+        
         const consistencia = (dias7D / 7) * 100;
-        const precisao = (rawData.filter(t => t.category && !["Outros", "Outra", "Nenhum"].includes(t.category)).length / (rawData.length || 1)) * 100;
-        const categoriasGastas = new Set(saídas.map(t => t.category)).size;
-        const previsao = categoriasGastas > 0 ? (limites.length / categoriasGastas) * 100 : 0;
+        const precisao = (rawData.filter(t => t.category && !["Outros", "Nenhum"].includes(t.category)).length / (rawData.length || 1)) * 100;
+        const previsao = (limites.length / 8) * 100; // Baseado em 8 categorias ideais
 
         let desvioTotal = 0;
         limites.forEach(lim => {
@@ -99,14 +97,9 @@ export default function VereditoPage() {
           if (gasto > lim.limit_amount) desvioTotal += (gasto - lim.limit_amount) / lim.limit_amount;
         });
         const disciplina = Math.max(0, 100 - (desvioTotal * 50));
-
-        const volInvestido = rawData.filter(t => ["Investimentos", "Reserva", "Aportes"].includes(t.category)).reduce((acc, t) => acc + Math.abs(Number(t.amount)), 0);
-        const receita = rawData.filter(t => t.type !== 'withdrawal').reduce((acc, t) => acc + Number(t.amount), 0);
-        const evolucao = receita > 0 ? (volInvestido / (receita * 0.25)) * 100 : 0;
-
-        const dataInicio = new Date(rawData[rawData.length - 1]?.created_at || agora);
-        const diasUso = Math.max(1, Math.floor((agora.getTime() - dataInicio.getTime()) / (1000 * 3600 * 24)));
-        const engajamento = (rawData.length / (diasUso * 3)) * 100;
+        
+        const evolucao = (volPoder / (totalSaidas * 0.25 || 1)) * 100; // Meta de 25% de aporte
+        const engajamento = (rawData.length / (diasEfetivos * 2)) * 100; // Meta de 2 registros/dia
 
         setMetrics({
           consistencia: Math.min(100, Math.round(consistencia)),
@@ -124,9 +117,9 @@ export default function VereditoPage() {
   const avgScore = (Object.values(metrics).reduce((a, b) => a + b, 0)) / 6;
   const status = useMemo(() => {
     const alt = new Date().getDate() % 2 === 0;
-    if (avgScore >= 95) return { label: "IMPLACÁVEL", color: "text-cyan-400", bg: "bg-cyan-500/10", desc: alt ? "Sincronia total. Seu capital está blindado por execução impecável." : "Eficiência máxima. Não existem pontos cegos no seu fluxo." };
-    if (avgScore >= 80) return { label: "DOMINANTE", color: "text-green-400", bg: "bg-green-500/10", desc: alt ? "Controle superior. Você dita as regras do seu dinheiro." : "Estratégia sólida sobrepondo as variações." };
-    if (avgScore >= 60) return { label: "ESTÁVEL", color: "text-yellow-400", bg: "bg-yellow-500/10", desc: "Zona de segurança. O sistema está equilibrado." };
+    if (avgScore >= 85) return { label: "IMPLACÁVEL", color: "text-cyan-400", bg: "bg-cyan-500/10", desc: alt ? "Sincronia total. Seu capital está blindado por execução impecável." : "Eficiência máxima. Não existem pontos cegos no seu fluxo." };
+    if (avgScore >= 70) return { label: "DOMINANTE", color: "text-green-400", bg: "bg-green-500/10", desc: alt ? "Controle superior. Você dita as regras do seu dinheiro." : "Estratégia sólida sobrepondo as variações." };
+    if (avgScore >= 50) return { label: "ESTÁVEL", color: "text-yellow-400", bg: "bg-yellow-500/10", desc: "Zona de segurança. O sistema está equilibrado." };
     return { label: "CRÍTICO", color: "text-red-500", bg: "bg-red-500/10", desc: "Risco detectado. A ausência de regras está destruindo sua previsibilidade." };
   }, [avgScore]);
 
@@ -140,7 +133,7 @@ export default function VereditoPage() {
       evolucao: { label: "ESTAGNAÇÃO", msg: "Aportes abaixo da meta. Seu patrimônio está parado." },
       engajamento: { label: "BAIXA VIGILÂNCIA", msg: "Interação insuficiente. O sistema precisa de atenção para te guiar." }
     };
-    return tips[lowest[0]];
+    return tips[lowest[0]] || { label: "ANALISANDO", msg: "Aguardando mais dados para diagnóstico." };
   }, [metrics]);
 
   const renderRadar = () => {
@@ -174,7 +167,6 @@ export default function VereditoPage() {
   return (
     <div className="min-h-screen bg-black text-white p-6 pb-32 font-sans uppercase tracking-tighter">
       
-      {/* BOTÃO EXPORTAR PDF (ADICIONADO) */}
       <div className="max-w-xl mx-auto flex justify-end mb-4 sticky top-4 z-50">
         <button 
           onClick={exportPDF} 
@@ -196,7 +188,6 @@ export default function VereditoPage() {
           <Zap className="text-yellow-400 fill-yellow-400" size={24} />
         </header>
 
-        {/* 1. SELOS DE PERFORMANCE (ORIGINAL) */}
         <section className="bg-[#050505] p-6 rounded-[2.5rem] border border-white/5">
           <div className="flex items-center gap-2 mb-5 px-1">
             <Trophy className="text-zinc-600" size={12} />
@@ -217,7 +208,6 @@ export default function VereditoPage() {
           </div>
         </section>
 
-        {/* 2. STATUS PRINCIPAL (ORIGINAL) */}
         <section className={`p-8 rounded-[2.5rem] border border-white/5 ${status.bg} backdrop-blur-sm relative overflow-hidden`}>
           <div className="relative z-10">
             <div className="flex items-center gap-3 mb-2">
@@ -230,7 +220,6 @@ export default function VereditoPage() {
           <BrainCircuit className="absolute -right-4 -bottom-4 text-white/5" size={140} />
         </section>
 
-        {/* --- NOVO CARD: ALOCAÇÃO DE PODER --- */}
         <section className="bg-[#050505] p-8 rounded-[3rem] border border-white/5 relative overflow-hidden">
           <div className="flex items-center gap-2 mb-6">
             <BatteryCharging className="text-zinc-500" size={14} />
@@ -253,7 +242,6 @@ export default function VereditoPage() {
           </div>
         </section>
 
-        {/* 3. AUTONOMIA FINANCEIRA (ORIGINAL) */}
         <section className="bg-[#050505] p-8 rounded-[3rem] border border-white/5 relative overflow-hidden group">
           <div className="flex justify-between items-end mb-6">
             <div>
@@ -276,7 +264,6 @@ export default function VereditoPage() {
           </div>
         </section>
 
-        {/* 4. RADAR E MÉTRICAS (ORIGINAL) */}
         <section className="bg-[#050505] p-8 rounded-[3rem] border border-white/5">
           <div className="flex justify-center mb-10 overflow-visible">{renderRadar()}</div>
           <div className="grid grid-cols-3 gap-y-8 gap-x-4 border-t border-white/5 pt-8">
@@ -289,7 +276,6 @@ export default function VereditoPage() {
           </div>
         </section>
 
-        {/* 5. VULNERABILIDADE (ORIGINAL) */}
         <section className="bg-red-950/20 border border-red-500/20 p-6 rounded-[2.5rem] flex items-center gap-5">
            <div className="bg-red-500/20 p-4 rounded-2xl"><AlertTriangle className="text-red-500" size={24} /></div>
            <div>
