@@ -3,45 +3,20 @@
 import React, { useEffect, useState, useMemo, useRef } from "react";
 import { supabase } from "@/lib/supabase";
 import { 
-  Zap, ShieldCheck, Target, Activity, Flame, Gauge, BrainCircuit, 
+  Zap, ShieldCheck, BrainCircuit, 
   Loader2, AlertTriangle, Trophy, Crown, Shield, Hourglass,
-  BatteryCharging, Download 
+  BatteryCharging
 } from "lucide-react";
 import { useRouter } from "next/navigation";
-import html2canvas from "html2canvas";
-import jsPDF from "jspdf";
 
 export default function VereditoPage() {
   const router = useRouter();
-  const printRef = useRef<HTMLDivElement>(null);
   const [loading, setLoading] = useState(true);
-  const [isExporting, setIsExporting] = useState(false);
   const [burnData, setBurnData] = useState({ dias: 0, percentual: 0 });
   const [powerAllocation, setPowerAllocation] = useState({ manutencao: 0, prazer: 0, poder: 0 });
   const [metrics, setMetrics] = useState({
     consistencia: 0, precisao: 0, previsao: 0, disciplina: 0, engajamento: 0, evolucao: 0
   });
-
-  const exportPDF = async () => {
-    if (!printRef.current) return;
-    setIsExporting(true);
-    try {
-      const canvas = await html2canvas(printRef.current, {
-        backgroundColor: "#000000",
-        scale: 2,
-      });
-      const imgData = canvas.toDataURL("image/png");
-      const pdf = new jsPDF("p", "mm", "a4");
-      const pdfWidth = pdf.internal.pageSize.getWidth();
-      const pdfHeight = (canvas.height * pdfWidth) / canvas.width;
-      pdf.addImage(imgData, "PNG", 0, 0, pdfWidth, pdfHeight);
-      pdf.save(`VEREDITO-${new Date().toLocaleDateString()}.pdf`);
-    } catch (e) {
-      console.error(e);
-    } finally {
-      setIsExporting(false);
-    }
-  };
 
   useEffect(() => {
     async function fetchVereditoData() {
@@ -59,14 +34,12 @@ export default function VereditoPage() {
         const limites = limitesRes.data || [];
         const agora = new Date();
 
-        // --- CÁLCULOS ATUALIZADOS ---
         const saídas = rawData.filter(t => t.type === 'withdrawal');
         const saldoAtual = rawData.reduce((acc, t) => t.type === 'deposit' ? acc + Number(t.amount) : acc - Math.abs(Number(t.amount)), 0);
         
-        // 1. Alocação de Poder (Refinado com Case Insensitive)
         const totalSaidas = saídas.reduce((acc, t) => acc + Math.abs(Number(t.amount)), 0) || 1;
-        const volPoder = saídas.filter(t => ["investimentos", "reserva", "aportes"].includes(t.category?.toLowerCase())).reduce((acc, t) => acc + Math.abs(Number(t.amount)), 0);
-        const volPrazer = saídas.filter(t => ["lazer", "restaurante", "shopping", "viagem", "ifood"].includes(t.category?.toLowerCase())).reduce((acc, t) => acc + Math.abs(Number(t.amount)), 0);
+        const volPoder = rawData.filter(t => ["Investimentos", "Reserva", "Aportes"].includes(t.category)).reduce((acc, t) => acc + Math.abs(Number(t.amount)), 0);
+        const volPrazer = saídas.filter(t => ["Lazer", "Restaurante", "Shopping", "Viagem", "iFood"].includes(t.category)).reduce((acc, t) => acc + Math.abs(Number(t.amount)), 0);
         const volManutencao = Math.max(0, totalSaidas - volPoder - volPrazer);
 
         setPowerAllocation({
@@ -75,21 +48,18 @@ export default function VereditoPage() {
           poder: Math.round((volPoder / totalSaidas) * 100)
         });
 
-        // 2. Autonomia (Corrigido para novos usuários)
-        const dataInicio = rawData.length > 0 ? new Date(rawData[rawData.length - 1].created_at) : agora;
-        const diasEfetivos = Math.min(30, Math.max(1, Math.floor((agora.getTime() - dataInicio.getTime()) / (1000 * 3600 * 24))));
-        const gastoTotal30d = saídas.filter(t => (agora.getTime() - new Date(t.created_at).getTime()) / (1000 * 3600 * 24) <= 30).reduce((acc, t) => acc + Math.abs(Number(t.amount)), 0);
-        const gastoDiarioMedio = gastoTotal30d / diasEfetivos;
-        
-        const diasRestantes = saldoAtual > 0 && gastoDiarioMedio > 0 ? Math.floor(saldoAtual / gastoDiarioMedio) : 0;
-        setBurnData({ dias: Math.max(0, diasRestantes), percentual: Math.min(100, (diasRestantes / 30) * 100) });
+        const ultimos30Dias = saídas.filter(t => (agora.getTime() - new Date(t.created_at).getTime()) / (1000 * 3600 * 24) <= 30);
+        const gastoDiarioMedio = ultimos30Dias.reduce((acc, t) => acc + Math.abs(Number(t.amount)), 0) / 30;
+        const diasRestantes = gastoDiarioMedio > 0 ? Math.floor(saldoAtual / gastoDiarioMedio) : 0;
+        const percentualMes = Math.min(100, (diasRestantes / 30) * 100);
 
-        // 3. Métricas do Radar (Lógica de Guerrilha)
+        setBurnData({ dias: Math.max(0, diasRestantes), percentual: Math.max(0, percentualMes) });
+
         const dias7D = new Set(rawData.filter(t => (agora.getTime() - new Date(t.created_at).getTime()) / (1000 * 3600 * 24) <= 7).map(t => new Date(t.created_at).toDateString())).size;
-        
         const consistencia = (dias7D / 7) * 100;
-        const precisao = (rawData.filter(t => t.category && !["Outros", "Nenhum"].includes(t.category)).length / (rawData.length || 1)) * 100;
-        const previsao = (limites.length / 8) * 100; // Baseado em 8 categorias ideais
+        const precisao = (rawData.filter(t => t.category && !["Outros", "Outra", "Nenhum"].includes(t.category)).length / (rawData.length || 1)) * 100;
+        const categoriasGastas = new Set(saídas.map(t => t.category)).size;
+        const previsao = categoriasGastas > 0 ? (limites.length / categoriasGastas) * 100 : 0;
 
         let desvioTotal = 0;
         limites.forEach(lim => {
@@ -97,9 +67,14 @@ export default function VereditoPage() {
           if (gasto > lim.limit_amount) desvioTotal += (gasto - lim.limit_amount) / lim.limit_amount;
         });
         const disciplina = Math.max(0, 100 - (desvioTotal * 50));
-        
-        const evolucao = (volPoder / (totalSaidas * 0.25 || 1)) * 100; // Meta de 25% de aporte
-        const engajamento = (rawData.length / (diasEfetivos * 2)) * 100; // Meta de 2 registros/dia
+
+        const volInvestido = rawData.filter(t => ["Investimentos", "Reserva", "Aportes"].includes(t.category)).reduce((acc, t) => acc + Math.abs(Number(t.amount)), 0);
+        const receita = rawData.filter(t => t.type !== 'withdrawal').reduce((acc, t) => acc + Number(t.amount), 0);
+        const evolucao = receita > 0 ? (volInvestido / (receita * 0.25)) * 100 : 0;
+
+        const dataInicio = new Date(rawData[rawData.length - 1]?.created_at || agora);
+        const diasUso = Math.max(1, Math.floor((agora.getTime() - dataInicio.getTime()) / (1000 * 3600 * 24)));
+        const engajamento = (rawData.length / (diasUso * 3)) * 100;
 
         setMetrics({
           consistencia: Math.min(100, Math.round(consistencia)),
@@ -117,9 +92,9 @@ export default function VereditoPage() {
   const avgScore = (Object.values(metrics).reduce((a, b) => a + b, 0)) / 6;
   const status = useMemo(() => {
     const alt = new Date().getDate() % 2 === 0;
-    if (avgScore >= 85) return { label: "IMPLACÁVEL", color: "text-cyan-400", bg: "bg-cyan-500/10", desc: alt ? "Sincronia total. Seu capital está blindado por execução impecável." : "Eficiência máxima. Não existem pontos cegos no seu fluxo." };
-    if (avgScore >= 70) return { label: "DOMINANTE", color: "text-green-400", bg: "bg-green-500/10", desc: alt ? "Controle superior. Você dita as regras do seu dinheiro." : "Estratégia sólida sobrepondo as variações." };
-    if (avgScore >= 50) return { label: "ESTÁVEL", color: "text-yellow-400", bg: "bg-yellow-500/10", desc: "Zona de segurança. O sistema está equilibrado." };
+    if (avgScore >= 95) return { label: "IMPLACÁVEL", color: "text-cyan-400", bg: "bg-cyan-500/10", desc: alt ? "Sincronia total. Seu capital está blindado por execução impecável." : "Eficiência máxima. Não existem pontos cegos no seu fluxo." };
+    if (avgScore >= 80) return { label: "DOMINANTE", color: "text-green-400", bg: "bg-green-500/10", desc: alt ? "Controle superior. Você dita as regras do seu dinheiro." : "Estratégia sólida sobrepondo as variações." };
+    if (avgScore >= 60) return { label: "ESTÁVEL", color: "text-yellow-400", bg: "bg-yellow-500/10", desc: "Zona de segurança. O sistema está equilibrado." };
     return { label: "CRÍTICO", color: "text-red-500", bg: "bg-red-500/10", desc: "Risco detectado. A ausência de regras está destruindo sua previsibilidade." };
   }, [avgScore]);
 
@@ -133,11 +108,11 @@ export default function VereditoPage() {
       evolucao: { label: "ESTAGNAÇÃO", msg: "Aportes abaixo da meta. Seu patrimônio está parado." },
       engajamento: { label: "BAIXA VIGILÂNCIA", msg: "Interação insuficiente. O sistema precisa de atenção para te guiar." }
     };
-    return tips[lowest[0]] || { label: "ANALISANDO", msg: "Aguardando mais dados para diagnóstico." };
+    return tips[lowest[0]] || { label: "ANÁLISE", msg: "Processando métricas..." };
   }, [metrics]);
 
   const renderRadar = () => {
-    const labels = ["CONSISTÊNCIA", "PRECISÃO", "PREVISÃO", "DISCIPLINA", "EVOLUÇÃO", "ENGAJAMENTO"];
+    const labels = ["CONS", "PREC", "PREV", "DISC", "EVOL", "ENGA"];
     const pts = [metrics.consistencia, metrics.precisao, metrics.previsao, metrics.disciplina, metrics.evolucao, metrics.engajamento];
     const cx = 100, cy = 100, radius = 70;
     const points = pts.map((val, i) => {
@@ -146,141 +121,121 @@ export default function VereditoPage() {
     }).join(" ");
 
     return (
-      <svg viewBox="0 0 200 200" className="w-full h-80 overflow-visible drop-shadow-[0_0_15px_rgba(250,204,21,0.2)]">
+      <svg viewBox="0 0 200 200" className="w-full h-64 overflow-visible">
         {[0.2, 0.4, 0.6, 0.8, 1].map((p) => (
           <polygon key={p} points={Array.from({length: 6}).map((_, i) => {
             const a = (Math.PI * 2 * i) / 6 - Math.PI / 2;
             return `${cx + p * radius * Math.cos(a)},${cy + p * radius * Math.sin(a)}`;
           }).join(" ")} fill="none" stroke="white" strokeWidth="0.5" opacity="0.1" />
         ))}
-        <polygon points={points} fill="rgba(250, 204, 21, 0.3)" stroke="#facc15" strokeWidth="2.5" />
+        <polygon points={points} fill="rgba(250, 204, 21, 0.2)" stroke="#facc15" strokeWidth="2" />
         {labels.map((label, i) => {
           const a = (Math.PI * 2 * i) / 6 - Math.PI / 2;
-          return <text key={i} x={cx + (radius + 20) * Math.cos(a)} y={cy + (radius + 20) * Math.sin(a)} textAnchor="middle" fontSize="7" fontWeight="bold" fill="#71717a" className="uppercase tracking-widest">{label}</text>;
+          return <text key={i} x={cx + (radius + 15) * Math.cos(a)} y={cy + (radius + 15) * Math.sin(a)} textAnchor="middle" fontSize="8" fontWeight="black" fill="#52525b" className="tracking-tighter">{label}</text>;
         })}
       </svg>
     );
   };
 
-  if (loading) return <div className="min-h-screen bg-black flex items-center justify-center"><Loader2 className="text-yellow-400 animate-spin" size={40} /></div>;
+  if (loading) return <div className="min-h-screen bg-black flex items-center justify-center"><Loader2 className="text-yellow-400 animate-spin" size={32} /></div>;
 
   return (
-    <div className="min-h-screen bg-black text-white p-6 pb-32 font-sans uppercase tracking-tighter">
-      
-      <div className="max-w-xl mx-auto flex justify-end mb-4 sticky top-4 z-50">
-        <button 
-          onClick={exportPDF} 
-          disabled={isExporting}
-          className="bg-white text-black px-4 py-2 rounded-full flex items-center gap-2 text-[10px] font-black hover:bg-yellow-500 transition-all disabled:opacity-50"
-        >
-          {isExporting ? <Loader2 size={12} className="animate-spin" /> : <Download size={12} />}
-          {isExporting ? "GERANDO..." : "EXPORTAR SENTENÇA"}
-        </button>
-      </div>
-
-      <div ref={printRef} className="max-w-xl mx-auto space-y-10 pt-4 bg-black">
+    <div className="bg-black text-white font-sans uppercase tracking-tighter">
+      <div className="space-y-6">
         
-        <header className="flex justify-between items-center border-b border-white/10 pb-6">
+        {/* HEADER COMPACTO */}
+        <header className="flex justify-between items-end border-b border-white/10 pb-4">
           <div>
-            <h1 className="text-6xl font-black italic text-white leading-none">VEREDITO</h1>
-            <p className="text-[10px] text-zinc-500 font-bold tracking-[0.4em] mt-2">SENTENÇA DO CAPITAL</p>
+            <h1 className="text-5xl font-black italic leading-none">VEREDITO</h1>
+            <p className="text-[9px] text-zinc-500 font-bold tracking-[0.3em] mt-1">SENTENÇA DO CAPITAL</p>
           </div>
-          <Zap className="text-yellow-400 fill-yellow-400" size={24} />
+          <Zap className="text-yellow-400 fill-yellow-400" size={20} />
         </header>
 
-        <section className="bg-[#050505] p-6 rounded-[2.5rem] border border-white/5">
-          <div className="flex items-center gap-2 mb-5 px-1">
-            <Trophy className="text-zinc-600" size={12} />
-            <span className="text-[9px] font-black text-zinc-600 tracking-[0.2em]">CONQUISTAS DE PERFORMANCE</span>
-          </div>
+        {/* 1. SELOS - MAIS COMPACTO */}
+        <section className="bg-zinc-950 p-4 rounded-3xl border border-white/5">
           <div className="grid grid-cols-4 gap-2">
             {[
-              { id: 'mur', name: "MURALHA", icon: <Shield size={18}/>, active: metrics.disciplina > 85, color: "text-blue-500" },
-              { id: 'sen', name: "SENTINELA", icon: <ShieldCheck size={18}/>, active: metrics.consistencia > 90, color: "text-cyan-500" },
-              { id: 'sob', name: "SOBERANO", icon: <Crown size={18}/>, active: avgScore > 90, color: "text-orange-500" },
-              { id: 'imp', name: "IMPULSO", icon: <Flame size={18}/>, active: metrics.engajamento > 80, color: "text-red-500" }
+              { id: 'mur', name: "MURALHA", icon: <Shield size={16}/>, active: metrics.disciplina > 85, color: "text-blue-500" },
+              { id: 'sen', name: "SENTINELA", icon: <ShieldCheck size={16}/>, active: metrics.consistencia > 90, color: "text-cyan-500" },
+              { id: 'sob', name: "SOBERANO", icon: <Crown size={16}/>, active: avgScore > 90, color: "text-orange-500" },
+              { id: 'imp', name: "IMPULSO", icon: <Flame size={16}/>, active: metrics.engajamento > 80, color: "text-red-500" }
             ].map(s => (
-              <div key={s.id} className={`flex flex-col items-center justify-center p-3 rounded-2xl border transition-all duration-500 ${s.active ? 'border-white/10 bg-white/5 opacity-100' : 'border-transparent opacity-10'}`}>
+              <div key={s.id} className={`flex flex-col items-center justify-center py-3 rounded-xl border transition-all ${s.active ? 'border-white/10 bg-white/5' : 'border-transparent opacity-20'}`}>
                 <div className={s.active ? s.color : 'text-zinc-800'}>{s.icon}</div>
-                <span className="text-[8px] font-black mt-2 tracking-wider">{s.name}</span>
+                <span className="text-[7px] font-black mt-1 tracking-widest">{s.name}</span>
               </div>
             ))}
           </div>
         </section>
 
-        <section className={`p-8 rounded-[2.5rem] border border-white/5 ${status.bg} backdrop-blur-sm relative overflow-hidden`}>
+        {/* 2. STATUS PRINCIPAL */}
+        <section className={`p-6 rounded-3xl border border-white/5 ${status.bg} relative overflow-hidden`}>
           <div className="relative z-10">
-            <div className="flex items-center gap-3 mb-2">
-              <ShieldCheck className={status.color} size={20} />
-              <span className="text-[10px] font-bold text-zinc-500 tracking-[0.3em]">DIAGNÓSTICO ATIVO</span>
-            </div>
-            <h2 className={`text-6xl font-black italic mb-4 ${status.color}`}>{status.label}</h2>
-            <p className="text-[11px] text-zinc-400 font-medium normal-case leading-relaxed">{status.desc}</p>
+            <h2 className={`text-5xl font-black italic mb-2 ${status.color}`}>{status.label}</h2>
+            <p className="text-[10px] text-zinc-400 font-medium normal-case leading-tight">{status.desc}</p>
           </div>
-          <BrainCircuit className="absolute -right-4 -bottom-4 text-white/5" size={140} />
+          <BrainCircuit className="absolute -right-6 -bottom-6 text-white/5" size={100} />
         </section>
 
-        <section className="bg-[#050505] p-8 rounded-[3rem] border border-white/5 relative overflow-hidden">
-          <div className="flex items-center gap-2 mb-6">
-            <BatteryCharging className="text-zinc-500" size={14} />
-            <span className="text-[9px] font-black text-zinc-500 tracking-widest uppercase">Distribuição de Poder</span>
+        {/* 3. ALOCAÇÃO DE PODER */}
+        <section className="bg-zinc-950 p-6 rounded-3xl border border-white/5">
+          <div className="flex items-center gap-2 mb-4">
+            <BatteryCharging className="text-zinc-500" size={12} />
+            <span className="text-[8px] font-black text-zinc-500 tracking-widest uppercase">Distribuição de Poder</span>
           </div>
-          <div className="flex items-end justify-between h-32 gap-3 mb-4">
+          <div className="flex items-end justify-between h-24 gap-3">
             {[
-              { label: "MANUTENÇÃO", val: powerAllocation.manutencao, color: "bg-zinc-800" },
-              { label: "PRAZER", val: powerAllocation.prazer, color: "bg-orange-500/40" },
+              { label: "FIXO", val: powerAllocation.manutencao, color: "bg-zinc-800" },
+              { label: "LAZER", val: powerAllocation.prazer, color: "bg-orange-500/40" },
               { label: "PODER", val: powerAllocation.poder, color: "bg-yellow-500" }
             ].map(b => (
-              <div key={b.label} className="flex-1 flex flex-col items-center gap-3">
-                <div className="w-full bg-white/5 rounded-xl relative overflow-hidden flex flex-col justify-end" style={{ height: '100px' }}>
+              <div key={b.label} className="flex-1 flex flex-col items-center gap-2">
+                <div className="w-full bg-white/5 rounded-lg overflow-hidden flex flex-col justify-end" style={{ height: '70px' }}>
                   <div className={`w-full ${b.color} transition-all duration-1000`} style={{ height: `${b.val}%` }} />
                 </div>
-                <p className="text-[10px] font-black italic leading-none">{b.val}%</p>
-                <p className="text-[6px] text-zinc-500 font-bold uppercase tracking-tighter">{b.label}</p>
+                <p className="text-[9px] font-black italic leading-none">{b.val}%</p>
+                <p className="text-[6px] text-zinc-500 font-bold uppercase">{b.label}</p>
               </div>
             ))}
           </div>
         </section>
 
-        <section className="bg-[#050505] p-8 rounded-[3rem] border border-white/5 relative overflow-hidden group">
-          <div className="flex justify-between items-end mb-6">
+        {/* 4. AUTONOMIA */}
+        <section className="bg-zinc-950 p-6 rounded-3xl border border-white/5">
+          <div className="flex justify-between items-end mb-4">
             <div>
-              <div className="flex items-center gap-2 mb-1">
-                <Hourglass className="text-yellow-500" size={14} />
-                <span className="text-[9px] font-black text-zinc-500 tracking-widest">AUTONOMIA ESTIMADA</span>
-              </div>
-              <h3 className="text-3xl font-black italic">
-                {burnData.dias} <span className="text-zinc-500 text-sm">DIAS</span>
+              <span className="text-[8px] font-black text-zinc-500 tracking-widest">AUTONOMIA</span>
+              <h3 className="text-3xl font-black italic leading-none mt-1">
+                {burnData.dias} <span className="text-zinc-500 text-xs tracking-tighter">DIAS</span>
               </h3>
             </div>
-            <div className="text-right">
-              <p className="text-[11px] text-zinc-400 normal-case leading-tight max-w-[180px]">
-                No ritmo <span className={status.color + " font-bold"}>{status.label}</span>, seu capital sustenta seu estilo de vida.
-              </p>
-            </div>
+            <Hourglass className="text-yellow-500 opacity-30" size={20} />
           </div>
-          <div className="h-3 bg-white/5 rounded-full overflow-hidden border border-white/5">
-            <div className={`h-full transition-all duration-1000 ease-out rounded-full ${burnData.dias > 15 ? 'bg-yellow-500' : 'bg-red-500'}`} style={{ width: `${burnData.percentual}%` }} />
+          <div className="h-1.5 bg-white/5 rounded-full overflow-hidden">
+            <div className={`h-full transition-all duration-1000 ${burnData.dias > 15 ? 'bg-yellow-500' : 'bg-red-500'}`} style={{ width: `${burnData.percentual}%` }} />
           </div>
         </section>
 
-        <section className="bg-[#050505] p-8 rounded-[3rem] border border-white/5">
-          <div className="flex justify-center mb-10 overflow-visible">{renderRadar()}</div>
-          <div className="grid grid-cols-3 gap-y-8 gap-x-4 border-t border-white/5 pt-8">
+        {/* 5. RADAR */}
+        <section className="bg-zinc-950 p-6 rounded-3xl border border-white/5">
+           <div className="flex justify-center">{renderRadar()}</div>
+           <div className="grid grid-cols-3 gap-4 border-t border-white/5 pt-6 mt-2">
             {Object.entries(metrics).map(([key, val]) => (
               <div key={key}>
-                <p className="text-[7px] text-zinc-500 font-black mb-1">{key.toUpperCase()}</p>
-                <p className="text-xl font-black italic">{val}<span className="text-yellow-500 text-[10px]">%</span></p>
+                <p className="text-[6px] text-zinc-500 font-black mb-0.5">{key.toUpperCase()}</p>
+                <p className="text-lg font-black italic leading-none">{val}<span className="text-yellow-500 text-[8px]">%</span></p>
               </div>
             ))}
           </div>
         </section>
 
-        <section className="bg-red-950/20 border border-red-500/20 p-6 rounded-[2.5rem] flex items-center gap-5">
-           <div className="bg-red-500/20 p-4 rounded-2xl"><AlertTriangle className="text-red-500" size={24} /></div>
+        {/* 6. VULNERABILIDADE */}
+        <section className="bg-red-950/10 border border-red-500/20 p-5 rounded-3xl flex items-center gap-4">
+           <AlertTriangle className="text-red-500 shrink-0" size={20} />
            <div>
-              <p className="text-[10px] font-black text-red-500 tracking-[0.2em] mb-1">VULNERABILIDADE: {vulnerability.label}</p>
-              <p className="text-[11px] text-zinc-400 normal-case leading-snug">{vulnerability.msg}</p>
+              <p className="text-[9px] font-black text-red-500 tracking-widest mb-0.5">{vulnerability.label}</p>
+              <p className="text-[10px] text-zinc-400 normal-case leading-tight">{vulnerability.msg}</p>
            </div>
         </section>
 
