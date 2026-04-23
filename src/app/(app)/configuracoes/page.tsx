@@ -14,6 +14,7 @@ export default function VereditoPage() {
   const [loading, setLoading] = useState(true);
   const [burnData, setBurnData] = useState({ dias: 0, percentual: 0 });
   const [powerAllocation, setPowerAllocation] = useState({ manutencao: 0, prazer: 0, poder: 0 });
+  const [financialHealth, setFinancialHealth] = useState(0); // Score de Saúde (70%)
   const [metrics, setMetrics] = useState({
     consistencia: 0, precisao: 0, previsao: 0, disciplina: 0, engajamento: 0, evolucao: 0
   });
@@ -34,27 +35,41 @@ export default function VereditoPage() {
         const limites = limitesRes.data || [];
         const agora = new Date();
 
+        // 1. DADOS FINANCEIROS BRUTOS
         const saídas = rawData.filter(t => t.type === 'withdrawal');
+        const entradas = rawData.filter(t => t.type === 'deposit');
         const saldoAtual = rawData.reduce((acc, t) => t.type === 'deposit' ? acc + Number(t.amount) : acc - Math.abs(Number(t.amount)), 0);
         
-        const totalSaidas = saídas.reduce((acc, t) => acc + Math.abs(Number(t.amount)), 0) || 1;
+        const totalSaidas = saídas.reduce((acc, t) => acc + Math.abs(Number(t.amount)), 0) || 0;
+        const totalEntradas = entradas.reduce((acc, t) => acc + Number(t.amount), 0) || 0;
+
+        // 2. ALOCAÇÃO DE PODER
         const volPoder = rawData.filter(t => ["Investimentos", "Reserva", "Aportes"].includes(t.category)).reduce((acc, t) => acc + Math.abs(Number(t.amount)), 0);
         const volPrazer = saídas.filter(t => ["Lazer", "Restaurante", "Shopping", "Viagem", "iFood"].includes(t.category)).reduce((acc, t) => acc + Math.abs(Number(t.amount)), 0);
+        const divisorSaidas = totalSaidas || 1;
         const volManutencao = Math.max(0, totalSaidas - volPoder - volPrazer);
 
         setPowerAllocation({
-          manutencao: Math.round((volManutencao / totalSaidas) * 100),
-          prazer: Math.round((volPrazer / totalSaidas) * 100),
-          poder: Math.round((volPoder / totalSaidas) * 100)
+          manutencao: Math.round((volManutencao / divisorSaidas) * 100),
+          prazer: Math.round((volPrazer / divisorSaidas) * 100),
+          poder: Math.round((volPoder / divisorSaidas) * 100)
         });
 
+        // 3. AUTONOMIA (BURN RATE)
         const ultimos30Dias = saídas.filter(t => (agora.getTime() - new Date(t.created_at).getTime()) / (1000 * 3600 * 24) <= 30);
         const gastoDiarioMedio = ultimos30Dias.reduce((acc, t) => acc + Math.abs(Number(t.amount)), 0) / 30;
-        const diasRestantes = gastoDiarioMedio > 0 ? Math.floor(saldoAtual / gastoDiarioMedio) : 0;
-        const percentualMes = Math.min(100, (diasRestantes / 30) * 100);
+        // Se gasto é 0, autonomia é alta (999 dias para lógica de cálculo)
+        const diasRestantes = gastoDiarioMedio > 0 ? Math.floor(saldoAtual / gastoDiarioMedio) : (saldoAtual > 0 ? 999 : 0);
+        const percentualAutonomia = Math.min(100, (diasRestantes / 180) * 100); 
+        setBurnData({ dias: diasRestantes, percentual: percentualAutonomia });
 
-        setBurnData({ dias: Math.max(0, diasRestantes), percentual: Math.max(0, percentualMes) });
+        // 4. CÁLCULO DE SAÚDE FINANCEIRA (PESO 70%)
+        // Baseado em: Retenção (Saving Rate) e Autonomia
+        const taxaRetencao = totalEntradas > 0 ? Math.max(0, (totalEntradas - totalSaidas) / totalEntradas) * 100 : (saldoAtual > 0 ? 100 : 0);
+        const scoreAutonomia = Math.min(100, (diasRestantes / 120) * 100); // 120 dias para nota máxima de autonomia
+        setFinancialHealth((taxaRetencao * 0.6) + (scoreAutonomia * 0.4));
 
+        // 5. MÉTRICAS DE USO (PESO 30%)
         const dias7D = new Set(rawData.filter(t => (agora.getTime() - new Date(t.created_at).getTime()) / (1000 * 3600 * 24) <= 7).map(t => new Date(t.created_at).toDateString())).size;
         const consistencia = (dias7D / 7) * 100;
         const precisao = (rawData.filter(t => t.category && !["Outros", "Outra", "Nenhum"].includes(t.category)).length / (rawData.length || 1)) * 100;
@@ -67,10 +82,7 @@ export default function VereditoPage() {
           if (gasto > lim.limit_amount) desvioTotal += (gasto - lim.limit_amount) / lim.limit_amount;
         });
         const disciplina = Math.max(0, 100 - (desvioTotal * 50));
-
-        const volInvestido = rawData.filter(t => ["Investimentos", "Reserva", "Aportes"].includes(t.category)).reduce((acc, t) => acc + Math.abs(Number(t.amount)), 0);
-        const receita = rawData.filter(t => t.type !== 'withdrawal').reduce((acc, t) => acc + Number(t.amount), 0);
-        const evolucao = receita > 0 ? (volInvestido / (receita * 0.25)) * 100 : 0;
+        const evolucao = taxaRetencao; // Evolução agora é atrelada à retenção real
 
         const dataInicio = new Date(rawData[rawData.length - 1]?.created_at || agora);
         const diasUso = Math.max(1, Math.floor((agora.getTime() - dataInicio.getTime()) / (1000 * 3600 * 24)));
@@ -89,12 +101,17 @@ export default function VereditoPage() {
     fetchVereditoData();
   }, [router]);
 
-  const avgScore = (Object.values(metrics).reduce((a, b) => a + b, 0)) / 6;
+  // CÁLCULO FINAL 70/30
+  const avgScore = useMemo(() => {
+    const hygieneScore = (Object.values(metrics).reduce((a, b) => a + b, 0)) / 6;
+    return (financialHealth * 0.7) + (hygieneScore * 0.3);
+  }, [financialHealth, metrics]);
+
   const status = useMemo(() => {
     const alt = new Date().getDate() % 2 === 0;
-    if (avgScore >= 95) return { label: "IMPLACÁVEL", color: "text-cyan-400", bg: "bg-cyan-500/10", desc: alt ? "Sincronia total. Seu capital está blindado por execução impecável." : "Eficiência máxima. Não existem pontos cegos no seu fluxo." };
-    if (avgScore >= 80) return { label: "DOMINANTE", color: "text-green-400", bg: "bg-green-500/10", desc: alt ? "Controle superior. Você dita as regras do seu dinheiro." : "Estratégia sólida sobrepondo as variações." };
-    if (avgScore >= 60) return { label: "ESTÁVEL", color: "text-yellow-400", bg: "bg-yellow-500/10", desc: "Zona de segurança. O sistema está equilibrado." };
+    if (avgScore >= 90) return { label: "IMPLACÁVEL", color: "text-cyan-400", bg: "bg-cyan-500/10", desc: alt ? "Sincronia total. Seu capital está blindado por execução impecável." : "Eficiência máxima. Não existem pontos cegos no seu fluxo." };
+    if (avgScore >= 70) return { label: "DOMINANTE", color: "text-green-400", bg: "bg-green-500/10", desc: alt ? "Controle superior. Você dita as regras do seu dinheiro." : "Estratégia sólida sobrepondo as variações." };
+    if (avgScore >= 45) return { label: "ESTÁVEL", color: "text-yellow-400", bg: "bg-yellow-500/10", desc: "Zona de segurança. O sistema está equilibrado." };
     return { label: "CRÍTICO", color: "text-red-500", bg: "bg-red-500/10", desc: "Risco detectado. A ausência de regras está destruindo sua previsibilidade." };
   }, [avgScore]);
 
@@ -105,10 +122,10 @@ export default function VereditoPage() {
       precisao: { label: "DADOS CEGOS", msg: "Muitos gastos sem categoria. Você está perdendo o rastro real do seu dinheiro." },
       previsao: { label: "FALTA DE ALVO", msg: "Você está gastando em áreas não planejadas. Defina limites." },
       disciplina: { label: "LIMITE VIOLADO", msg: "Teto de gastos ultrapassado. Recue despesas para evitar o déficit." },
-      evolucao: { label: "ESTAGNAÇÃO", msg: "Aportes abaixo da meta. Seu patrimônio está parado." },
+      evolucao: { label: "ESTAGNAÇÃO", msg: "A retenção de capital está abaixo do potencial. Aumente sua margem." },
       engajamento: { label: "BAIXA VIGILÂNCIA", msg: "Interação insuficiente. O sistema precisa de atenção para te guiar." }
     };
-    return tips[lowest[0]];
+    return tips[lowest[0]] || tips.consistencia;
   }, [metrics]);
 
   const renderRadar = () => {
@@ -141,9 +158,7 @@ export default function VereditoPage() {
 
   return (
     <div className="bg-black text-white font-sans uppercase tracking-tighter">
-      
       <div className="space-y-10 bg-black">
-        
         <header className="flex justify-between items-center border-b border-white/10 pb-6">
           <div>
             <h1 className="text-6xl font-black italic text-white leading-none">VEREDITO</h1>
@@ -152,7 +167,6 @@ export default function VereditoPage() {
           <Zap className="text-yellow-400 fill-yellow-400" size={24} />
         </header>
 
-        {/* 1. SELOS DE PERFORMANCE */}
         <section className="bg-[#050505] p-6 rounded-[2.5rem] border border-white/5">
           <div className="flex items-center gap-2 mb-5 px-1">
             <Trophy className="text-zinc-600" size={12} />
@@ -173,7 +187,6 @@ export default function VereditoPage() {
           </div>
         </section>
 
-        {/* 2. STATUS PRINCIPAL */}
         <section className={`p-8 rounded-[2.5rem] border border-white/5 ${status.bg} backdrop-blur-sm relative overflow-hidden`}>
           <div className="relative z-10">
             <div className="flex items-center gap-3 mb-2">
@@ -186,7 +199,6 @@ export default function VereditoPage() {
           <BrainCircuit className="absolute -right-4 -bottom-4 text-white/5" size={140} />
         </section>
 
-        {/* --- NOVO CARD: ALOCAÇÃO DE PODER --- */}
         <section className="bg-[#050505] p-8 rounded-[3rem] border border-white/5 relative overflow-hidden">
           <div className="flex items-center gap-2 mb-6">
             <BatteryCharging className="text-zinc-500" size={14} />
@@ -209,7 +221,6 @@ export default function VereditoPage() {
           </div>
         </section>
 
-        {/* 3. AUTONOMIA FINANCEIRA */}
         <section className="bg-[#050505] p-8 rounded-[3rem] border border-white/5 relative overflow-hidden group">
           <div className="flex justify-between items-end mb-6">
             <div>
@@ -218,7 +229,7 @@ export default function VereditoPage() {
                 <span className="text-[9px] font-black text-zinc-500 tracking-widest">AUTONOMIA ESTIMADA</span>
               </div>
               <h3 className="text-3xl font-black italic">
-                {burnData.dias} <span className="text-zinc-500 text-sm">DIAS</span>
+                {burnData.dias > 365 ? "+365" : burnData.dias} <span className="text-zinc-500 text-sm">DIAS</span>
               </h3>
             </div>
             <div className="text-right">
@@ -228,11 +239,10 @@ export default function VereditoPage() {
             </div>
           </div>
           <div className="h-3 bg-white/5 rounded-full overflow-hidden border border-white/5">
-            <div className={`h-full transition-all duration-1000 ease-out rounded-full ${burnData.dias > 15 ? 'bg-yellow-500' : 'bg-red-500'}`} style={{ width: `${burnData.percentual}%` }} />
+            <div className={`h-full transition-all duration-1000 ease-out rounded-full ${burnData.dias > 30 ? 'bg-cyan-500' : 'bg-red-500'}`} style={{ width: `${burnData.percentual}%` }} />
           </div>
         </section>
 
-        {/* 4. RADAR E MÉTRICAS */}
         <section className="bg-[#050505] p-8 rounded-[3rem] border border-white/5">
           <div className="flex justify-center mb-10 overflow-visible">{renderRadar()}</div>
           <div className="grid grid-cols-3 gap-y-8 gap-x-4 border-t border-white/5 pt-8">
@@ -245,7 +255,6 @@ export default function VereditoPage() {
           </div>
         </section>
 
-        {/* 5. VULNERABILIDADE */}
         <section className="bg-red-950/20 border border-red-500/20 p-6 rounded-[2.5rem] flex items-center gap-5">
            <div className="bg-red-500/20 p-4 rounded-2xl"><AlertTriangle className="text-red-500" size={24} /></div>
            <div>
@@ -253,7 +262,6 @@ export default function VereditoPage() {
               <p className="text-[11px] text-zinc-400 normal-case leading-snug">{vulnerability.msg}</p>
            </div>
         </section>
-
       </div>
     </div>
   );
