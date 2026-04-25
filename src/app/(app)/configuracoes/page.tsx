@@ -32,21 +32,31 @@ export default function VereditoPage() {
         ]);
 
         const rawData = transRes.data || [];
-        const limites = limitesRes.data || [];
         const agora = new Date();
 
-        // --- 1. CHAVE DE SEGURANÇA: PROCESSAMENTO BLINDADO ---
-        const saídas = rawData.filter(t => t.type?.toLowerCase() === 'withdrawal');
-        const entradas = rawData.filter(t => t.type?.toLowerCase() === 'deposit');
+        // --- 1. CHAVE DE SEGURANÇA: FILTRAGEM MULTILÍNGUE ---
+        // Aqui detectamos se é entrada ou saída independente do idioma no banco
+        const saídas = rawData.filter(t => 
+          t.type?.toLowerCase() === 'withdrawal' || 
+          t.type?.toLowerCase() === 'saida' || 
+          t.type?.toLowerCase() === 'saída'
+        );
+
+        const entradas = rawData.filter(t => 
+          t.type?.toLowerCase() === 'deposit' || 
+          t.type?.toLowerCase() === 'entrada'
+        );
         
-        // Garantir que amount seja sempre tratado como número (float)
+        // Conversão garantida para Número (previne erro de string no banco)
         const totalSaidasHistorico = saídas.reduce((acc, t) => acc + Math.abs(Number(t.amount || 0)), 0);
         const totalEntradasHistorico = entradas.reduce((acc, t) => acc + Number(t.amount || 0), 0);
+        
+        // Saldo Real Acumulado
         const saldoAtual = totalEntradasHistorico - totalSaidasHistorico;
 
         // --- 2. ALOCAÇÃO DE PODER (DISTRIBUIÇÃO) ---
-        const catPoder = ["investimentos", "reserva", "aportes", "poupança"];
-        const catPrazer = ["lazer", "restaurante", "shopping", "viagem", "ifood"];
+        const catPoder = ["investimentos", "reserva", "aportes", "poupança", "investimento"];
+        const catPrazer = ["lazer", "restaurante", "shopping", "viagem", "ifood", "prazer"];
         
         const volPoder = rawData.filter(t => catPoder.includes(t.category?.toLowerCase())).reduce((acc, t) => acc + Math.abs(Number(t.amount || 0)), 0);
         const volPrazer = saídas.filter(t => catPrazer.includes(t.category?.toLowerCase())).reduce((acc, t) => acc + Math.abs(Number(t.amount || 0)), 0);
@@ -61,12 +71,14 @@ export default function VereditoPage() {
         });
 
         // --- 3. AUTONOMIA (BURN RATE) ---
-        const trintaDiasAtras = new Date().setDate(agora.getDate() - 30);
-        const ultimos30Dias = saídas.filter(t => new Date(t.created_at).getTime() >= trintaDiasAtras);
+        const trintaDiasAtras = new Date();
+        trintaDiasAtras.setDate(agora.getDate() - 30);
+        
+        const ultimos30Dias = saídas.filter(t => new Date(t.created_at) >= trintaDiasAtras);
         const gastoMensal = ultimos30Dias.reduce((acc, t) => acc + Math.abs(Number(t.amount || 0)), 0);
         const gastoDiario = gastoMensal / 30;
 
-        // Se tem saldo e não gasta, autonomia é nota máxima (999 dias)
+        // Se tem saldo e não gasta, autonomia é máxima.
         const diasRestantes = gastoDiario > 0 ? Math.floor(saldoAtual / gastoDiario) : (saldoAtual > 0 ? 999 : 0);
         setBurnData({ 
           dias: Math.max(0, diasRestantes), 
@@ -74,7 +86,7 @@ export default function VereditoPage() {
         });
 
         // --- 4. SAÚDE FINANCEIRA (PESO 70%) ---
-        // Se saldo é positivo, a retenção nunca é zero (Chave de Segurança)
+        // ANTI-CRÍTICO: Se o saldo atual for positivo, a taxa de retenção mínima é baseada no saldo total.
         const taxaRetencao = totalEntradasHistorico > 0 
           ? Math.max(0, ((totalEntradasHistorico - totalSaidasHistorico) / totalEntradasHistorico) * 100)
           : (saldoAtual > 0 ? 100 : 0);
@@ -86,12 +98,12 @@ export default function VereditoPage() {
         const registrosUnicos = new Set(rawData.map(t => new Date(t.created_at).toDateString())).size;
         
         setMetrics({
-          consistencia: Math.min(100, Math.round((registrosUnicos / 20) * 100)),
+          consistencia: Math.min(100, Math.round((registrosUnicos / 15) * 100)),
           precisao: Math.min(100, Math.round((rawData.filter(t => t.category && t.category !== "Outros").length / (rawData.length || 1)) * 100)),
           previsao: 100, 
           disciplina: Math.min(100, Math.max(0, Math.round(taxaRetencao))),
           evolucao: Math.min(100, Math.max(0, Math.round(taxaRetencao))),
-          engajamento: Math.min(100, Math.round((rawData.length / 15) * 100))
+          engajamento: Math.min(100, Math.round((rawData.length / 10) * 100))
         });
 
       } catch (e) { console.error("Erro no processamento:", e); } finally { setLoading(false); }
