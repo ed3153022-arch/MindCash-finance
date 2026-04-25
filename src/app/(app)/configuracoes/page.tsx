@@ -35,7 +35,7 @@ export default function VereditoPage() {
         const limites = limitesRes.data || [];
         const agora = new Date();
 
-        // --- 1. FILTRAGEM MULTILÍNGUE ---
+        // --- 1. FILTRAGEM ---
         const saídas = rawData.filter(t => 
           t.type?.toLowerCase() === 'withdrawal' || t.type?.toLowerCase() === 'saida' || t.type?.toLowerCase() === 'saída'
         );
@@ -80,11 +80,9 @@ export default function VereditoPage() {
         const scoreAutonomia = Math.min(100, (diasRestantes / 120) * 100);
         setFinancialHealth((taxaRetencao * 0.6) + (scoreAutonomia * 0.4));
 
-        // --- 5. MÉTRICAS RADAR DINÂMICAS ---
+        // --- 5. MÉTRICAS RADAR ---
         const registrosUnicos = new Set(rawData.map(t => new Date(t.created_at).toDateString())).size;
         
-        // CÁLCULO DINÂMICO DA PREVISÃO:
-        // Se o usuário tem limites e não os ultrapassou, nota 100. Se não tem limites, usa a taxa de retenção como base.
         let previsaoScore = 0;
         if (limites.length > 0) {
           const categoriasComExcesso = limites.filter(lim => {
@@ -93,7 +91,7 @@ export default function VereditoPage() {
           }).length;
           previsaoScore = Math.max(0, 100 - (categoriasComExcesso * 20));
         } else {
-          previsaoScore = Math.min(100, Math.round(taxaRetencao * 0.8)); // Penaliza levemente por não ter metas definidas
+          previsaoScore = Math.min(100, Math.round(taxaRetencao * 0.8));
         }
 
         setMetrics({
@@ -105,7 +103,7 @@ export default function VereditoPage() {
           engajamento: Math.min(100, Math.round((rawData.length / 10) * 100))
         });
 
-      } catch (e) { console.error("Erro no processamento:", e); } finally { setLoading(false); }
+      } catch (e) { console.error("Erro:", e); } finally { setLoading(false); }
     }
     fetchVereditoData();
   }, [router]);
@@ -176,6 +174,27 @@ export default function VereditoPage() {
           <Zap className="text-yellow-400 fill-yellow-400" size={24} />
         </header>
 
+        {/* SEÇÃO REINTRODUZIDA: CONQUISTAS DE PERFORMANCE */}
+        <section className="bg-[#050505] p-6 rounded-[2.5rem] border border-white/5 mx-4">
+          <div className="flex items-center gap-2 mb-5 px-1">
+            <Trophy className="text-zinc-600" size={12} />
+            <span className="text-[9px] font-black text-zinc-600 tracking-[0.2em]">CONQUISTAS DE PERFORMANCE</span>
+          </div>
+          <div className="grid grid-cols-4 gap-2">
+            {[
+              { id: 'mur', name: "MURALHA", icon: <Shield size={18}/>, active: metrics.disciplina > 80, color: "text-blue-500" },
+              { id: 'sen', name: "SENTINELA", icon: <ShieldCheck size={18}/>, active: metrics.consistencia > 70 && metrics.precisao > 70, color: "text-cyan-500" },
+              { id: 'sob', name: "SOBERANO", icon: <Crown size={18}/>, active: avgScore > 75, color: "text-orange-500" },
+              { id: 'imp', name: "IMPULSO", icon: <Flame size={18}/>, active: metrics.engajamento > 60 || metrics.evolucao > 70, color: "text-red-500" }
+            ].map(s => (
+              <div key={s.id} className={`flex flex-col items-center justify-center p-3 rounded-2xl border transition-all duration-500 ${s.active ? 'border-white/10 bg-white/5 shadow-[0_0_15px_rgba(255,255,255,0.05)]' : 'border-transparent opacity-10'}`}>
+                <div className={s.active ? s.color : 'text-zinc-800'}>{s.icon}</div>
+                <span className="text-[8px] font-black mt-2 tracking-wider">{s.name}</span>
+              </div>
+            ))}
+          </div>
+        </section>
+
         {/* STATUS DA CONTA */}
         <section className={`p-8 rounded-[2.5rem] border border-white/5 ${status.bg} backdrop-blur-sm relative overflow-hidden mx-4`}>
           <div className="relative z-10">
@@ -189,7 +208,7 @@ export default function VereditoPage() {
           <BrainCircuit className="absolute -right-4 -bottom-4 text-white/5" size={140} />
         </section>
 
-        {/* DISTRIBUIÇÃO DE PODER COM LEGENDAS AJUSTADAS */}
+        {/* DISTRIBUIÇÃO DE PODER */}
         <section className="bg-[#050505] p-8 rounded-[3rem] border border-white/5 relative overflow-hidden mx-4">
           <div className="flex items-center gap-2 mb-6">
             <BatteryCharging className="text-zinc-500" size={14} />
@@ -207,8 +226,8 @@ export default function VereditoPage() {
                 </div>
                 <p className="text-[10px] font-black italic">{b.val}%</p>
                 <div className="text-center">
-                   <p className="text-[7px] text-white font-bold uppercase">{b.label}</p>
-                   <p className="text-[5px] text-zinc-500 font-medium uppercase tracking-widest mt-0.5">{b.desc}</p>
+                   <p className="text-[7px] text-white font-bold uppercase tracking-tighter">{b.label}</p>
+                   <p className="text-[5px] text-zinc-500 font-black uppercase mt-1 leading-tight border-t border-white/10 pt-1">{b.desc}</p>
                 </div>
               </div>
             ))}
@@ -233,7 +252,7 @@ export default function VereditoPage() {
           </div>
         </section>
 
-        {/* RADAR COM MÉTRICAS DINÂMICAS */}
+        {/* RADAR */}
         <section className="bg-[#050505] p-8 rounded-[3rem] border border-white/5 mx-4">
           <div className="flex justify-center mb-10">{renderRadar()}</div>
           <div className="grid grid-cols-3 gap-8 border-t border-white/5 pt-8">
