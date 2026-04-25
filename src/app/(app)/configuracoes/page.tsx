@@ -197,9 +197,9 @@ export default function VereditoPage() {
           </div>
           <div className="flex items-end justify-between h-32 gap-3 mb-6">
             {[
-              { label: "MANUTENÇÃO", val: powerAllocation.manutencao, color: "bg-zinc-800", desc: "Custo de Vida" },
-              { label: "PRAZER", val: powerAllocation.prazer, color: "bg-orange-500/40", desc: "Dopamina/Lazer" },
-              { label: "PODER", val: powerAllocation.poder, color: "bg-yellow-500", desc: "Investimentos" }
+              { label: "MANUTENÇÃO", val: powerAllocation.manutencao, color: "bg-zinc-800", desc: "CONTAS E ESSENCIAIS" },
+              { label: "PRAZER", val: powerAllocation.prazer, color: "bg-orange-500/40", desc: "ESTILO DE VIDA" },
+              { label: "PODER", val: powerAllocation.poder, color: "bg-yellow-500", desc: "DINHEIRO TRABALHANDO" }
             ].map(b => (
               <div key={b.label} className="flex-1 flex flex-col items-center gap-2">
                 <div className="w-full bg-white/5 rounded-xl relative overflow-hidden flex flex-col justify-end" style={{ height: '100px' }}>
