@@ -5,19 +5,45 @@ import { supabase } from "@/lib/supabase";
 import { 
   Zap, ShieldCheck, Flame, BrainCircuit, 
   Loader2, AlertTriangle, Trophy, Crown, Shield, Hourglass,
-  BatteryCharging, CheckCircle2
+  BatteryCharging, CheckCircle2, CalendarDays
 } from "lucide-react";
 import { useRouter } from "next/navigation";
 
 export default function VereditoPage() {
   const router = useRouter();
   const [loading, setLoading] = useState(true);
+  const [selectedCycle, setSelectedCycle] = useState(1); // 0: Passado, 1: Atual, 2: Futuro
   const [burnData, setBurnData] = useState({ dias: 0, percentual: 0 });
   const [powerAllocation, setPowerAllocation] = useState({ manutencao: 0, prazer: 0, poder: 0 });
   const [financialHealth, setFinancialHealth] = useState(0); 
   const [metrics, setMetrics] = useState({
     consistencia: 0, precisao: 0, previsao: 0, disciplina: 0, engajamento: 0, evolucao: 0
   });
+
+  // Dados Estáticos para o Card de Ciclos
+  const cyclesData = [
+    { 
+      label: "CICLO ANTERIOR", 
+      status: "ENCERRADO", 
+      valor: "R$ 4.820,00", 
+      detalhe: "Operação finalizada com 18% de retenção líquida. O capital foi direcionado corretamente para as zonas de poder.",
+      cor: "bg-zinc-700" 
+    },
+    { 
+      label: "CICLO ATUAL", 
+      status: "EM CURSO", 
+      valor: "R$ 2.450,00", 
+      detalhe: "Você consumiu 45% do teto operacional projetado. Mantenha o ritmo de lançamentos para evitar pontos cegos antes do fechamento.",
+      cor: "bg-yellow-500" 
+    },
+    { 
+      label: "PRÓXIMO CICLO", 
+      status: "PROJEÇÃO", 
+      valor: "R$ 3.120,00", 
+      detalhe: "Custo fixo estimado com base em suas metas. O sistema prevê uma oportunidade de aporte 10% maior se a disciplina for mantida.",
+      cor: "bg-zinc-900 border border-dashed border-zinc-700" 
+    }
+  ];
 
   useEffect(() => {
     async function fetchVereditoData() {
@@ -115,11 +141,8 @@ export default function VereditoPage() {
     return { label: "CRÍTICO", color: "text-red-500", bg: "bg-red-500/10", desc: "Vazamento de capital detectado. O sistema requer intervenção imediata." };
   }, [avgScore]);
 
-    // --- SISTEMA DE ALERTA MINDCASH: FOCO OPERACIONAL E EXPLICATIVO ---
   const vulnerability = useMemo(() => {
     const metricEntries = Object.entries(metrics);
-    
-    // 1. PERFORMANCE MÁXIMA (Tudo >= 90%)
     const allFull = metricEntries.every(([_, val]) => val >= 90);
     
     if (allFull) {
@@ -128,73 +151,21 @@ export default function VereditoPage() {
         "Eficiência de nível IMPLACÁVEL. Todas as vertentes do seu capital operam em blindagem total.",
         "Estrutura financeira inabalável. O sistema não detectou vulnerabilidades em seu ecossistema."
       ];
-      return { 
-        label: "PERFORMANCE MÁXIMA", 
-        msg: congrats[Math.floor(Math.random() * congrats.length)],
-        isSafe: true 
-      };
+      return { label: "PERFORMANCE MÁXIMA", msg: congrats[Math.floor(Math.random() * congrats.length)], isSafe: true };
     }
 
-    // 2. ALERTAS POR FALHA OPERACIONAL (Sem citar nomes de métricas ou gráficos)
     const lowest = metricEntries.reduce((prev, curr) => prev[1] < curr[1] ? prev : curr);
-    
     const tips: Record<string, { label: string, msgs: string[] }> = {
-      consistencia: { 
-        label: "FLUXO IRREGULAR", 
-        msgs: [
-          "Padrão de registro descontínuo. Você precisa registrar suas movimentações com maior frequência para que o sistema consiga estabilizar sua visão estratégica.",
-          "Frequência de dados insuficiente. O hábito de lançar seus gastos diariamente é o que garante a precisão do veredito final sobre o seu capital.",
-          "Lacuna operacional detectada. Aumentar a regularidade dos seus registros elimina os espaços vazios que distorcem o seu diagnóstico real."
-        ] 
-      },
-      precisao: { 
-        label: "PONTO CEGO", 
-        msgs: [
-          "Rastro de capital não identificado. Você pode detalhar melhor suas despesas em vez de usar 'Outros', pois o acúmulo de gastos sem nome oculta o destino real do seu dinheiro.",
-          "Identidade financeira oculta. Ao categorizar cada transação de forma específica, você permite que o sistema identifique onde sua eficiência está sendo drenada.",
-          "Ruído na identificação de gastos. O hábito de nomear corretamente cada saída elimina as sombras que impedem o mapeamento dos seus hábitos de consumo."
-        ] 
-      },
-      previsao: { 
-        label: "FALTA DE ALVO", 
-        msgs: [
-          "Navegação sem coordenadas. Você deve definir limites de gastos por categoria, pois sem alvos claros, sua capacidade de defesa antecipada é anulada.",
-          "Falta de parâmetro preditivo. Estabelecer metas mensais permite que o sistema antecipe riscos antes mesmo de você fechar o mês no vermelho.",
-          "Projeção operacional estática. O planejamento do seu futuro financeiro só ganha tração quando você estipula exatamente o quanto pretende permitir de saída em cada setor."
-        ] 
-      },
-      disciplina: { 
-        label: "CONSUMO ELEVADO", 
-        msgs: [
-          "Vazamento de capital detectado. O volume de saídas variáveis está alto demais; você pode reduzir gastos supérfluos para recuperar sua segurança operacional.",
-          "Taxa de retenção em declínio. Ao controlar melhor o consumo imediato, você fortalece sua blindagem patrimonial e garante que sobre mais capital ao final do ciclo.",
-          "Drenagem de recursos identificada. Sua capacidade de segurar dinheiro caiu; reavalie suas saídas para que sua margem de lucro pessoal volte a crescer."
-        ] 
-      },
-      evolucao: { 
-        label: "ESTAGNAÇÃO", 
-        msgs: [
-          "Patrimônio em modo estático. Você pode direcionar mais recursos para ativos e investimentos, pois o baixo volume de aportes interrompe sua escalada de status.",
-          "Aceleração de capital interrompida. Sem o hábito de investir estrategicamente, sua dominância financeira permanece paralisada e sem crescimento real.",
-          "Falta de expansão patrimonial. O sistema detectou que seu dinheiro não está trabalhando por você; aumente seus aportes para evoluir sua posição atual."
-        ] 
-      },
-      engajamento: { 
-        label: "BAIXA VIGILÂNCIA", 
-        msgs: [
-          "Vigilância em nível crítico. Você deve interagir mais com as ferramentas de análise, pois a falta de acompanhamento reduz a autoridade dos dados processados.",
-          "Monitoramento tático insuficiente. O sistema requer sua presença frequente para refinar a inteligência e entregar um diagnóstico em tempo real mais preciso.",
-          "Desconexão operacional detectada. Ao acessar e revisar seus dados com constância, você mantém o controle absoluto sobre o motor financeiro da sua conta."
-        ] 
-      }
+      consistencia: { label: "FLUXO IRREGULAR", msgs: ["Padrão de registro descontínuo. Você precisa registrar suas movimentações com maior frequência para que o sistema consiga estabilizar sua visão estratégica.", "Frequência de dados insuficiente. O hábito de lançar seus gastos diariamente é o que garante a precisão do veredito final sobre o seu capital."] },
+      precisao: { label: "PONTO CEGO", msgs: ["Rastro de capital não identificado. Você pode detalhar melhor suas despesas em vez de usar 'Outros', pois o acúmulo de gastos sem nome oculta o destino real do seu dinheiro.", "Identidade financeira oculta. Ao categorizar cada transação de forma específica, você permite que o sistema identifique onde sua eficiência está sendo drenada."] },
+      previsao: { label: "FALTA DE ALVO", msgs: ["Navegação sem coordenadas. Você deve definir limites de gastos por categoria, pois sem alvos claros, sua capacidade de defesa antecipada é anulada.", "Falta de parâmetro preditivo. Estabelecer metas mensais permite que o sistema antecipe riscos antes mesmo de você fechar o mês no vermelho."] },
+      disciplina: { label: "CONSUMO ELEVADO", msgs: ["Vazamento de capital detectado. O volume de saídas variáveis está alto demais; você pode reduzir gastos supérfluos para recuperar sua segurança operacional.", "Taxa de retenção em declínio. Ao controlar melhor o consumo imediato, você fortalece sua blindagem patrimonial."] },
+      evolucao: { label: "ESTAGNAÇÃO", msgs: ["Patrimônio em modo estático. Você pode direcionar mais recursos para ativos e investimentos, pois o baixo volume de aportes interrompe sua escalada de status.", "Aceleração de capital interrompida. Sem o hábito de investir estrategicamente, sua dominância financeira permanece paralisada."] },
+      engajamento: { label: "BAIXA VIGILÂNCIA", msgs: ["Vigilância em nível crítico. Você deve interagir mais com as ferramentas de análise, pois a falta de acompanhamento reduz a autoridade dos dados processados.", "Monitoramento tático insuficiente. O sistema requer sua presença frequente para refinar a inteligência."] }
     };
 
     const tip = tips[lowest[0]] || tips.consistencia;
-    return { 
-      label: tip.label, 
-      msg: tip.msgs[Math.floor(Math.random() * tip.msgs.length)],
-      isSafe: false 
-    };
+    return { label: tip.label, msg: tip.msgs[Math.floor(Math.random() * tip.msgs.length)], isSafe: false };
   }, [metrics]);
   
   const renderRadar = () => {
@@ -329,7 +300,7 @@ export default function VereditoPage() {
           </div>
         </section>
 
-        {/* ALERTA / VULNERABILIDADE COM HIERARQUIA CORRIGIDA */}
+        {/* ALERTA / VULNERABILIDADE */}
         <section className={`border p-6 rounded-[2.5rem] flex items-center gap-5 mx-4 transition-all duration-500 ${vulnerability.isSafe ? 'bg-cyan-950/20 border-cyan-500/20' : 'bg-red-950/20 border-red-500/20'}`}>
            <div className={`p-4 rounded-2xl ${vulnerability.isSafe ? 'bg-cyan-500/20' : 'bg-red-500/20'}`}>
               {vulnerability.isSafe ? <CheckCircle2 className="text-cyan-400" size={24} /> : <AlertTriangle className="text-red-500" size={24} />}
@@ -341,6 +312,61 @@ export default function VereditoPage() {
               <p className="text-[11px] text-zinc-400 normal-case leading-tight">{vulnerability.msg}</p>
            </div>
         </section>
+
+        {/* NOVO CARD: CICLOS OPERACIONAIS (ESTÁTICO PARA TESTE) */}
+        <section className="bg-[#050505] p-8 rounded-[3rem] border border-white/5 mx-4 mb-10">
+          <div className="flex items-center gap-2 mb-8 px-1">
+            <CalendarDays className="text-zinc-600" size={14} />
+            <span className="text-[9px] font-black text-zinc-600 tracking-[0.2em] uppercase">Cronograma de Ciclos</span>
+          </div>
+
+          {/* Seletor de Barras (Estilo Timeline) */}
+          <div className="flex justify-between items-end h-24 mb-10 px-4">
+            {cyclesData.map((cycle, idx) => (
+              <button 
+                key={idx} 
+                onClick={() => setSelectedCycle(idx)}
+                className="flex flex-col items-center gap-4 transition-all duration-300 outline-none"
+              >
+                <div 
+                  className={`w-14 rounded-xl transition-all duration-500 ${cycle.cor} ${selectedCycle === idx ? 'h-20 opacity-100 shadow-[0_0_20px_rgba(250,204,21,0.2)] scale-110' : 'h-12 opacity-20 hover:opacity-40'}`} 
+                />
+                <span className={`text-[8px] font-black tracking-widest ${selectedCycle === idx ? 'text-white' : 'text-zinc-700'}`}>
+                  {idx === 0 ? 'PASSADO' : idx === 1 ? 'ATUAL' : 'FUTURO'}
+                </span>
+              </button>
+            ))}
+          </div>
+
+          {/* Painel de Detalhes Dinâmico */}
+          <div className="bg-white/5 rounded-[2rem] p-6 border border-white/5 relative overflow-hidden transition-all duration-500">
+            <div className="flex justify-between items-start mb-6">
+              <div>
+                <p className="text-[10px] font-black text-yellow-500 tracking-[0.2em] mb-2">
+                  {cyclesData[selectedCycle].label}
+                </p>
+                <h4 className="text-4xl font-black italic tracking-tighter">
+                  {cyclesData[selectedCycle].valor}
+                </h4>
+              </div>
+              <div className="bg-zinc-800/50 px-3 py-1 rounded-full border border-white/5">
+                <span className="text-[8px] font-black text-zinc-400 tracking-widest italic uppercase">
+                  {cyclesData[selectedCycle].status}
+                </span>
+              </div>
+            </div>
+            
+            <div className="border-t border-white/5 pt-5">
+              <p className="text-[11px] text-zinc-400 normal-case leading-relaxed font-medium">
+                {cyclesData[selectedCycle].detalhe}
+              </p>
+            </div>
+            
+            {/* Elemento Visual de Fundo */}
+            <Zap className="absolute -right-6 -bottom-6 text-white/5 rotate-12" size={100} />
+          </div>
+        </section>
+
       </div>
     </div>
   );
