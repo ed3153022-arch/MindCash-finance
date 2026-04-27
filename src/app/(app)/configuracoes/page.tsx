@@ -5,7 +5,7 @@ import { supabase } from "@/lib/supabase";
 import { 
   Zap, ShieldCheck, Flame, BrainCircuit, 
   Loader2, AlertTriangle, Trophy, Crown, Shield, Hourglass,
-  BatteryCharging
+  BatteryCharging, CheckCircle2
 } from "lucide-react";
 import { useRouter } from "next/navigation";
 
@@ -35,7 +35,6 @@ export default function VereditoPage() {
         const limites = limitesRes.data || [];
         const agora = new Date();
 
-        // --- 1. FILTRAGEM ---
         const saídas = rawData.filter(t => 
           t.type?.toLowerCase() === 'withdrawal' || t.type?.toLowerCase() === 'saida' || t.type?.toLowerCase() === 'saída'
         );
@@ -47,7 +46,6 @@ export default function VereditoPage() {
         const totalEntradasHistorico = entradas.reduce((acc, t) => acc + Number(t.amount || 0), 0);
         const saldoAtual = totalEntradasHistorico - totalSaidasHistorico;
 
-        // --- 2. ALOCAÇÃO DE PODER ---
         const catPoder = ["investimentos", "reserva", "aportes", "poupança", "investimento"];
         const catPrazer = ["lazer", "restaurante", "shopping", "viagem", "ifood", "prazer"];
         
@@ -63,7 +61,6 @@ export default function VereditoPage() {
           poder: Math.round((volPoder / divisorSaidas) * 100)
         });
 
-        // --- 3. AUTONOMIA ---
         const trintaDiasAtras = new Date();
         trintaDiasAtras.setDate(agora.getDate() - 30);
         const ultimos30Dias = saídas.filter(t => new Date(t.created_at) >= trintaDiasAtras);
@@ -73,14 +70,12 @@ export default function VereditoPage() {
         const diasRestantes = gastoDiario > 0 ? Math.floor(saldoAtual / gastoDiario) : (saldoAtual > 0 ? 999 : 0);
         setBurnData({ dias: Math.max(0, diasRestantes), percentual: Math.min(100, (diasRestantes / 180) * 100) });
 
-        // --- 4. SAÚDE FINANCEIRA ---
         const taxaRetencao = totalEntradasHistorico > 0 
           ? Math.max(0, ((totalEntradasHistorico - totalSaidasHistorico) / totalEntradasHistorico) * 100)
           : (saldoAtual > 0 ? 100 : 0);
         const scoreAutonomia = Math.min(100, (diasRestantes / 120) * 100);
         setFinancialHealth((taxaRetencao * 0.6) + (scoreAutonomia * 0.4));
 
-        // --- 5. MÉTRICAS RADAR ---
         const registrosUnicos = new Set(rawData.map(t => new Date(t.created_at).toDateString())).size;
         
         let previsaoScore = 0;
@@ -120,17 +115,86 @@ export default function VereditoPage() {
     return { label: "CRÍTICO", color: "text-red-500", bg: "bg-red-500/10", desc: "Vazamento de capital detectado. O sistema requer intervenção imediata." };
   }, [avgScore]);
 
+  // --- LÓGICA DE VULNERABILIDADE / RADAR AJUSTADA ---
   const vulnerability = useMemo(() => {
-    const lowest = Object.entries(metrics).reduce((prev, curr) => prev[1] < curr[1] ? prev : curr);
-    const tips: Record<string, { label: string, msg: string }> = {
-      consistencia: { label: "FLUXO IRREGULAR", msg: "Registre dados com mais frequência para estabilizar o diagnóstico." },
-      precisao: { label: "PONTO CEGO", msg: "Categorize suas transações para o sistema entender seus hábitos." },
-      previsao: { label: "FALTA DE ALVO", msg: "Defina limites de gastos para aumentar sua previsibilidade." },
-      disciplina: { label: "CONSUMO ELEVADO", msg: "Sua retenção caiu. Tente reduzir gastos variáveis esta semana." },
-      evolucao: { label: "ESTAGNAÇÃO", msg: "Aumente seu aporte em categorias de PODER para evoluir o status." },
-      engajamento: { label: "BAIXA VIGILÂNCIA", msg: "O sistema precisa de mais interações para refinar os cálculos." }
+    const metricEntries = Object.entries(metrics);
+    
+    // 1. Verificar se atingiu a Performance Máxima (Tudo >= 90%)
+    const allFull = metricEntries.every(([_, val]) => val >= 90);
+    
+    if (allFull) {
+      const congrats = [
+        "Sincronia total detectada. Seu gráfico de teia atingiu o ápice operacional.",
+        "Eficiência máxima. Você dominou todas as vertentes do radar financeiro.",
+        "Protocolo Soberano ativo. Nenhuma vulnerabilidade encontrada no sistema."
+      ];
+      return { 
+        label: "PERFORMANCE MÁXIMA", 
+        msg: congrats[Math.floor(Math.random() * congrats.length)],
+        isSafe: true 
+      };
+    }
+
+    // 2. Se não estiver cheio, identificar o ponto mais baixo para o alerta
+    const lowest = metricEntries.reduce((prev, curr) => prev[1] < curr[1] ? prev : curr);
+    
+    const tips: Record<string, { label: string, msgs: string[] }> = {
+      consistencia: { 
+        label: "RADAR: FLUXO IRREGULAR", 
+        msgs: [
+          "A lacuna entre registros afeta a precisão do radar. Tente registrar diariamente.",
+          "Consistência baixa. O sistema precisa de dados frequentes para estabilizar o veredito.",
+          "Frequência de log detectada como insuficiente para um diagnóstico preciso."
+        ] 
+      },
+      precisao: { 
+        label: "RADAR: PONTO CEGO", 
+        msgs: [
+          "Existem transações sem identidade. Categorize-as para mapear o radar.",
+          "O radar não consegue ler transações 'Outros'. Refine suas categorias.",
+          "Precisão comprometida. Identifique seus gastos para eliminar pontos cegos."
+        ] 
+      },
+      previsao: { 
+        label: "RADAR: FALTA DE ALVO", 
+        msgs: [
+          "Sem limites definidos, o radar não tem parâmetro de defesa.",
+          "Projete seus gastos futuros para preencher a ponta de previsão do radar.",
+          "Defina metas de categoria para que o sistema possa prever seu fechamento."
+        ] 
+      },
+      disciplina: { 
+        label: "RADAR: CONSUMO ALTO", 
+        msgs: [
+          "Sua retenção está abaixo do ideal. O radar detectou vazamento de capital.",
+          "Disciplina financeira em queda. Reduza saídas para expandir o gráfico.",
+          "O sistema detectou que você está retendo menos do que o necessário para evoluir."
+        ] 
+      },
+      evolucao: { 
+        label: "RADAR: ESTAGNAÇÃO", 
+        msgs: [
+          "Seu capital está parado. Direcione para PODER para evoluir a teia.",
+          "O radar mostra falta de crescimento patrimonial significativo este mês.",
+          "Aumente seus aportes em investimentos para expandir sua nota de evolução."
+        ] 
+      },
+      engajamento: { 
+        label: "RADAR: BAIXA VIGILÂNCIA", 
+        msgs: [
+          "O sistema precisa de mais volume de dados para validar o radar.",
+          "Interaja mais com as ferramentas para calibrar sua teia de performance.",
+          "Vigilância baixa. Acesse e atualize o sistema para refinar os cálculos."
+        ] 
+      }
     };
-    return tips[lowest[0]] || tips.consistencia;
+
+    const tip = tips[lowest[0]] || tips.consistencia;
+    return { 
+      label: tip.label, 
+      msg: tip.msgs[Math.floor(Math.random() * tip.msgs.length)],
+      isSafe: false 
+    };
   }, [metrics]);
 
   const renderRadar = () => {
@@ -174,7 +238,7 @@ export default function VereditoPage() {
           <Zap className="text-yellow-400 fill-yellow-400" size={24} />
         </header>
 
-        {/* SEÇÃO REINTRODUZIDA: CONQUISTAS DE PERFORMANCE */}
+        {/* CONQUISTAS */}
         <section className="bg-[#050505] p-6 rounded-[2.5rem] border border-white/5 mx-4">
           <div className="flex items-center gap-2 mb-5 px-1">
             <Trophy className="text-zinc-600" size={12} />
@@ -195,7 +259,7 @@ export default function VereditoPage() {
           </div>
         </section>
 
-        {/* STATUS DA CONTA */}
+        {/* STATUS */}
         <section className={`p-8 rounded-[2.5rem] border border-white/5 ${status.bg} backdrop-blur-sm relative overflow-hidden mx-4`}>
           <div className="relative z-10">
             <div className="flex items-center gap-3 mb-2">
@@ -208,7 +272,7 @@ export default function VereditoPage() {
           <BrainCircuit className="absolute -right-4 -bottom-4 text-white/5" size={140} />
         </section>
 
-        {/* DISTRIBUIÇÃO DE PODER */}
+        {/* DISTRIBUIÇÃO */}
         <section className="bg-[#050505] p-8 rounded-[3rem] border border-white/5 relative overflow-hidden mx-4">
           <div className="flex items-center gap-2 mb-6">
             <BatteryCharging className="text-zinc-500" size={14} />
@@ -265,12 +329,16 @@ export default function VereditoPage() {
           </div>
         </section>
 
-        {/* VULNERABILIDADE */}
-        <section className="bg-red-950/20 border border-red-500/20 p-6 rounded-[2.5rem] flex items-center gap-5 mx-4">
-           <div className="bg-red-500/20 p-4 rounded-2xl"><AlertTriangle className="text-red-500" size={24} /></div>
+        {/* ALERTA / VULNERABILIDADE COM HIERARQUIA CORRIGIDA */}
+        <section className={`border p-6 rounded-[2.5rem] flex items-center gap-5 mx-4 transition-all duration-500 ${vulnerability.isSafe ? 'bg-cyan-950/20 border-cyan-500/20' : 'bg-red-950/20 border-red-500/20'}`}>
+           <div className={`p-4 rounded-2xl ${vulnerability.isSafe ? 'bg-cyan-500/20' : 'bg-red-500/20'}`}>
+              {vulnerability.isSafe ? <CheckCircle2 className="text-cyan-400" size={24} /> : <AlertTriangle className="text-red-500" size={24} />}
+           </div>
            <div>
-              <p className="text-[10px] font-black text-red-500 tracking-[0.2em] mb-1">ALERTA: {vulnerability.label}</p>
-              <p className="text-[11px] text-zinc-400 normal-case">{vulnerability.msg}</p>
+              <p className={`text-[10px] font-black tracking-[0.2em] mb-1 ${vulnerability.isSafe ? 'text-cyan-400' : 'text-red-500'}`}>
+                {vulnerability.label}
+              </p>
+              <p className="text-[11px] text-zinc-400 normal-case leading-tight">{vulnerability.msg}</p>
            </div>
         </section>
       </div>
