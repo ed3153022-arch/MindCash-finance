@@ -115,18 +115,18 @@ export default function VereditoPage() {
     return { label: "CRÍTICO", color: "text-red-500", bg: "bg-red-500/10", desc: "Vazamento de capital detectado. O sistema requer intervenção imediata." };
   }, [avgScore]);
 
-  // --- LÓGICA DE VULNERABILIDADE / RADAR AJUSTADA ---
+    // --- SISTEMA DE ALERTA MINDCASH: FOCO OPERACIONAL E EXPLICATIVO ---
   const vulnerability = useMemo(() => {
     const metricEntries = Object.entries(metrics);
     
-    // 1. Verificar se atingiu a Performance Máxima (Tudo >= 90%)
+    // 1. PERFORMANCE MÁXIMA (Tudo >= 90%)
     const allFull = metricEntries.every(([_, val]) => val >= 90);
     
     if (allFull) {
       const congrats = [
-        "Sincronia total detectada. Seu gráfico de teia atingiu o ápice operacional.",
-        "Eficiência máxima. Você dominou todas as vertentes do radar financeiro.",
-        "Protocolo Soberano ativo. Nenhuma vulnerabilidade encontrada no sistema."
+        "Protocolo Soberano ativo. A sincronia entre fluxo e retenção atingiu o ápice operacional.",
+        "Eficiência de nível IMPLACÁVEL. Todas as vertentes do seu capital operam em blindagem total.",
+        "Estrutura financeira inabalável. O sistema não detectou vulnerabilidades em seu ecossistema."
       ];
       return { 
         label: "PERFORMANCE MÁXIMA", 
@@ -135,56 +135,56 @@ export default function VereditoPage() {
       };
     }
 
-    // 2. Se não estiver cheio, identificar o ponto mais baixo para o alerta
+    // 2. ALERTAS POR FALHA OPERACIONAL (Sem citar nomes de métricas ou gráficos)
     const lowest = metricEntries.reduce((prev, curr) => prev[1] < curr[1] ? prev : curr);
     
     const tips: Record<string, { label: string, msgs: string[] }> = {
       consistencia: { 
-        label: "RADAR: FLUXO IRREGULAR", 
+        label: "FLUXO IRREGULAR", 
         msgs: [
-          "A lacuna entre registros afeta a precisão do radar. Tente registrar diariamente.",
-          "Consistência baixa. O sistema precisa de dados frequentes para estabilizar o veredito.",
-          "Frequência de log detectada como insuficiente para um diagnóstico preciso."
+          "Padrão de registro descontínuo. Você precisa registrar suas movimentações com maior frequência para que o sistema consiga estabilizar sua visão estratégica.",
+          "Frequência de dados insuficiente. O hábito de lançar seus gastos diariamente é o que garante a precisão do veredito final sobre o seu capital.",
+          "Lacuna operacional detectada. Aumentar a regularidade dos seus registros elimina os espaços vazios que distorcem o seu diagnóstico real."
         ] 
       },
       precisao: { 
-        label: "RADAR: PONTO CEGO", 
+        label: "PONTO CEGO", 
         msgs: [
-          "Existem transações sem identidade. Categorize-as para mapear o radar.",
-          "O radar não consegue ler transações 'Outros'. Refine suas categorias.",
-          "Precisão comprometida. Identifique seus gastos para eliminar pontos cegos."
+          "Rastro de capital não identificado. Você pode detalhar melhor suas despesas em vez de usar 'Outros', pois o acúmulo de gastos sem nome oculta o destino real do seu dinheiro.",
+          "Identidade financeira oculta. Ao categorizar cada transação de forma específica, você permite que o sistema identifique onde sua eficiência está sendo drenada.",
+          "Ruído na identificação de gastos. O hábito de nomear corretamente cada saída elimina as sombras que impedem o mapeamento dos seus hábitos de consumo."
         ] 
       },
       previsao: { 
-        label: "RADAR: FALTA DE ALVO", 
+        label: "FALTA DE ALVO", 
         msgs: [
-          "Sem limites definidos, o radar não tem parâmetro de defesa.",
-          "Projete seus gastos futuros para preencher a ponta de previsão do radar.",
-          "Defina metas de categoria para que o sistema possa prever seu fechamento."
+          "Navegação sem coordenadas. Você deve definir limites de gastos por categoria, pois sem alvos claros, sua capacidade de defesa antecipada é anulada.",
+          "Falta de parâmetro preditivo. Estabelecer metas mensais permite que o sistema antecipe riscos antes mesmo de você fechar o mês no vermelho.",
+          "Projeção operacional estática. O planejamento do seu futuro financeiro só ganha tração quando você estipula exatamente o quanto pretende permitir de saída em cada setor."
         ] 
       },
       disciplina: { 
-        label: "RADAR: CONSUMO ALTO", 
+        label: "CONSUMO ELEVADO", 
         msgs: [
-          "Sua retenção está abaixo do ideal. O radar detectou vazamento de capital.",
-          "Disciplina financeira em queda. Reduza saídas para expandir o gráfico.",
-          "O sistema detectou que você está retendo menos do que o necessário para evoluir."
+          "Vazamento de capital detectado. O volume de saídas variáveis está alto demais; você pode reduzir gastos supérfluos para recuperar sua segurança operacional.",
+          "Taxa de retenção em declínio. Ao controlar melhor o consumo imediato, você fortalece sua blindagem patrimonial e garante que sobre mais capital ao final do ciclo.",
+          "Drenagem de recursos identificada. Sua capacidade de segurar dinheiro caiu; reavalie suas saídas para que sua margem de lucro pessoal volte a crescer."
         ] 
       },
       evolucao: { 
-        label: "RADAR: ESTAGNAÇÃO", 
+        label: "ESTAGNAÇÃO", 
         msgs: [
-          "Seu capital está parado. Direcione para PODER para evoluir a teia.",
-          "O radar mostra falta de crescimento patrimonial significativo este mês.",
-          "Aumente seus aportes em investimentos para expandir sua nota de evolução."
+          "Patrimônio em modo estático. Você pode direcionar mais recursos para ativos e investimentos, pois o baixo volume de aportes interrompe sua escalada de status.",
+          "Aceleração de capital interrompida. Sem o hábito de investir estrategicamente, sua dominância financeira permanece paralisada e sem crescimento real.",
+          "Falta de expansão patrimonial. O sistema detectou que seu dinheiro não está trabalhando por você; aumente seus aportes para evoluir sua posição atual."
         ] 
       },
       engajamento: { 
-        label: "RADAR: BAIXA VIGILÂNCIA", 
+        label: "BAIXA VIGILÂNCIA", 
         msgs: [
-          "O sistema precisa de mais volume de dados para validar o radar.",
-          "Interaja mais com as ferramentas para calibrar sua teia de performance.",
-          "Vigilância baixa. Acesse e atualize o sistema para refinar os cálculos."
+          "Vigilância em nível crítico. Você deve interagir mais com as ferramentas de análise, pois a falta de acompanhamento reduz a autoridade dos dados processados.",
+          "Monitoramento tático insuficiente. O sistema requer sua presença frequente para refinar a inteligência e entregar um diagnóstico em tempo real mais preciso.",
+          "Desconexão operacional detectada. Ao acessar e revisar seus dados com constância, você mantém o controle absoluto sobre o motor financeiro da sua conta."
         ] 
       }
     };
@@ -196,7 +196,7 @@ export default function VereditoPage() {
       isSafe: false 
     };
   }, [metrics]);
-
+  
   const renderRadar = () => {
     const labels = ["CONSISTÊNCIA", "PRECISÃO", "PREVISÃO", "DISCIPLINA", "EVOLUÇÃO", "ENGAJAMENTO"];
     const pts = [metrics.consistencia, metrics.precisao, metrics.previsao, metrics.disciplina, metrics.evolucao, metrics.engajamento];
