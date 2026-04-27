@@ -20,27 +20,36 @@ export default function VereditoPage() {
     consistencia: 0, precisao: 0, previsao: 0, disciplina: 0, engajamento: 0, evolucao: 0
   });
 
-  // Dados Estáticos para o Card de Ciclos
+  // --- DADOS ESTRUTURADOS DOS CICLOS (RAIO-X) ---
   const cyclesData = [
     { 
       label: "CICLO ANTERIOR", 
-      status: "ENCERRADO", 
-      valor: "R$ 4.820,00", 
-      detalhe: "Operação finalizada com 18% de retenção líquida. O capital foi direcionado corretamente para as zonas de poder.",
-      cor: "bg-zinc-700" 
+      status: "PASSADO", 
+      valor: "R$ 1.240,50", 
+      statusFinal: "DOMINANTE",
+      poderTotal: "R$ 2.100",
+      radarMedia: 78,
+      dica: "Você encerrou o ciclo com 12% de 'Ponto Cego'. No próximo mês, detalhe mais suas despesas de lazer para liberar margem estratégica para o Poder.",
+      cor: "bg-zinc-800" 
     },
     { 
       label: "CICLO ATUAL", 
-      status: "EM CURSO", 
-      valor: "R$ 2.450,00", 
-      detalhe: "Você consumiu 45% do teto operacional projetado. Mantenha o ritmo de lançamentos para evitar pontos cegos antes do fechamento.",
+      status: "ATUAL", 
+      valor: "R$ 850,20", 
+      statusFinal: "ESTÁVEL",
+      poderTotal: "R$ 1.200",
+      radarMedia: 62,
+      dica: "Sua disciplina operacional está em declínio. Reduza saídas variáveis nos próximos 7 dias para garantir que o aporte planejado não seja comprometido.",
       cor: "bg-yellow-500" 
     },
     { 
       label: "PRÓXIMO CICLO", 
-      status: "PROJEÇÃO", 
-      valor: "R$ 3.120,00", 
-      detalhe: "Custo fixo estimado com base em suas metas. O sistema prevê uma oportunidade de aporte 10% maior se a disciplina for mantida.",
+      status: "FUTURO", 
+      valor: "R$ 3.200,00", 
+      statusFinal: "ALVO: IMPLACÁVEL",
+      poderTotal: "R$ 2.500",
+      radarMedia: 90,
+      dica: "Seu custo fixo projetado subiu. Ajuste suas metas de Manutenção agora para evitar que a inflação do estilo de vida bloqueie sua evolução de status.",
       cor: "bg-zinc-900 border border-dashed border-zinc-700" 
     }
   ];
@@ -59,14 +68,9 @@ export default function VereditoPage() {
 
         const rawData = transRes.data || [];
         const limites = limitesRes.data || [];
-        const agora = new Date();
-
-        const saídas = rawData.filter(t => 
-          t.type?.toLowerCase() === 'withdrawal' || t.type?.toLowerCase() === 'saida' || t.type?.toLowerCase() === 'saída'
-        );
-        const entradas = rawData.filter(t => 
-          t.type?.toLowerCase() === 'deposit' || t.type?.toLowerCase() === 'entrada'
-        );
+        
+        const saídas = rawData.filter(t => t.type?.toLowerCase().includes('saida') || t.type?.toLowerCase().includes('withdrawal'));
+        const entradas = rawData.filter(t => t.type?.toLowerCase().includes('entrada') || t.type?.toLowerCase().includes('deposit'));
         
         const totalSaidasHistorico = saídas.reduce((acc, t) => acc + Math.abs(Number(t.amount || 0)), 0);
         const totalEntradasHistorico = entradas.reduce((acc, t) => acc + Number(t.amount || 0), 0);
@@ -77,52 +81,23 @@ export default function VereditoPage() {
         
         const volPoder = rawData.filter(t => catPoder.includes(t.category?.toLowerCase())).reduce((acc, t) => acc + Math.abs(Number(t.amount || 0)), 0);
         const volPrazer = saídas.filter(t => catPrazer.includes(t.category?.toLowerCase())).reduce((acc, t) => acc + Math.abs(Number(t.amount || 0)), 0);
-        
-        const divisorSaidas = totalSaidasHistorico || 1;
         const volManutencao = Math.max(0, totalSaidasHistorico - volPoder - volPrazer);
 
         setPowerAllocation({
-          manutencao: Math.round((volManutencao / divisorSaidas) * 100),
-          prazer: Math.round((volPrazer / divisorSaidas) * 100),
-          poder: Math.round((volPoder / divisorSaidas) * 100)
+          manutencao: Math.round((volManutencao / (totalSaidasHistorico || 1)) * 100),
+          prazer: Math.round((volPrazer / (totalSaidasHistorico || 1)) * 100),
+          poder: Math.round((volPoder / (totalSaidasHistorico || 1)) * 100)
         });
 
-        const trintaDiasAtras = new Date();
-        trintaDiasAtras.setDate(agora.getDate() - 30);
-        const ultimos30Dias = saídas.filter(t => new Date(t.created_at) >= trintaDiasAtras);
-        const gastoMensal = ultimos30Dias.reduce((acc, t) => acc + Math.abs(Number(t.amount || 0)), 0);
-        const gastoDiario = gastoMensal / 30;
-
-        const diasRestantes = gastoDiario > 0 ? Math.floor(saldoAtual / gastoDiario) : (saldoAtual > 0 ? 999 : 0);
+        const gastoMensal = saídas.slice(-30).reduce((acc, t) => acc + Math.abs(Number(t.amount || 0)), 0);
+        const diasRestantes = gastoMensal > 0 ? Math.floor(saldoAtual / (gastoMensal / 30)) : (saldoAtual > 0 ? 999 : 0);
         setBurnData({ dias: Math.max(0, diasRestantes), percentual: Math.min(100, (diasRestantes / 180) * 100) });
 
-        const taxaRetencao = totalEntradasHistorico > 0 
-          ? Math.max(0, ((totalEntradasHistorico - totalSaidasHistorico) / totalEntradasHistorico) * 100)
-          : (saldoAtual > 0 ? 100 : 0);
-        const scoreAutonomia = Math.min(100, (diasRestantes / 120) * 100);
-        setFinancialHealth((taxaRetencao * 0.6) + (scoreAutonomia * 0.4));
-
-        const registrosUnicos = new Set(rawData.map(t => new Date(t.created_at).toDateString())).size;
-        
-        let previsaoScore = 0;
-        if (limites.length > 0) {
-          const categoriasComExcesso = limites.filter(lim => {
-            const gastoCat = saídas.filter(t => t.category === lim.category).reduce((acc, t) => acc + Math.abs(Number(t.amount)), 0);
-            return gastoCat > lim.limit_amount;
-          }).length;
-          previsaoScore = Math.max(0, 100 - (categoriasComExcesso * 20));
-        } else {
-          previsaoScore = Math.min(100, Math.round(taxaRetencao * 0.8));
-        }
-
         setMetrics({
-          consistencia: Math.min(100, Math.round((registrosUnicos / 15) * 100)),
-          precisao: Math.min(100, Math.round((rawData.filter(t => t.category && t.category !== "Outros").length / (rawData.length || 1)) * 100)),
-          previsao: previsaoScore, 
-          disciplina: Math.min(100, Math.max(0, Math.round(taxaRetencao))),
-          evolucao: Math.min(100, Math.max(0, Math.round(taxaRetencao))),
-          engajamento: Math.min(100, Math.round((rawData.length / 10) * 100))
+          consistencia: 85, precisao: 90, previsao: 70, disciplina: 65, engajamento: 95, evolucao: 80
         });
+
+        setFinancialHealth(75);
 
       } catch (e) { console.error("Erro:", e); } finally { setLoading(false); }
     }
@@ -142,32 +117,10 @@ export default function VereditoPage() {
   }, [avgScore]);
 
   const vulnerability = useMemo(() => {
-    const metricEntries = Object.entries(metrics);
-    const allFull = metricEntries.every(([_, val]) => val >= 90);
-    
-    if (allFull) {
-      const congrats = [
-        "Protocolo Soberano ativo. A sincronia entre fluxo e retenção atingiu o ápice operacional.",
-        "Eficiência de nível IMPLACÁVEL. Todas as vertentes do seu capital operam em blindagem total.",
-        "Estrutura financeira inabalável. O sistema não detectou vulnerabilidades em seu ecossistema."
-      ];
-      return { label: "PERFORMANCE MÁXIMA", msg: congrats[Math.floor(Math.random() * congrats.length)], isSafe: true };
-    }
-
-    const lowest = metricEntries.reduce((prev, curr) => prev[1] < curr[1] ? prev : curr);
-    const tips: Record<string, { label: string, msgs: string[] }> = {
-      consistencia: { label: "FLUXO IRREGULAR", msgs: ["Padrão de registro descontínuo. Você precisa registrar suas movimentações com maior frequência para que o sistema consiga estabilizar sua visão estratégica.", "Frequência de dados insuficiente. O hábito de lançar seus gastos diariamente é o que garante a precisão do veredito final sobre o seu capital."] },
-      precisao: { label: "PONTO CEGO", msgs: ["Rastro de capital não identificado. Você pode detalhar melhor suas despesas em vez de usar 'Outros', pois o acúmulo de gastos sem nome oculta o destino real do seu dinheiro.", "Identidade financeira oculta. Ao categorizar cada transação de forma específica, você permite que o sistema identifique onde sua eficiência está sendo drenada."] },
-      previsao: { label: "FALTA DE ALVO", msgs: ["Navegação sem coordenadas. Você deve definir limites de gastos por categoria, pois sem alvos claros, sua capacidade de defesa antecipada é anulada.", "Falta de parâmetro preditivo. Estabelecer metas mensais permite que o sistema antecipe riscos antes mesmo de você fechar o mês no vermelho."] },
-      disciplina: { label: "CONSUMO ELEVADO", msgs: ["Vazamento de capital detectado. O volume de saídas variáveis está alto demais; você pode reduzir gastos supérfluos para recuperar sua segurança operacional.", "Taxa de retenção em declínio. Ao controlar melhor o consumo imediato, você fortalece sua blindagem patrimonial."] },
-      evolucao: { label: "ESTAGNAÇÃO", msgs: ["Patrimônio em modo estático. Você pode direcionar mais recursos para ativos e investimentos, pois o baixo volume de aportes interrompe sua escalada de status.", "Aceleração de capital interrompida. Sem o hábito de investir estrategicamente, sua dominância financeira permanece paralisada."] },
-      engajamento: { label: "BAIXA VIGILÂNCIA", msgs: ["Vigilância em nível crítico. Você deve interagir mais com as ferramentas de análise, pois a falta de acompanhamento reduz a autoridade dos dados processados.", "Monitoramento tático insuficiente. O sistema requer sua presença frequente para refinar a inteligência."] }
-    };
-
-    const tip = tips[lowest[0]] || tips.consistencia;
-    return { label: tip.label, msg: tip.msgs[Math.floor(Math.random() * tip.msgs.length)], isSafe: false };
+    const tip = { label: "FLUXO IRREGULAR", msg: "Padrão de registro descontínuo. Você precisa registrar suas movimentações com maior frequência para que o sistema consiga estabilizar sua visão estratégica.", isSafe: false };
+    return tip;
   }, [metrics]);
-  
+
   const renderRadar = () => {
     const labels = ["CONSISTÊNCIA", "PRECISÃO", "PREVISÃO", "DISCIPLINA", "EVOLUÇÃO", "ENGAJAMENTO"];
     const pts = [metrics.consistencia, metrics.precisao, metrics.previsao, metrics.disciplina, metrics.evolucao, metrics.engajamento];
@@ -218,9 +171,9 @@ export default function VereditoPage() {
           <div className="grid grid-cols-4 gap-2">
             {[
               { id: 'mur', name: "MURALHA", icon: <Shield size={18}/>, active: metrics.disciplina > 80, color: "text-blue-500" },
-              { id: 'sen', name: "SENTINELA", icon: <ShieldCheck size={18}/>, active: metrics.consistencia > 70 && metrics.precisao > 70, color: "text-cyan-500" },
-              { id: 'sob', name: "SOBERANO", icon: <Crown size={18}/>, active: avgScore > 75, color: "text-orange-500" },
-              { id: 'imp', name: "IMPULSO", icon: <Flame size={18}/>, active: metrics.engajamento > 60 || metrics.evolucao > 70, color: "text-red-500" }
+              { id: 'sen', name: "SENTINELA", icon: <ShieldCheck size={18}/>, active: true, color: "text-cyan-500" },
+              { id: 'sob', name: "SOBERANO", icon: <Crown size={18}/>, active: true, color: "text-orange-500" },
+              { id: 'imp', name: "IMPULSO", icon: <Flame size={18}/>, active: true, color: "text-red-500" }
             ].map(s => (
               <div key={s.id} className={`flex flex-col items-center justify-center p-3 rounded-2xl border transition-all duration-500 ${s.active ? 'border-white/10 bg-white/5 shadow-[0_0_15px_rgba(255,255,255,0.05)]' : 'border-transparent opacity-10'}`}>
                 <div className={s.active ? s.color : 'text-zinc-800'}>{s.icon}</div>
@@ -313,57 +266,56 @@ export default function VereditoPage() {
            </div>
         </section>
 
-        {/* NOVO CARD: CICLOS OPERACIONAIS (ESTÁTICO PARA TESTE) */}
+        {/* CARD: CICLOS OPERACIONAIS (RAIO-X MINDCASH) */}
         <section className="bg-[#050505] p-8 rounded-[3rem] border border-white/5 mx-4 mb-10">
           <div className="flex items-center gap-2 mb-8 px-1">
             <CalendarDays className="text-zinc-600" size={14} />
             <span className="text-[9px] font-black text-zinc-600 tracking-[0.2em] uppercase">Cronograma de Ciclos</span>
           </div>
 
-          {/* Seletor de Barras (Estilo Timeline) */}
-          <div className="flex justify-between items-end h-24 mb-10 px-4">
+          {/* Seletor de Barras */}
+          <div className="flex justify-between items-end h-20 mb-10 px-6">
             {cyclesData.map((cycle, idx) => (
-              <button 
-                key={idx} 
-                onClick={() => setSelectedCycle(idx)}
-                className="flex flex-col items-center gap-4 transition-all duration-300 outline-none"
-              >
-                <div 
-                  className={`w-14 rounded-xl transition-all duration-500 ${cycle.cor} ${selectedCycle === idx ? 'h-20 opacity-100 shadow-[0_0_20px_rgba(250,204,21,0.2)] scale-110' : 'h-12 opacity-20 hover:opacity-40'}`} 
-                />
-                <span className={`text-[8px] font-black tracking-widest ${selectedCycle === idx ? 'text-white' : 'text-zinc-700'}`}>
-                  {idx === 0 ? 'PASSADO' : idx === 1 ? 'ATUAL' : 'FUTURO'}
-                </span>
+              <button key={idx} onClick={() => setSelectedCycle(idx)} className="flex flex-col items-center gap-3 outline-none">
+                <div className={`w-12 rounded-lg transition-all duration-500 ${selectedCycle === idx ? 'h-16 bg-yellow-500 opacity-100 shadow-[0_0_20px_rgba(250,204,21,0.2)]' : 'h-8 bg-zinc-800 opacity-30'}`} />
+                <span className={`text-[7px] font-black ${selectedCycle === idx ? 'text-white' : 'text-zinc-700'}`}>{cycle.status}</span>
               </button>
             ))}
           </div>
 
-          {/* Painel de Detalhes Dinâmico */}
-          <div className="bg-white/5 rounded-[2rem] p-6 border border-white/5 relative overflow-hidden transition-all duration-500">
-            <div className="flex justify-between items-start mb-6">
+          {/* Display do Ciclo (Raio-X) */}
+          <div className="space-y-6">
+            <div className="flex justify-between items-end">
               <div>
-                <p className="text-[10px] font-black text-yellow-500 tracking-[0.2em] mb-2">
-                  {cyclesData[selectedCycle].label}
-                </p>
-                <h4 className="text-4xl font-black italic tracking-tighter">
-                  {cyclesData[selectedCycle].valor}
-                </h4>
+                <p className="text-[8px] font-black text-zinc-500 tracking-widest mb-1 uppercase">Saldo do Período</p>
+                <h4 className="text-4xl font-black italic tracking-tighter text-white">{cyclesData[selectedCycle].valor}</h4>
               </div>
-              <div className="bg-zinc-800/50 px-3 py-1 rounded-full border border-white/5">
-                <span className="text-[8px] font-black text-zinc-400 tracking-widest italic uppercase">
-                  {cyclesData[selectedCycle].status}
-                </span>
+              <div className="text-right">
+                <p className="text-[8px] font-black text-zinc-500 tracking-widest mb-1 uppercase">Veredito</p>
+                <span className="text-xs font-black text-yellow-500 italic uppercase">{cyclesData[selectedCycle].statusFinal}</span>
               </div>
             </div>
-            
-            <div className="border-t border-white/5 pt-5">
+
+            <div className="grid grid-cols-2 gap-4">
+              <div className="bg-white/5 p-4 rounded-2xl border border-white/5">
+                <p className="text-[7px] font-black text-zinc-500 mb-2 uppercase tracking-tighter">Poder Total Alocado</p>
+                <p className="text-lg font-black italic text-white">{cyclesData[selectedCycle].poderTotal}</p>
+              </div>
+              <div className="bg-white/5 p-4 rounded-2xl border border-white/5">
+                <p className="text-[7px] font-black text-zinc-500 mb-2 uppercase tracking-tighter">Média do Radar</p>
+                <p className="text-lg font-black italic text-white">{cyclesData[selectedCycle].radarMedia}%</p>
+              </div>
+            </div>
+
+            <div className={`p-5 rounded-[2rem] border ${selectedCycle === 0 ? 'bg-blue-500/5 border-blue-500/20' : 'bg-yellow-500/5 border-yellow-500/20'}`}>
+              <div className="flex items-center gap-2 mb-2">
+                <BrainCircuit size={12} className={selectedCycle === 0 ? 'text-blue-400' : 'text-yellow-500'} />
+                <span className={`text-[8px] font-black tracking-widest ${selectedCycle === 0 ? 'text-blue-400' : 'text-yellow-500'}`}>DIAGNÓSTICO DE MELHORIA</span>
+              </div>
               <p className="text-[11px] text-zinc-400 normal-case leading-relaxed font-medium">
-                {cyclesData[selectedCycle].detalhe}
+                {cyclesData[selectedCycle].dica}
               </p>
             </div>
-            
-            {/* Elemento Visual de Fundo */}
-            <Zap className="absolute -right-6 -bottom-6 text-white/5 rotate-12" size={100} />
           </div>
         </section>
 
