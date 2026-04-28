@@ -1,40 +1,16 @@
 "use client";
 
-import React, { useState, useMemo } from "react";
+import React, { useState, useMemo, useEffect } from "react";
 import { BrainCircuit, CalendarDays, Info } from "lucide-react";
-import { motion, AnimatePresence } from "framer-motion"; // Adicione framer-motion
+import { motion, AnimatePresence } from "framer-motion";
+import { createClient } from "@/utils/supabase/client"; // Verifique se este é o seu path do Supabase
 
 export default function CardCiclosOperacionais() {
   const [selectedCycle, setSelectedCycle] = useState(2);
-
-  // 1. MOTOR DE INTELIGÊNCIA DE MENSAGENS (A Real do Veredito)
-  const getDinamicaMensagem = (saldo: number, poder: number, tipo: string) => {
-    const taxaPoder = (poder / saldo) * 100;
-
-    if (tipo === "FUTURO") {
-      return {
-        dica: "Projeção baseada nos teus limites. O futuro é cinza porque ainda não foi conquistado. Mantenha a disciplina para converter esses números em realidade.",
-        cor: "text-zinc-500"
-      };
-    }
-
-    if (taxaPoder <= 10) return {
-      dica: "VEREDITO CRÍTICO: Você está trabalhando para pagar boletos. Apenas " + taxaPoder.toFixed(0) + "% do seu esforço virou patrimônio. Ajuste a rota ou o tempo vai passar e você continuará no mesmo lugar.",
-      cor: "text-red-500"
-    };
-
-    if (taxaPoder > 10 && taxaPoder <= 25) return {
-      dica: "ESTÁVEL, MAS LENTO: Sua zona de conforto está drenando seu potencial. Você tem oxigênio, mas não tem tração. Onde está o vazamento desse mês?",
-      cor: "text-yellow-500"
-    };
-
-    if (taxaPoder > 25) return {
-      dica: "DOMINANTE: O capital está curvado à sua vontade. Com " + taxaPoder.toFixed(0) + "% de retenção, você não apenas sobreviveu, você avançou. Replique o método.",
-      cor: "text-green-400"
-    };
-
-    return { dica: "Dados insuficientes para julgamento. Alimente o sistema.", cor: "text-zinc-500" };
-  };
+  const [sentencaIA, setSentencaIA] = useState("");
+  const [isLoadingIA, setIsLoadingIA] = useState(false);
+  
+  const supabase = createClient();
 
   const cyclesData = useMemo(() => [
     { label: "FEV", tipo: "PASSADO", saldo: 1100, status: "ESTÁVEL", poder: 150 },
@@ -44,9 +20,70 @@ export default function CardCiclosOperacionais() {
     { label: "JUN", tipo: "FUTURO", saldo: 1200, status: "ALVO", poder: 2100 }
   ], []);
 
-  const maxSaldo = useMemo(() => Math.max(...cyclesData.map(c => c.saldo), 1), [cyclesData]);
   const activeCycle = cyclesData[selectedCycle];
-  const vereditoInteligente = getDinamicaMensagem(activeCycle.saldo, activeCycle.poder, activeCycle.tipo);
+  const maxSaldo = useMemo(() => Math.max(...cyclesData.map(c => c.saldo), 1), [cyclesData]);
+
+  // --- A PONTE DA INTELIGÊNCIA ---
+  useEffect(() => {
+    const fetchVeredito = async () => {
+      setIsLoadingIA(true);
+      const periodoChave = `${activeCycle.label}-${new Date().getFullYear()}`;
+
+      try {
+        const { data: { user } } = await supabase.auth.getUser();
+        if (!user) throw new Error("Não autenticado");
+
+        // 1. Tenta buscar no Cache do Supabase
+        const { data: cache } = await supabase
+          .from('vereditos_ia')
+          .select('*')
+          .eq('user_id', user.id)
+          .eq('periodo', periodoChave)
+          .single();
+
+        // Se o cache existe e os valores são os mesmos, usa ele
+        if (cache && Number(cache.saldo_referencia) === activeCycle.saldo && Number(cache.poder_referencia) === activeCycle.poder) {
+          setSentencaIA(cache.sentenca);
+          setIsLoadingIA(false);
+          return;
+        }
+
+        // 2. Se não tem cache ou valor mudou, chama a API Route da IA
+        const res = await fetch('/api/veredito-ia', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            saldo: activeCycle.saldo,
+            poder: activeCycle.poder,
+            status: activeCycle.status,
+            tipo: activeCycle.tipo,
+            periodo: periodoChave
+          }),
+        });
+
+        const data = await res.json();
+        const textoFinal = data.text;
+
+        // 3. Salva o novo veredito no Supabase (Upsert)
+        await supabase.from('vereditos_ia').upsert({
+          user_id: user.id,
+          periodo: periodoChave,
+          saldo_referencia: activeCycle.saldo,
+          poder_referencia: activeCycle.poder,
+          sentenca: textoFinal
+        });
+
+        setSentencaIA(textoFinal);
+      } catch (error) {
+        console.error("Erro na ponte:", error);
+        setSentencaIA("Análise técnica indisponível no momento.");
+      } finally {
+        setIsLoadingIA(false);
+      }
+    };
+
+    fetchVeredito();
+  }, [selectedCycle, activeCycle, supabase]);
 
   return (
     <section className="bg-[#050505] p-6 rounded-[2.5rem] border border-white/5 mx-4 my-10 overflow-hidden text-white uppercase tracking-tighter">
@@ -79,10 +116,9 @@ export default function CardCiclosOperacionais() {
         })}
       </div>
 
-      {/* ÁREA COM TRANSIÇÃO SLIDE DOWN + FADE IN */}
       <AnimatePresence mode="wait">
         <motion.div
-          key={selectedCycle} // Força o re-render da animação ao trocar de ciclo
+          key={selectedCycle}
           initial={{ opacity: 0, y: -10 }}
           animate={{ opacity: 1, y: 0 }}
           exit={{ opacity: 0, y: 10 }}
@@ -98,8 +134,8 @@ export default function CardCiclosOperacionais() {
               </h4>
             </div>
             <div className="text-right">
-              <p className="text-[8px] font-black text-zinc-500 tracking-widest mb-1">Veredito</p>
-              <span className={`text-[10px] font-black italic uppercase leading-none ${vereditoInteligente.cor}`}>
+              <p className="text-[8px] font-black text-zinc-500 tracking-widest mb-1">Status</p>
+              <span className={`text-[10px] font-black italic uppercase leading-none ${activeCycle.tipo === "PASSADO" ? "text-green-400" : "text-yellow-500"}`}>
                 {activeCycle.status}
               </span>
             </div>
@@ -115,23 +151,27 @@ export default function CardCiclosOperacionais() {
 
             <div className="bg-white/5 p-4 rounded-2xl border border-white/5">
               <p className="text-[7px] font-black text-zinc-500 mb-2">Performance Radar</p>
-              <p className="text-lg font-black italic leading-none">78%</p>
+              <p className="text-lg font-black italic leading-none">
+                {((activeCycle.poder / activeCycle.saldo) * 100).toFixed(0)}%
+              </p>
               <p className={`text-[5.5px] font-bold leading-tight mt-2 italic ${activeCycle.tipo === "FUTURO" ? "text-orange-500/70" : "text-zinc-600"}`}>
                 {activeCycle.tipo === "FUTURO" ? "* Estimativa volátil." : "Dados técnicos validados."}
               </p>
             </div>
           </div>
 
-          {/* DIAGNÓSTICO DE MELHORIA */}
-          <div className={`p-5 rounded-[2rem] border transition-colors duration-500 
-            ${activeCycle.tipo === "FUTURO" ? "bg-zinc-900/40 border-white/5" : "bg-yellow-500/5 border-yellow-500/20"}
+          {/* DIAGNÓSTICO DE MELHORIA (IA LIVE) */}
+          <div className={`p-5 rounded-[2rem] border transition-all duration-500 
+            ${isLoadingIA ? "animate-pulse border-yellow-500/50" : activeCycle.tipo === "FUTURO" ? "bg-zinc-900/40 border-white/5" : "bg-yellow-500/5 border-yellow-500/20"}
           `}>
             <div className="flex items-center gap-2 mb-2">
-              <BrainCircuit size={12} className={activeCycle.tipo === "FUTURO" ? "text-zinc-500" : "text-yellow-500"} />
-              <span className={`text-[8px] font-black tracking-widest ${activeCycle.tipo === "FUTURO" ? "text-zinc-500" : "text-yellow-500"}`}>Diagnóstico de Melhoria</span>
+              <BrainCircuit size={12} className={isLoadingIA ? "text-yellow-500" : activeCycle.tipo === "FUTURO" ? "text-zinc-500" : "text-yellow-500"} />
+              <span className={`text-[8px] font-black tracking-widest ${activeCycle.tipo === "FUTURO" ? "text-zinc-500" : "text-yellow-500"}`}>
+                {isLoadingIA ? "Processando Veredito..." : "Veredito da Inteligência"}
+              </span>
             </div>
-            <p className="text-[11px] text-zinc-400 normal-case leading-relaxed font-medium">
-              {vereditoInteligente.dica}
+            <p className="text-[11px] text-zinc-400 normal-case leading-relaxed font-medium min-h-[40px]">
+              {isLoadingIA ? "Cruzando dados de capital e retenção..." : sentencaIA}
             </p>
           </div>
         </motion.div>
