@@ -3,7 +3,8 @@
 import React, { useState, useMemo, useEffect } from "react";
 import { BrainCircuit, CalendarDays, Info } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
-import { createClient } from "@/lib/supabase";
+import { createClient } from "../../../lib/supabase";
+
 
 export default function CardCiclosOperacionais() {
   const [selectedCycle, setSelectedCycle] = useState(2);
