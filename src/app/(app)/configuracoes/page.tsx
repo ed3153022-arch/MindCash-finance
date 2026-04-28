@@ -1,149 +1,126 @@
 "use client";
 
 import React, { useState, useMemo } from "react";
-import { 
-  Zap, BrainCircuit, CalendarDays, Info
-} from "lucide-react";
+import { BrainCircuit, CalendarDays, Info } from "lucide-react";
 
-export default function VereditoPage() {
-  const [selectedCycle, setSelectedCycle] = useState(2); // Começa em ABR (Atual)
+export default function CardCiclosOperacionais() {
+  const [selectedCycle, setSelectedCycle] = useState(2); // Foco no mês Atual (Ex: Abril)
 
-  // --- DADOS DINÂMICOS DOS CICLOS ---
-  const cyclesData = useMemo(() => {
-    return [
-      { 
-        label: "FEV", status: "PASSADO", valor: "R$ 1.100", rawValor: 1100, 
-        statusFinal: "DOMINANTE", poderTotal: "R$ 2.400", radarMedia: 85,
-        dica: "Sua retenção em Fevereiro foi exemplar. O segredo foi o baixo gasto em 'Prazer'. Continue replicando esse padrão.",
-        corBarra: "bg-yellow-500", corDica: "text-yellow-500"
-      },
-      { 
-        label: "MAR", status: "PASSADO", valor: "R$ 4.250", rawValor: 4250, 
-        statusFinal: "ESTÁVEL", poderTotal: "R$ 900", radarMedia: 62,
-        dica: "Houve um vazamento de capital em categorias não identificadas. Detalhe mais seus gastos para não perder Poder.",
-        corBarra: "bg-yellow-500", corDica: "text-yellow-500"
-      },
-      { 
-        label: "ABR", status: "ATUAL", valor: "R$ 2.840", rawValor: 2840, 
-        statusFinal: "DOMINANTE", poderTotal: "R$ 1.500", radarMedia: 78,
-        dica: "Sua operação está saudável. Mantenha a vigilância nos próximos 10 dias para fechar o ciclo como Implacável.",
-        corBarra: "bg-yellow-500", corDica: "text-yellow-500"
-      },
-      { 
-        label: "MAI", status: "FUTURO", valor: "R$ 3.200", rawValor: 3200, 
-        statusFinal: "PROJEÇÃO", poderTotal: "R$ 1.800", radarMedia: 70,
-        dica: "Baseado em seus limites, este mês tem potencial de aporte recorde. Evite gastos extras na primeira quinzena.",
-        corBarra: "bg-zinc-800", corDica: "text-zinc-500"
-      },
-      { 
-        label: "JUN", status: "FUTURO", valor: "R$ 1.200", rawValor: 1200, 
-        statusFinal: "ALVO", poderTotal: "R$ 2.100", radarMedia: 65,
-        dica: "Mês de manutenção preventiva. Prepare o caixa para compromissos fixos recorrentes que surgirão.",
-        corBarra: "bg-zinc-800", corDica: "text-zinc-500"
-      }
-    ];
-  }, []);
+  // 1. DADOS DOS CICLOS (Simulando banco de dados)
+  const cyclesData = useMemo(() => [
+    { label: "FEV", tipo: "PASSADO", saldo: 1100, status: "ESTÁVEL", poder: "R$ 400", radar: 55, dica: "Fevereiro teve um saldo baixo. Foque em reduzir custos fixos para aumentar seu Poder no próximo ciclo." },
+    { label: "MAR", tipo: "PASSADO", saldo: 4250, status: "DOMINANTE", poder: "R$ 1.850", radar: 82, dica: "Março foi um mês de alta performance. Você converteu 43% do faturamento em Poder Real." },
+    { label: "ABR", tipo: "ATUAL", saldo: 2840, status: "DOMINANTE", poder: "R$ 1.500", radar: 78, dica: "Sua operação está saudável. Mantenha a vigilância nos próximos 10 dias para fechar como Implacável." },
+    { label: "MAI", tipo: "FUTURO", saldo: 3200, status: "PROJEÇÃO", poder: "R$ 1.800", radar: 70, dica: "Projeção baseada em seus limites atuais. Mantenha o teto de gastos para atingir este saldo." },
+    { label: "JUN", tipo: "FUTURO", saldo: 1200, status: "ALVO", poder: "R$ 2.100", radar: 65, dica: "Meta agressiva para Junho. O sistema sugere antecipar aportes para garantir o status Alvo." }
+  ], []);
 
-  // AJUSTE 1: Cálculo de altura proporcional ao saldo total
-  const maxValor = Math.max(...cyclesData.map(c => c.rawValor));
+  // 2. AJUSTE: Lógica de Altura Dinâmica
+  // Encontramos o maior saldo para servir de referência (100%)
+  const maxSaldo = Math.max(...cyclesData.map(c => c.saldo));
 
-  const getStatusColor = (label: string) => {
-    if (label.includes("IMPLACÁVEL")) return "text-cyan-400";
-    if (label.includes("DOMINANTE")) return "text-green-400";
-    if (label.includes("ESTÁVEL")) return "text-yellow-400";
-    if (label.includes("PROJEÇÃO") || label.includes("ALVO")) return "text-zinc-500";
-    return "text-red-500";
+  const getStatusColor = (status: string) => {
+    if (status.includes("DOMINANTE")) return "text-green-400";
+    if (status.includes("ESTÁVEL")) return "text-yellow-400";
+    if (status.includes("CRÍTICO")) return "text-red-500";
+    return "text-zinc-500"; // Para projeções futuras
   };
 
   return (
-    <div className="bg-black text-white font-sans uppercase tracking-tighter min-h-screen p-4">
-      <div className="max-w-md mx-auto space-y-6">
-        
-        {/* CARD: CRONOGRAMA DE CICLOS */}
-        <section className="bg-[#050505] p-6 rounded-[2.5rem] border border-white/5">
-          <div className="flex items-center gap-2 mb-8 text-zinc-600">
-            <CalendarDays size={14} />
-            <span className="text-[9px] font-black tracking-[0.2em] uppercase">Cronograma de Ciclos</span>
-          </div>
-
-          {/* AJUSTE 1: BARRAS DINÂMICAS POR SALDO */}
-          <div className="flex justify-between items-end h-24 mb-10 px-2 border-b border-white/5 pb-4">
-            {cyclesData.map((cycle, idx) => {
-              const heightPercentage = (cycle.rawValor / maxValor) * 100;
-              return (
-                <button key={idx} onClick={() => setSelectedCycle(idx)} className="flex flex-col items-center gap-3 outline-none group">
-                  <div 
-                    className={`w-10 rounded-t-sm transition-all duration-500 ${cycle.corBarra} ${selectedCycle === idx ? 'opacity-100 shadow-[0_0_15px_rgba(250,204,21,0.2)]' : 'opacity-20'}`} 
-                    style={{ height: `${heightPercentage}%`, minHeight: '4px' }}
-                  />
-                  <span className={`text-[8px] font-black ${selectedCycle === idx ? 'text-white' : 'text-zinc-700'}`}>
-                    {cycle.label}
-                  </span>
-                </button>
-              );
-            })}
-          </div>
-
-          {/* DADOS DO CICLO SELECIONADO */}
-          <div className="space-y-6">
-            <div className="flex justify-between items-end">
-              <div>
-                <p className="text-[8px] font-black text-zinc-500 tracking-widest mb-1">SALDO DO PERÍODO</p>
-                <h4 className="text-4xl font-black italic tracking-tighter text-white">{cyclesData[selectedCycle].valor}</h4>
-              </div>
-              <div className="text-right">
-                <p className="text-[8px] font-black text-zinc-500 tracking-widest mb-1">VEREDITO</p>
-                <span className={`text-[10px] font-black italic uppercase ${getStatusColor(cyclesData[selectedCycle].statusFinal)}`}>
-                  {cyclesData[selectedCycle].statusFinal}
-                </span>
-              </div>
-            </div>
-
-            <div className="grid grid-cols-2 gap-4">
-              {/* AJUSTE 2: DETALHE DO PODER TOTAL ALOCADO */}
-              <div className="bg-white/5 p-4 rounded-2xl border border-white/5 relative overflow-hidden group">
-                <p className="text-[7px] font-black text-zinc-500 mb-2 tracking-tighter uppercase flex items-center gap-1">
-                  Poder Total Alocado <Info size={8} />
-                </p>
-                <p className="text-lg font-black italic text-white">{cyclesData[selectedCycle].poderTotal}</p>
-                <p className="text-[5.5px] text-zinc-600 font-bold leading-tight mt-1 group-hover:text-zinc-400 transition-colors uppercase">
-                  Capital blindado convertido em patrimônio real.
-                </p>
-              </div>
-
-              {/* AJUSTE 3: PERFORMANCE RADAR COM AVISO DE PRECISÃO */}
-              <div className="bg-white/5 p-4 rounded-2xl border border-white/5">
-                <p className="text-[7px] font-black text-zinc-500 mb-2 tracking-tighter uppercase">Performance Radar</p>
-                <p className="text-lg font-black italic text-white">
-                  {cyclesData[selectedCycle].radarMedia}%
-                </p>
-                {cyclesData[selectedCycle].status === "FUTURO" && (
-                  <p className="text-[5.5px] text-orange-500/70 font-bold leading-tight mt-1 uppercase italic">
-                    *Estimativa volátil. Sujeita a variações de mercado e disciplina.
-                  </p>
-                )}
-                {cyclesData[selectedCycle].status !== "FUTURO" && (
-                  <p className="text-[5.5px] text-zinc-600 font-bold leading-tight mt-1 uppercase">
-                    Eficiência técnica baseada em dados reais.
-                  </p>
-                )}
-              </div>
-            </div>
-
-            {/* DIAGNÓSTICO DE MELHORIA */}
-            <div className={`p-5 rounded-[2rem] border transition-all duration-500 ${selectedCycle >= 3 ? 'bg-zinc-900/30 border-white/5' : 'bg-yellow-500/5 border-yellow-500/20'}`}>
-              <div className="flex items-center gap-2 mb-2">
-                <BrainCircuit size={12} className={cyclesData[selectedCycle].corDica} />
-                <span className={`text-[8px] font-black tracking-widest ${cyclesData[selectedCycle].corDica}`}>DIAGNÓSTICO DE MELHORIA</span>
-              </div>
-              <p className="text-[11px] text-zinc-400 normal-case leading-relaxed font-medium">
-                {cyclesData[selectedCycle].dica}
-              </p>
-            </div>
-          </div>
-        </section>
-
+    <section className="bg-[#050505] p-6 rounded-[2.5rem] border border-white/5 mx-4 my-10">
+      <div className="flex items-center gap-2 mb-8 text-zinc-600">
+        <CalendarDays size={14} />
+        <span className="text-[9px] font-black tracking-[0.2em] uppercase">Cronograma de Ciclos</span>
       </div>
-    </div>
+
+      {/* TIMELINE DE BARRAS DINÂMICAS */}
+      <div className="flex justify-between items-end h-32 mb-10 px-2 border-b border-white/5 pb-4">
+        {cyclesData.map((cycle, idx) => {
+          // Calculo da porcentagem: (valor atual / valor máximo) * 100
+          // Adicionamos um min-height de 10% para que meses com saldo R$ 1 ainda apareçam
+          const barHeight = Math.max(10, (cycle.saldo / maxSaldo) * 100);
+          
+          return (
+            <button 
+              key={idx} 
+              onClick={() => setSelectedCycle(idx)}
+              className="flex flex-col items-center gap-3 outline-none group"
+            >
+              <div 
+                className={`w-10 rounded-t-sm transition-all duration-700 ease-out
+                  ${cycle.tipo === "FUTURO" ? "bg-zinc-800" : "bg-yellow-500"}
+                  ${selectedCycle === idx ? "opacity-100 shadow-[0_0_20px_rgba(250,204,21,0.3)] scale-x-110" : "opacity-20 group-hover:opacity-40"}
+                `}
+                style={{ height: `${barHeight}%` }} // AQUI ESTÁ O DINAMISMO
+              />
+              <span className={`text-[8px] font-black tracking-tighter ${selectedCycle === idx ? "text-white" : "text-zinc-700"}`}>
+                {cycle.label}
+              </span>
+            </button>
+          );
+        })}
+      </div>
+
+      {/* INFOS DO CICLO SELECIONADO */}
+      <div className="space-y-6">
+        <div className="flex justify-between items-end">
+          <div>
+            <p className="text-[8px] font-black text-zinc-500 tracking-widest mb-1 uppercase">Saldo do Período</p>
+            <h4 className="text-4xl font-black italic tracking-tighter text-white leading-none">
+              R$ {cyclesData[selectedCycle].saldo.toLocaleString('pt-BR')}
+            </h4>
+          </div>
+          <div className="text-right">
+            <p className="text-[8px] font-black text-zinc-500 tracking-widest mb-1 uppercase">Veredito</p>
+            <span className={`text-[10px] font-black italic uppercase leading-none ${getStatusColor(cyclesData[selectedCycle].status)}`}>
+              {cyclesData[selectedCycle].status}
+            </span>
+          </div>
+        </div>
+
+        {/* METRICAS DE PODER E RADAR */}
+        <div className="grid grid-cols-2 gap-4">
+          {/* PODER TOTAL ALOCADO */}
+          <div className="bg-white/5 p-4 rounded-2xl border border-white/5 relative overflow-hidden group">
+            <p className="text-[7px] font-black text-zinc-500 mb-2 tracking-tighter uppercase flex items-center gap-1">
+              Poder Total Alocado <Info size={8} />
+            </p>
+            <p className="text-lg font-black italic text-white leading-none">{cyclesData[selectedCycle].poder}</p>
+            <p className="text-[5.5px] text-zinc-600 font-bold leading-tight mt-2 uppercase transition-colors group-hover:text-zinc-400">
+              Capital convertido em patrimônio real e blindado.
+            </p>
+          </div>
+
+          {/* PERFORMANCE RADAR */}
+          <div className="bg-white/5 p-4 rounded-2xl border border-white/5 relative">
+            <p className="text-[7px] font-black text-zinc-500 mb-2 tracking-tighter uppercase">Performance Radar</p>
+            <p className="text-lg font-black italic text-white leading-none">{cyclesData[selectedCycle].radar}%</p>
+            
+            {/* Detalhe dinâmico para o futuro */}
+            <p className={`text-[5.5px] font-bold leading-tight mt-2 uppercase italic 
+              ${cyclesData[selectedCycle].tipo === "FUTURO" ? "text-orange-500/70" : "text-zinc-600"}`}>
+              {cyclesData[selectedCycle].tipo === "FUTURO" 
+                ? "* Estimativa volátil (sujeita a disciplina)." 
+                : "Eficiência técnica baseada em dados reais."}
+            </p>
+          </div>
+        </div>
+
+        {/* DIAGNÓSTICO DE MELHORIA (DINÂMICO) */}
+        <div className={`p-5 rounded-[2rem] border transition-all duration-500 
+          ${cyclesData[selectedCycle].tipo === "FUTURO" ? "bg-zinc-900/40 border-white/5" : "bg-yellow-500/5 border-yellow-500/20"}
+        `}>
+          <div className="flex items-center gap-2 mb-2">
+            <BrainCircuit size={12} className={cyclesData[selectedCycle].tipo === "FUTURO" ? "text-zinc-500" : "text-yellow-500"} />
+            <span className={`text-[8px] font-black tracking-widest uppercase ${cyclesData[selectedCycle].tipo === "FUTURO" ? "text-zinc-500" : "text-yellow-500"}`}>
+              Diagnóstico de Melhoria
+            </span>
+          </div>
+          <p className="text-[11px] text-zinc-400 normal-case leading-relaxed font-medium">
+            {cyclesData[selectedCycle].dica}
+          </p>
+        </div>
+      </div>
+    </section>
   );
 }
