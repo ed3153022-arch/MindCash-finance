@@ -3,7 +3,7 @@
 import React, { useState, useMemo, useEffect } from "react";
 import { BrainCircuit, CalendarDays, Info } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
-import { createClient } from "@/utils/supabase/client"; // Verifique se este é o seu path do Supabase
+import { createClient } from "@/lib/supabase/client";
 
 export default function CardCiclosOperacionais() {
   const [selectedCycle, setSelectedCycle] = useState(2);
