@@ -2,9 +2,13 @@
   "name": "template",
   "version": "0.1.0",
   "private": true,
+  "config": {
+    "legacy-peer-deps": true
+  },
   "scripts": {
     "dev": "next dev --turbopack",
     "build": "next build",
+    "vercel-build": "next build",
     "start": "next start",
     "lint": "next lint"
   },
