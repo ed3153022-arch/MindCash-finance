@@ -418,7 +418,7 @@ export default function InvestimentosPage() {
 
     return (
       <div className="w-full shrink-0 px-1">
-        <div className="bg-[#050505] p-6 lg:p-8 rounded-[3rem] border border-white/10 overflow-hidden animate-premium-fade relative" style={{ animationDelay: '0ms' }}>
+        <div className="bg-zinc-900/40 border border-zinc-800 rounded-2xl p-6 md:p-8 overflow-hidden w-full flex flex-col justify-between card-fade" style={{ animationDelay: '50ms' }}>
           <div className="flex flex-col gap-4 mb-4">
             <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
               <div>
@@ -466,9 +466,20 @@ export default function InvestimentosPage() {
 
   return (
     <div className="bg-black text-white font-sans uppercase tracking-tighter min-h-screen pb-24 relative overflow-x-hidden">
-      <div className="w-full max-w-[1400px] mx-auto px-6 lg:px-12 pt-8">
+      <style dangerouslySetInnerHTML={{__html: `
+        @keyframes premiumFadeIn {
+          from { opacity: 0; transform: translateY(15px); }
+          to { opacity: 1; transform: translateY(0); }
+        }
+        .card-fade {
+          opacity: 0;
+          animation: premiumFadeIn 0.5s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+        }
+      `}} />
+      <div className="w-full min-h-screen bg-black text-white px-4 md:px-8 py-6">
+        <div className="max-w-[1200px] mx-auto w-full flex flex-col gap-8">
           {/* HEADER DINÂMICO */}
-          <header className="lg:col-span-12 bg-[#050505] rounded-[3rem] p-6 lg:p-8 overflow-hidden border border-white/10 animate-premium-fade" style={{ animationDelay: '0ms' }}>
+          <header className="bg-zinc-900/40 border border-zinc-800 rounded-2xl p-6 md:p-8 overflow-hidden w-full flex flex-col justify-between card-fade" style={{ animationDelay: '50ms' }}>
             <div className="flex flex-col gap-6 lg:flex-row lg:items-end lg:justify-between">
               <div>
                 <p className="text-[10px] text-zinc-500 font-bold tracking-[0.4em] mb-2">PORTFÓLIO TOTAL</p>
@@ -487,8 +498,8 @@ export default function InvestimentosPage() {
             </div>
           </header>
 
-          <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 lg:gap-8 w-full">
-            <div className="lg:col-span-7 xl:col-span-8 flex flex-col gap-6">
+          <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 w-full items-start">
+            <div className="lg:col-span-7 flex flex-col gap-6 w-full">
 
             {/* DUPLA DE BOTÕES DE AÇÃO */}
           <div className="grid grid-cols-2 gap-3">
@@ -562,7 +573,7 @@ export default function InvestimentosPage() {
                 {categoriasOrdenadas.map((cat, index) => (
                   <div
                     key={cat.categoria}
-                    className={`bg-[#050505] rounded-[2.5rem] border border-white/10 p-6 lg:p-8 overflow-hidden ${
+                    className={`bg-zinc-900/40 border border-zinc-800 rounded-2xl p-6 md:p-8 overflow-hidden w-full flex flex-col justify-between ${
                       index === 0 ? "text-cyan-400" : "text-fuchsia-400"
                     }`}
                   >
@@ -573,7 +584,7 @@ export default function InvestimentosPage() {
               </div>
 
               {/* Card Principais Ativos */}
-              <div className="bg-[#050505] rounded-[3rem] p-6 lg:p-8 border border-white/10 overflow-hidden animate-premium-fade" style={{ animationDelay: '0ms' }}>
+              <div className="bg-zinc-900/40 border border-zinc-800 rounded-2xl p-6 md:p-8 overflow-hidden w-full flex flex-col justify-between card-fade" style={{ animationDelay: '150ms' }}>
                 <div className="flex justify-between items-center mb-3">
                   <p className="text-[8px] text-zinc-500 font-black tracking-[0.4em]">PRINCIPAIS ATIVOS</p>
                   <span className="text-[8px] text-zinc-400">{topAtivos.length} ITEMS</span>
@@ -665,7 +676,7 @@ export default function InvestimentosPage() {
                     </div>
                   </div>
                 </div>
-                  <div className="bg-[#050505] rounded-[3rem] p-6 lg:p-8 border border-white/10 overflow-hidden animate-premium-fade" style={{ animationDelay: '200ms' }}>
+                <div className="bg-zinc-900/40 border border-zinc-800 rounded-2xl p-6 md:p-8 overflow-hidden w-full flex flex-col justify-between card-fade" style={{ animationDelay: '250ms' }}>
                   <div className="flex justify-between items-end mb-3">
                     <div>
                       <p className="text-[8px] text-zinc-500 font-black tracking-[0.4em]">LIBERDADE FINANCEIRA</p>
@@ -686,7 +697,7 @@ export default function InvestimentosPage() {
               </div>
 
               {/* Card Sugestão Tática */}
-              <div className="bg-[#050505] rounded-[3rem] p-6 lg:p-8 border border-white/10 overflow-hidden animate-premium-fade" style={{ animationDelay: '300ms' }}>
+              <div className="bg-zinc-900/40 border border-zinc-800 rounded-2xl p-6 md:p-8 overflow-hidden w-full flex flex-col justify-between card-fade" style={{ animationDelay: '350ms' }}>
                 <div className="flex justify-between items-center mb-3">
                   <div>
                     <p className="text-[8px] text-zinc-500 font-black tracking-[0.4em]">SUGESTÃO TÁTICA</p>
