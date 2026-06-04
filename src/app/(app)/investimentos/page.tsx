@@ -418,43 +418,45 @@ export default function InvestimentosPage() {
 
     return (
       <div className="w-full shrink-0 px-1">
-        <div className="bg-[#050505] p-6 rounded-[3rem] relative">
-          <div className="flex justify-between items-start mb-4">
-            <div>
-              <div className="flex items-center gap-2 mb-1">
-                <Target className={isMetaConcluida ? "text-green-400" : "text-yellow-500"} size={14} />
-                <span className="text-[9px] font-black text-zinc-500 tracking-widest">
-                  {isMetaConcluida ? "OBJETIVO COMPLETO" : `ALVO DO ${metaDaVez.periodo}`}
+        <div className="bg-[#050505] p-6 lg:p-8 rounded-[3rem] border border-white/10 overflow-hidden animate-fade-in-up animate-delay-150 relative">
+          <div className="flex flex-col gap-4 mb-4">
+            <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
+              <div>
+                <div className="flex flex-wrap items-center gap-2 mb-1">
+                  <Target className={isMetaConcluida ? "text-green-400" : "text-yellow-500"} size={14} />
+                  <span className="text-[9px] font-black text-zinc-500 tracking-widest whitespace-normal break-words">
+                    {isMetaConcluida ? "OBJETIVO COMPLETO" : `ALVO DO ${metaDaVez.periodo}`}
+                  </span>
+                </div>
+                <h3 className="text-4xl font-black italic break-words">
+                  {Math.round(progressoDinheiroPct)} 
+                  <span className={`text-sm italic ml-1 ${isMetaConcluida ? 'text-green-400' : 'text-zinc-500'}`}>% ALVO</span>
+                </h3>
+              </div>
+              <div className={`px-3 py-1 rounded-full ${isMetaConcluida ? 'bg-green-500/10' : 'bg-yellow-500/10'}`}>
+                <span className={`text-[8px] font-black ${isMetaConcluida ? 'text-green-400' : 'text-yellow-500'}`}>
+                  {isMetaConcluida ? "[ CONQUISTADO ]" : `META: R$ ${metaDaVez.valor_alvo.toLocaleString("pt-BR", { maximumFractionDigits: 0 })}`}
                 </span>
               </div>
-              <h3 className="text-4xl font-black italic">
-                {Math.round(progressoDinheiroPct)} 
-                <span className={`text-sm italic ml-1 ${isMetaConcluida ? 'text-green-400' : 'text-zinc-500'}`}>% ALVO</span>
-              </h3>
             </div>
-            <div className={`px-3 py-1 rounded-full ${isMetaConcluida ? 'bg-green-500/10' : 'bg-yellow-500/10'}`}>
-              <span className={`text-[8px] font-black ${isMetaConcluida ? 'text-green-400' : 'text-yellow-500'}`}>
-                {isMetaConcluida ? "[ CONQUISTADO ]" : `META: R$ ${metaDaVez.valor_alvo.toLocaleString("pt-BR", { maximumFractionDigits: 0 })}`}
-              </span>
+
+            <div className="h-1.5 bg-white/5 rounded-full overflow-hidden">
+              <div 
+                className={`h-full transition-all duration-500 ${isMetaConcluida ? 'bg-green-500 shadow-[0_0_10px_#22c55e]' : 'bg-yellow-500 shadow-[0_0_10px_#eab308]'}`}
+                style={{ width: `${progressoDinheiroPct}%` }}
+              />
             </div>
           </div>
 
-          <div className="h-1.5 bg-white/5 rounded-full overflow-hidden">
-            <div 
-              className={`h-full transition-all duration-500 ${isMetaConcluida ? 'bg-green-500 shadow-[0_0_10px_#22c55e]' : 'bg-yellow-500 shadow-[0_0_10px_#eab308]'}`}
-              style={{ width: `${progressoDinheiroPct}%` }}
-            />
-          </div>
-
-          <div className="flex justify-between items-center mt-3">
-            <p className={`text-[8px] font-bold tracking-wider ${metaEstouradaPorFrequencia ? 'text-red-500 font-black' : 'text-zinc-500'}`}>
+          <div className="flex flex-col gap-3 lg:flex-row lg:justify-between lg:items-center mt-3 text-[8px] font-bold tracking-wider">
+            <p className={`w-full break-words whitespace-normal ${metaEstouradaPorFrequencia ? 'text-red-500 font-black' : 'text-zinc-500'}`}>
               {stringContadorAportes}
             </p>
-            <p className={`text-[8px] font-bold tracking-wider ${metaEstouradaPorFrequencia ? 'text-zinc-400' : 'text-zinc-500'}`}>
+            <p className={`w-full break-words whitespace-normal ${metaEstouradaPorFrequencia ? 'text-zinc-400' : 'text-zinc-500'}`}>
               {stringSugestaoAporte}
             </p>
           </div>
-          <p className="text-[7px] text-zinc-600 mt-2 font-bold">
+          <p className="text-[7px] text-zinc-600 mt-4 font-bold w-full break-words whitespace-normal">
             EXPIRAÇÃO DA ESTRATÉGIA: {new Date(metaDaVez.vencimento).toLocaleDateString("pt-BR")}
           </p>
         </div>
@@ -464,46 +466,47 @@ export default function InvestimentosPage() {
 
   return (
     <div className="bg-black text-white font-sans uppercase tracking-tighter min-h-screen pb-24 relative overflow-x-hidden">
-      <div className="max-w-md mx-auto px-4 pt-8">
-        
-        {/* HEADER DINÂMICO */}
-        <header className="flex justify-between items-end border-b border-white/10 pb-6 mb-8">
-          <div>
-            <p className="text-[10px] text-zinc-500 font-bold tracking-[0.4em] mb-2">PORTFÓLIO TOTAL</p>
-            <h1 className="text-5xl font-black italic text-white leading-none">
-              {loading ? (
-                <span className="text-2xl text-zinc-700 animate-pulse">CARREGANDO...</span>
-              ) : (
-                `R$ ${patrimonioTotal.toLocaleString("pt-BR", { minimumFractionDigits: 0, maximumFractionDigits: 0 })}`
-              )}
-            </h1>
-          </div>
-          <div className="flex flex-col items-end">
-            <span className="text-cyan-400 text-xs font-black">+R$ 2.410</span>
-            <span className="text-[8px] text-zinc-600 font-bold">ESTE MÊS</span>
-          </div>
-        </header>
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 max-w-[1440px] mx-auto px-4 lg:px-8 pt-8">
+          {/* HEADER DINÂMICO */}
+          <header className="lg:col-span-12 bg-[#050505] rounded-[3rem] p-6 lg:p-8 overflow-hidden border border-white/10 animate-fade-in-up animate-delay-150">
+            <div className="flex flex-col gap-6 lg:flex-row lg:items-end lg:justify-between">
+              <div>
+                <p className="text-[10px] text-zinc-500 font-bold tracking-[0.4em] mb-2">PORTFÓLIO TOTAL</p>
+                <h1 className="text-5xl font-black italic text-white leading-none break-words">
+                  {loading ? (
+                    <span className="text-2xl text-zinc-700 animate-pulse">CARREGANDO...</span>
+                  ) : (
+                    `R$ ${patrimonioTotal.toLocaleString("pt-BR", { minimumFractionDigits: 0, maximumFractionDigits: 0 })}`
+                  )}
+                </h1>
+              </div>
+              <div className="flex flex-col items-start gap-1 text-left">
+                <span className="text-cyan-400 text-xs font-black">+R$ 2.410</span>
+                <span className="text-[8px] text-zinc-600 font-bold uppercase tracking-[0.4em]">ESTE MÊS</span>
+              </div>
+            </div>
+          </header>
 
-        <div className="flex flex-col gap-6">
+          <div className="lg:col-span-8 space-y-6">
 
           {/* DUPLA DE BOTÕES DE AÇÃO */}
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-2 gap-3 animate-fade-in-up animate-delay-300">
             <button 
               onClick={() => setIsMetaDrawerOpen(true)}
-              className="bg-[#050505] hover:bg-zinc-950 active:scale-[0.99] transition-all py-5 rounded-3xl border border-white/5 flex items-center justify-center gap-2.5 group"
+              className="bg-[#050505] hover:bg-zinc-950 active:scale-[0.99] transition-all p-6 lg:p-8 rounded-[3rem] border border-white/10 flex items-center justify-center gap-3 group overflow-hidden"
             >
-              <Sliders className="text-zinc-500 group-hover:text-cyan-400 transition-colors" size={14} />
-              <span className="text-[10px] font-black tracking-[0.2em] text-zinc-400 group-hover:text-white transition-colors">
+              <Sliders className="text-zinc-500 group-hover:text-cyan-400 transition-colors" size={16} />
+              <span className="text-[10px] font-black tracking-[0.2em] text-zinc-400 group-hover:text-white transition-colors whitespace-normal break-words">
                 [ METAS ]
               </span>
             </button>
 
             <button 
               onClick={() => setIsDrawerOpen(true)}
-              className="bg-[#050505] hover:bg-zinc-950 active:scale-[0.99] transition-all py-5 rounded-3xl border border-dashed border-white/10 flex items-center justify-center gap-2 group"
+              className="bg-[#050505] hover:bg-zinc-950 active:scale-[0.99] transition-all p-6 lg:p-8 rounded-[3rem] border border-dashed border-white/10 flex items-center justify-center gap-3 group overflow-hidden"
             >
-              <Plus className="text-zinc-500 group-hover:text-yellow-400 group-hover:rotate-90 transition-transform duration-300" size={14} />
-              <span className="text-[10px] font-black tracking-[0.2em] text-zinc-400 group-hover:text-white transition-colors">
+              <Plus className="text-zinc-500 group-hover:text-yellow-400 group-hover:rotate-90 transition-transform duration-300" size={16} />
+              <span className="text-[10px] font-black tracking-[0.2em] text-zinc-400 group-hover:text-white transition-colors whitespace-normal break-words">
                 [ REGISTRAR ]
               </span>
             </button>
@@ -550,15 +553,15 @@ export default function InvestimentosPage() {
             </div>
           )}
 
-          <div className="grid grid-cols-1 gap-4 mt-6 lg:gap-6 lg:grid-cols-3">
+          <div className="grid grid-cols-1 gap-4 mt-6 lg:gap-6 lg:grid-cols-12">
             {/* COLUNA ESQUERDA - CONTEÚDO PRINCIPAL (Desktop: col-span-2) */}
-            <div className="lg:col-span-2 space-y-4">
+            <div className="lg:col-span-8 space-y-4">
               {/* Grid de Categorias */}
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 {categoriasOrdenadas.map((cat, index) => (
                   <div
                     key={cat.categoria}
-                    className={`bg-[#050505] rounded-[2.5rem] border border-white/10 p-4 ${
+                    className={`bg-[#050505] rounded-[2.5rem] border border-white/10 p-6 lg:p-8 overflow-hidden animate-fade-in-up animate-delay-900 ${
                       index === 0 ? "text-cyan-400" : "text-fuchsia-400"
                     }`}
                   >
@@ -569,7 +572,7 @@ export default function InvestimentosPage() {
               </div>
 
               {/* Card Principais Ativos */}
-              <div className="bg-[#050505] rounded-[3rem] p-5 border border-white/10">
+            <div className="bg-[#050505] rounded-[3rem] p-6 lg:p-8 border border-white/10 overflow-hidden animate-fade-in-up animate-delay-1350">
                 <div className="flex justify-between items-center mb-3">
                   <p className="text-[8px] text-zinc-500 font-black tracking-[0.4em]">PRINCIPAIS ATIVOS</p>
                   <span className="text-[8px] text-zinc-400">{topAtivos.length} ITEMS</span>
@@ -605,11 +608,11 @@ export default function InvestimentosPage() {
               </div>
             </div>
 
-            {/* COLUNA DIREITA - SIDEBAR TÁTICA (Desktop: col-span-1) */}
-            <div className="space-y-4">
+            {/* COLUNA DIREITA - SIDEBAR TÁTICA (Desktop: col-span-4) */}
+            <div className="lg:col-span-4 space-y-4">
               {/* Grid Perfil + Liberdade (empilhado em desktop) */}
               <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-1">
-                <div className="bg-[#050505] rounded-[3rem] p-5 border border-white/10">
+                <div className="bg-[#050505] rounded-[3rem] p-6 lg:p-8 border border-white/10 overflow-hidden animate-fade-in-up animate-delay-1200">
                   <div className="flex justify-between items-center mb-3">
                     <div>
                       <p className="text-[8px] text-zinc-500 font-black tracking-[0.4em]">PERFIL DE EXPOSIÇÃO</p>
@@ -661,7 +664,7 @@ export default function InvestimentosPage() {
                     </div>
                   </div>
                 </div>
-                <div className="bg-[#050505] rounded-[3rem] p-5 border border-white/10">
+                  <div className="bg-[#050505] rounded-[3rem] p-6 lg:p-8 border border-white/10 overflow-hidden animate-fade-in-up animate-delay-1200">
                   <div className="flex justify-between items-end mb-3">
                     <div>
                       <p className="text-[8px] text-zinc-500 font-black tracking-[0.4em]">LIBERDADE FINANCEIRA</p>
@@ -682,7 +685,7 @@ export default function InvestimentosPage() {
               </div>
 
               {/* Card Sugestão Tática */}
-              <div className="bg-[#050505] rounded-[3rem] p-5 border border-white/10">
+              <div className="bg-[#050505] rounded-[3rem] p-6 lg:p-8 border border-white/10 overflow-hidden animate-fade-in-up animate-delay-1350">
                 <div className="flex justify-between items-center mb-3">
                   <div>
                     <p className="text-[8px] text-zinc-500 font-black tracking-[0.4em]">SUGESTÃO TÁTICA</p>
