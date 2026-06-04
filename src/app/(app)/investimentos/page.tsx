@@ -418,7 +418,7 @@ export default function InvestimentosPage() {
 
     return (
       <div className="w-full shrink-0 px-1">
-        <div className="bg-[#050505] p-6 lg:p-8 rounded-[3rem] border border-white/10 overflow-hidden animate-fade-in-up animate-delay-150 relative">
+        <div className="bg-[#050505] p-6 lg:p-8 rounded-[3rem] border border-white/10 overflow-hidden animate-premium-fade relative" style={{ animationDelay: '0ms' }}>
           <div className="flex flex-col gap-4 mb-4">
             <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
               <div>
@@ -466,9 +466,9 @@ export default function InvestimentosPage() {
 
   return (
     <div className="bg-black text-white font-sans uppercase tracking-tighter min-h-screen pb-24 relative overflow-x-hidden">
-        <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 max-w-[1440px] mx-auto px-4 lg:px-8 pt-8">
+      <div className="w-full max-w-[1400px] mx-auto px-6 lg:px-12 pt-8">
           {/* HEADER DINÂMICO */}
-          <header className="lg:col-span-12 bg-[#050505] rounded-[3rem] p-6 lg:p-8 overflow-hidden border border-white/10 animate-fade-in-up animate-delay-150">
+          <header className="lg:col-span-12 bg-[#050505] rounded-[3rem] p-6 lg:p-8 overflow-hidden border border-white/10 animate-premium-fade" style={{ animationDelay: '0ms' }}>
             <div className="flex flex-col gap-6 lg:flex-row lg:items-end lg:justify-between">
               <div>
                 <p className="text-[10px] text-zinc-500 font-bold tracking-[0.4em] mb-2">PORTFÓLIO TOTAL</p>
@@ -487,10 +487,11 @@ export default function InvestimentosPage() {
             </div>
           </header>
 
-          <div className="lg:col-span-8 space-y-6">
+          <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 lg:gap-8 w-full">
+            <div className="lg:col-span-7 xl:col-span-8 flex flex-col gap-6">
 
-          {/* DUPLA DE BOTÕES DE AÇÃO */}
-          <div className="grid grid-cols-2 gap-3 animate-fade-in-up animate-delay-300">
+            {/* DUPLA DE BOTÕES DE AÇÃO */}
+          <div className="grid grid-cols-2 gap-3">
             <button 
               onClick={() => setIsMetaDrawerOpen(true)}
               className="bg-[#050505] hover:bg-zinc-950 active:scale-[0.99] transition-all p-6 lg:p-8 rounded-[3rem] border border-white/10 flex items-center justify-center gap-3 group overflow-hidden"
@@ -553,15 +554,15 @@ export default function InvestimentosPage() {
             </div>
           )}
 
-          <div className="grid grid-cols-1 gap-4 mt-6 lg:gap-6 lg:grid-cols-12">
-            {/* COLUNA ESQUERDA - CONTEÚDO PRINCIPAL (Desktop: col-span-2) */}
-            <div className="lg:col-span-8 space-y-4">
+          <div className="grid grid-cols-1 mt-6 gap-6 lg:grid-cols-12 lg:gap-8 w-full">
+            {/* COLUNA ESQUERDA - CONTEÚDO PRINCIPAL (Desktop: col-span-7 xl:col-span-8) */}
+            <div className="lg:col-span-7 xl:col-span-8 flex flex-col gap-6">
               {/* Grid de Categorias */}
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 {categoriasOrdenadas.map((cat, index) => (
                   <div
                     key={cat.categoria}
-                    className={`bg-[#050505] rounded-[2.5rem] border border-white/10 p-6 lg:p-8 overflow-hidden animate-fade-in-up animate-delay-900 ${
+                    className={`bg-[#050505] rounded-[2.5rem] border border-white/10 p-6 lg:p-8 overflow-hidden ${
                       index === 0 ? "text-cyan-400" : "text-fuchsia-400"
                     }`}
                   >
@@ -572,7 +573,7 @@ export default function InvestimentosPage() {
               </div>
 
               {/* Card Principais Ativos */}
-            <div className="bg-[#050505] rounded-[3rem] p-6 lg:p-8 border border-white/10 overflow-hidden animate-fade-in-up animate-delay-1350">
+              <div className="bg-[#050505] rounded-[3rem] p-6 lg:p-8 border border-white/10 overflow-hidden animate-premium-fade" style={{ animationDelay: '0ms' }}>
                 <div className="flex justify-between items-center mb-3">
                   <p className="text-[8px] text-zinc-500 font-black tracking-[0.4em]">PRINCIPAIS ATIVOS</p>
                   <span className="text-[8px] text-zinc-400">{topAtivos.length} ITEMS</span>
@@ -608,11 +609,11 @@ export default function InvestimentosPage() {
               </div>
             </div>
 
-            {/* COLUNA DIREITA - SIDEBAR TÁTICA (Desktop: col-span-4) */}
-            <div className="lg:col-span-4 space-y-4">
+            {/* COLUNA DIREITA - SIDEBAR TÁTICA (Desktop: col-span-5 xl:col-span-4) */}
+            <div className="lg:col-span-5 xl:col-span-4 flex flex-col gap-6">
               {/* Grid Perfil + Liberdade (empilhado em desktop) */}
               <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-1">
-                <div className="bg-[#050505] rounded-[3rem] p-6 lg:p-8 border border-white/10 overflow-hidden animate-fade-in-up animate-delay-1200">
+                <div className="bg-[#050505] rounded-[3rem] p-6 lg:p-8 border border-white/10 overflow-hidden animate-premium-fade" style={{ animationDelay: '100ms' }}>
                   <div className="flex justify-between items-center mb-3">
                     <div>
                       <p className="text-[8px] text-zinc-500 font-black tracking-[0.4em]">PERFIL DE EXPOSIÇÃO</p>
@@ -649,7 +650,7 @@ export default function InvestimentosPage() {
                     </div>
                     <div className="absolute inset-x-0 top-[40%] flex flex-col items-center">
                       <span className="text-[9px] text-zinc-500 font-black tracking-widest mb-1">PERFIL REAL</span>
-                      <span className="text-4xl font-black tracking-tight">{perfilReal}</span>
+                      <span className="text-2xl md:text-3xl lg:text-4xl font-black tracking-tight truncate-none break-words whitespace-normal">{perfilReal}</span>
                       <span className="text-[10px] text-cyan-400 font-black tracking-[0.3em] mt-1">{scoreGlobal.toFixed(2)}</span>
                     </div>
                   </div>
@@ -664,11 +665,11 @@ export default function InvestimentosPage() {
                     </div>
                   </div>
                 </div>
-                  <div className="bg-[#050505] rounded-[3rem] p-6 lg:p-8 border border-white/10 overflow-hidden animate-fade-in-up animate-delay-1200">
+                  <div className="bg-[#050505] rounded-[3rem] p-6 lg:p-8 border border-white/10 overflow-hidden animate-premium-fade" style={{ animationDelay: '200ms' }}>
                   <div className="flex justify-between items-end mb-3">
                     <div>
                       <p className="text-[8px] text-zinc-500 font-black tracking-[0.4em]">LIBERDADE FINANCEIRA</p>
-                      <h2 className="text-4xl font-black tracking-tight">{anosParaLiberdade} ANOS</h2>
+                      <h2 className="text-2xl md:text-3xl lg:text-4xl font-black tracking-tight truncate-none break-words whitespace-normal">{anosParaLiberdade} ANOS</h2>
                     </div>
                   </div>
                   <div className="h-2 rounded-full bg-white/5 overflow-hidden mb-3">
@@ -685,7 +686,7 @@ export default function InvestimentosPage() {
               </div>
 
               {/* Card Sugestão Tática */}
-              <div className="bg-[#050505] rounded-[3rem] p-6 lg:p-8 border border-white/10 overflow-hidden animate-fade-in-up animate-delay-1350">
+              <div className="bg-[#050505] rounded-[3rem] p-6 lg:p-8 border border-white/10 overflow-hidden animate-premium-fade" style={{ animationDelay: '300ms' }}>
                 <div className="flex justify-between items-center mb-3">
                   <div>
                     <p className="text-[8px] text-zinc-500 font-black tracking-[0.4em]">SUGESTÃO TÁTICA</p>
@@ -701,6 +702,7 @@ export default function InvestimentosPage() {
           </div>
         </div>
       </div>
+    </div>
 
       {/* DRAWER INTERATIVO PARA CONFIGURAÇÃO DE METAS */}
       <AnimatePresence>
