@@ -1004,6 +1004,7 @@ export default function InvestimentosPage() {
         )}
       </AnimatePresence>
     </div>
+    </div>
   );
 }
 
