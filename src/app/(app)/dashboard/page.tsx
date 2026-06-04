@@ -1,0 +1,648 @@
+"use client";
+
+// 1. CONFIGURAÇÕES DE BUILD (Essencial para evitar o erro 'U')
+export const dynamic = "force-dynamic";
+export const runtime = "edge"; 
+export const fetchCache = "force-no-store";
+
+import { useEffect, useState, useMemo, useRef } from "react";
+import { useRouter } from "next/navigation";
+import { supabase } from "@/lib/supabase";
+import { Plus, Zap, X, Bell, AlertTriangle, Info, Calendar, Trophy, CheckCircle2 } from "lucide-react";
+
+// 2. FUNÇÕES UTILITÁRIAS FORA DO COMPONENTE
+const MASTER_CATS = [
+  { nome: "Alimentação", emoji: "🍔", cor: "#FF007A" },
+  { nome: "Moradia", emoji: "🏠", cor: "#FF4D00" },
+  { nome: "Transporte", emoji: "🚗", cor: "#00E5FF" },
+  { nome: "Lazer", emoji: "39FF14", cor: "#39FF14" },
+  { nome: "Saúde", emoji: "💊", cor: "#FFB800" },
+  { nome: "Educação", emoji: "📚", cor: "#4169E1" },
+  { nome: "Assinaturas", emoji: "💳", cor: "#FFD700" },
+  { nome: "Compras", emoji: "🛍", cor: "#8A2BE2" },
+];
+
+function maskMoney(v: string) {
+  const onlyNums = v.replace(/\D/g, "");
+  if (!onlyNums) return "";
+  return (Number(onlyNums) / 100).toFixed(2).replace(".", ",");
+}
+
+function maskDate(v: string) {
+  const onlyNums = v.replace(/\D/g, "").slice(0, 8);
+  if (onlyNums.length >= 5) return onlyNums.replace(/(\d{2})(\d{2})(\d{4})/, "$1/$2/$3");
+  if (onlyNums.length >= 3) return onlyNums.replace(/(\d{2})(\d{2})/, "$1/$2");
+  return onlyNums;
+}
+
+function solveCurve(pontos: any[], height: number, max: number) {
+  if (!pontos || pontos.length === 0) return "";
+  const getPos = (p: any) => ({ x: p.x, y: height - (p.y / (max || 1)) * height });
+  let d = `M ${getPos(pontos[0]).x} ${getPos(pontos[0]).y}`;
+  for (let i = 0; i < pontos.length - 1; i++) {
+    const curr = getPos(pontos[i]);
+    const next = getPos(pontos[i + 1]);
+    const mx = (curr.x + next.x) / 2;
+    d += ` C ${mx} ${curr.y}, ${mx} ${next.y}, ${next.x} ${next.y}`;
+  }
+  return d;
+}
+
+function formatDisplayDate(d: any) {
+  if (!d) return "";
+  const clean = String(d).replace(/\D/g, "");
+  const padded = clean.padStart(8, '0');
+  return padded.replace(/(\d{2})(\d{2})(\d{4})/, "$1/$2/$3");
+}
+
+// 3. COMPONENTE PRINCIPAL
+export default function DashboardPage() {
+  const router = useRouter();
+  const [loading, setLoading] = useState(true);
+  const [showModal, setShowModal] = useState(false);
+  const [showFixedModal, setShowFixedModal] = useState(false);
+  
+  const contentObjetivos = useRef<HTMLDivElement>(null);
+  const contentLimites = useRef<HTMLDivElement>(null);
+  const contentAtividade = useRef<HTMLDivElement>(null);
+  const contentFixos = useRef<HTMLDivElement>(null);
+
+  const [alturas, setAlturas] = useState({ obj: 0, lim: 0, atv: 0, fix: 0 });
+  const [showDreamModal, setShowDreamModal] = useState(false);
+  const [metasDesejo, setMetasDesejo] = useState<any[]>([]);
+  const [dreamNome, setDreamNome] = useState("");
+  const [dreamValor, setDreamValor] = useState("");
+  const [viewMode, setViewMode] = useState<"mes" | "ano">("mes");
+  const [notifications, setNotifications] = useState<any[]>([]);
+  const [closedNotifications, setClosedNotifications] = useState<string[]>([]);
+  const [metas, setMetas] = useState<any[]>([]);
+  const [transacoes, setTransacoes] = useState<any[]>([]);
+  const [gastosFixos, setGastosFixos] = useState<any[]>([]);
+  const [tipo, setTipo] = useState<"saida" | "entrada">("saida");
+  const [catSel, setCatSel] = useState("");
+  const [valor, setValor] = useState("");
+  const [fixoNome, setFixoNome] = useState("");
+  const [fixoValor, setFixoValor] = useState("");
+  const [fixoData, setFixoData] = useState("");
+
+  const agora = new Date();
+  const mesAtual = agora.getMonth();
+  const anoAtual = agora.getFullYear();
+
+  useEffect(() => {
+    const saved = localStorage.getItem("alertas_silenciados");
+    if (saved) setClosedNotifications(JSON.parse(saved));
+    loadData();
+  }, []);
+
+  useEffect(() => {
+    if (!loading) {
+      const timer = setTimeout(() => {
+        setAlturas({
+          obj: contentObjetivos.current?.offsetHeight || 0,
+          lim: contentLimites.current?.offsetHeight || 0,
+          atv: contentAtividade.current?.offsetHeight || 0,
+          fix: contentFixos.current?.offsetHeight || 0
+        });
+      }, 100);
+      return () => clearTimeout(timer);
+    }
+  }, [loading, metasDesejo, metas, transacoes, gastosFixos]);
+
+  useEffect(() => {
+    if (closedNotifications.length > 0) {
+      localStorage.setItem("alertas_silenciados", JSON.stringify(closedNotifications));
+    }
+  }, [closedNotifications]);
+
+  async function loadData() {
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return router.push("/login");
+      const [m, t, f, d] = await Promise.all([
+        supabase.from("goals").select("*").eq("user_id", user.id),
+        supabase.from("transactions").select("*").eq("user_id", user.id).order("created_at", { ascending: true }),
+        supabase.from("fixed_expenses").select("*").eq("user_id", user.id).order("due_day", { ascending: true }),
+        supabase.from("dream_goals").select("*").eq("user_id", user.id) 
+      ]);
+      setMetas(m.data || []);
+      setTransacoes(t.data || []);
+      setGastosFixos(f.data || []);
+      setMetasDesejo(d.data || []); 
+      gerarAlertasDinamicos(m.data || [], t.data || [], f.data || []);
+    } catch (e) { console.error(e); }
+    setLoading(false);
+  }
+
+  const gerarAlertasDinamicos = (metasData: any[], transData: any[], fixosData: any[]) => {
+    const novosAlertas: any[] = [];
+    const hojeStr = `${agora.getDate()}${agora.getMonth() + 1}${agora.getFullYear()}`;
+    const diaHoje = String(agora.getDate()).padStart(2, '0');
+
+    fixosData.forEach(gasto => {
+      const dataCompleta = String(gasto.due_day).padStart(8, '0');
+      if (dataCompleta.slice(0, 2) === diaHoje) {
+        novosAlertas.push({
+          id: `fixo-${gasto.id}-${hojeStr}`,
+          title: "SENTENÇA DE HOJE",
+          msg: `PAGAMENTO OBRIGATÓRIO: "${gasto.name.toUpperCase()}" vence hoje.`,
+          severity: "warning",
+          icon: <Zap size={14} className="text-yellow-400" />
+        });
+      }
+    });
+
+    metasData.forEach(meta => {
+      const gastoCat = transData
+        .filter(t => {
+            const d = new Date(t.created_at);
+            return t.type === "saida" && 
+                   t.category?.toLowerCase() === meta.category?.toLowerCase() &&
+                   d.getMonth() === mesAtual && d.getFullYear() === anoAtual;
+        })
+        .reduce((acc, t) => acc + Number(t.amount), 0);
+      const limite = Number(meta.amount);
+      if (gastoCat >= limite) {
+        novosAlertas.push({
+          id: `meta-${meta.id}-${gastoCat}`, 
+          title: gastoCat > limite ? "EXECUÇÃO DE LIMITE" : "TETO ALCANÇADO",
+          msg: gastoCat > limite 
+            ? `VEREDITO: ${meta.category.toUpperCase()} excedeu o teto em R$ ${(gastoCat - limite).toLocaleString('pt-BR')}.`
+            : `ALERTA: Você atingiu o teto de R$ ${limite.toLocaleString('pt-BR')} em ${meta.category.toUpperCase()}.`,
+          severity: gastoCat > limite ? "danger" : "info",
+          icon: gastoCat > limite ? <AlertTriangle size={14} /> : <Info size={14} />
+        });
+      }
+    });
+
+    setNotifications(prev => {
+      const filtrar = novosAlertas.filter(n => !closedNotifications.includes(n.id) && !prev.some(p => p.id === n.id));
+      return [...prev, ...filtrar];
+    });
+  };
+
+  const notify = (msg: string, type: 'success' | 'error' = 'success') => {
+    const id = Date.now().toString();
+    setNotifications(prev => [...prev, { id, msg, title: type === 'success' ? 'SUCESSO' : 'ERRO', severity: type === 'success' ? 'success' : 'danger', icon: <Bell size={14} /> }]);
+    setTimeout(() => setNotifications(prev => prev.filter(n => n.id !== id)), 3000);
+  };
+
+  const closeNotification = (id: string) => {
+    setNotifications(prev => prev.filter(n => n.id !== id));
+    setClosedNotifications(prev => [...prev, id]);
+  };
+
+  async function handleAddDream() {
+    try {
+      if (!dreamNome || !dreamValor) return notify("Preencha o objective!", "error");
+      const { data: { user } } = await supabase.auth.getUser();
+      const valorNum = parseFloat(dreamValor.replace(",", "."));
+      const { error } = await supabase.from("dream_goals").insert({ 
+        user_id: user?.id, 
+        name: dreamNome.trim().toUpperCase(), 
+        target_amount: valorNum 
+      });
+      if (error) throw error;
+      notify("Objetivo de vida lançado!");
+      setShowDreamModal(false); setDreamNome(""); setDreamValor("");
+      loadData();
+    } catch (e) { notify("Erro ao salvar", "error"); }
+  }
+
+  const objetivosConcluidosCount = useMemo(() => {
+    return metasDesejo.filter(meta => {
+      const totalAportado = transacoes
+        .filter(t => t.type === 'entrada' && t.category === `OBJ: ${meta.name}`)
+        .reduce((acc, t) => acc + Number(t.amount), 0);
+      return totalAportado >= Number(meta.target_amount);
+    }).length;
+  }, [metasDesejo, transacoes]);
+
+  const timelineData = useMemo(() => {
+    const totalPontos = 30;
+    const espacamento = 80; 
+    let maxValorGlobal = 0;
+    const series = MASTER_CATS.map(cat => {
+      const pontos = Array.from({ length: totalPontos }, (_, i) => {
+        const diaDesejado = i + 1; 
+        const totalNoDia = transacoes.filter(t => {
+          const dataTransacao = new Date(t.created_at);
+          return (
+            t.type === 'saida' &&
+            t.category?.toLowerCase() === cat.nome.toLowerCase() &&
+            dataTransacao.getDate() === diaDesejado &&
+            dataTransacao.getMonth() === mesAtual &&
+            dataTransacao.getFullYear() === anoAtual
+          );
+        }).reduce((acc, t) => acc + Number(t.amount), 0);
+        if (totalNoDia > maxValorGlobal) maxValorGlobal = totalNoDia;
+        return { x: i * espacamento, y: totalNoDia, dia: diaDesejado };
+      });
+      return { ...cat, pontos };
+    });
+    return { 
+      series, 
+      maxValor: maxValorGlobal === 0 ? 1000 : maxValorGlobal * 1.2, 
+      width: (totalPontos - 1) * espacamento,
+      espacamento
+    };
+  }, [transacoes, mesAtual, anoAtual]);
+
+  const transacoesCards = transacoes.filter(t => {
+    const d = new Date(t.created_at);
+    if (viewMode === "mes") return d.getMonth() === mesAtual && d.getFullYear() === anoAtual;
+    return d.getFullYear() === anoAtual;
+  });
+
+  const entradasCard = transacoesCards.filter(t => t.type === "entrada").reduce((acc, t) => acc + Number(t.amount), 0);
+  const saidasCard = transacoesCards.filter(t => t.type === "saida").reduce((acc, t) => acc + Number(t.amount), 0);
+  const transacoesMesLogica = transacoes.filter(t => {
+    const d = new Date(t.created_at);
+    return d.getMonth() === mesAtual && d.getFullYear() === anoAtual;
+  });
+
+  const totalSaidasMes = transacoesMesLogica.filter(t => t.type === "saida").reduce((acc, t) => acc + Number(t.amount), 0);
+  const saldoGeral = transacoes.reduce((acc, t) => t.type === "entrada" ? acc + Number(t.amount) : acc - Number(t.amount), 0);
+  const orcamentoTotalMes = metas.reduce((acc, m) => acc + Number(m.amount), 0) || 1;
+  const porcentagemGeralMes = Math.min(Math.round((totalSaidasMes / orcamentoTotalMes) * 100), 100);
+  const categoriasDosLimites = MASTER_CATS.filter(cat => metas.some(m => m.category?.toLowerCase() === cat.nome.toLowerCase()));
+
+  async function handleAddFixed() {
+    try {
+      if (!fixoNome || !fixoValor || fixoData.length < 10) return notify("Preencha tudo!", "error");
+      const { data: { user } } = await supabase.auth.getUser();
+      const valorNum = parseFloat(fixoValor.replace(",", "."));
+      const dataLimpa = fixoData.replace(/\D/g, "");
+      const { error } = await supabase.from("fixed_expenses").insert({ user_id: user?.id, name: fixoNome.trim().toUpperCase(), amount: valorNum, due_day: dataLimpa });
+      if (error) throw error;
+      notify("Sentença Fixa Salva!");
+      setShowFixedModal(false); setFixoNome(""); setFixoValor(""); setFixoData("");
+      loadData();
+    } catch (e) { notify("Erro ao salvar", "error"); }
+  }
+
+  async function deleteFixed(id: string) {
+    await supabase.from("fixed_expenses").delete().eq("id", id);
+    loadData();
+    notify("Sentença removida");
+  }
+
+  if (loading) return <div className="bg-black min-h-screen" />;
+
+  return (
+    <div className="flex flex-col gap-6 w-full max-w-4xl mx-auto p-4 pb-24 text-white bg-black min-h-screen font-sans">
+      
+      {/* NOTIFICAÇÕES */}
+      <div className="fixed top-4 right-4 left-4 z-[999] flex flex-col gap-3 pointer-events-none">
+        {notifications.map((n) => (
+          <div key={n.id} className={`pointer-events-auto bg-[#0a0a0a]/95 backdrop-blur-xl border-2 p-4 rounded-[2rem] shadow-2xl flex gap-4 items-start transition-all ${n.severity === 'danger' ? 'border-red-500/50' : n.severity === 'warning' ? 'border-yellow-500/50' : n.severity === 'info' ? 'border-blue-500/50' : 'border-green-500/50'}`}>
+            <div className={`p-3 rounded-2xl bg-black border border-white/5 flex-shrink-0 ${n.severity === 'danger' ? 'text-red-500' : n.severity === 'warning' ? 'text-yellow-400' : n.severity === 'info' ? 'text-blue-400' : 'text-green-500'}`}>{n.icon || <Bell size={14} />}</div>
+            <div className="flex-1">
+              <h4 className="text-[9px] font-black italic uppercase tracking-[0.15em] text-zinc-500 mb-0.5">{n.title}</h4>
+              <p className="text-[11px] font-black italic uppercase leading-tight text-white/95">{n.msg}</p>
+            </div>
+            <button onClick={() => closeNotification(n.id)} className="text-zinc-600 p-1 hover:text-white transition-colors"><X size={16} strokeWidth={3} /></button>
+          </div>
+        ))}
+      </div>
+
+      {/* HEADER */}
+      <div className="flex flex-col gap-2 w-full pt-4">
+        <h1 className="text-5xl font-black italic uppercase tracking-tighter leading-none">DASHBOARD</h1>
+        <div className="grid grid-cols-2 gap-3 mt-4">
+          <button onClick={() => router.push("/metas")} className="bg-zinc-900 border border-white/5 py-4 rounded-2xl font-black text-[10px] uppercase tracking-widest italic">LIMITES 🎯</button>
+          <button onClick={() => setShowModal(true)} className="bg-yellow-400 text-black py-4 rounded-2xl font-black text-[10px] uppercase tracking-widest flex items-center justify-center gap-2 italic">
+            <Plus size={14} strokeWidth={3} /> NOVA TRANSAÇÃO
+          </button>
+        </div>
+      </div>
+
+      {/* SALDO */}
+      <div className="bg-[#111] rounded-[1.5rem] border border-white/5 min-h-[78px] flex items-center justify-center">
+        <div className="w-[87%] flex flex-col items-start">
+            <p className="text-zinc-500 text-[10px] font-black uppercase tracking-[0.2em] mb-2 italic">Saldo Disponível (Total)</p>
+            <h2 className="text-[2rem] font-black italic text-white tracking-tighter leading-none uppercase break-all">R$ {saldoGeral.toLocaleString('pt-BR')}</h2>
+        </div>
+      </div>
+      
+      {/* CARDS EMPILHADOS */}
+      <div className="flex flex-col gap-3">
+          <div className="bg-[#111] rounded-[1.5rem] border border-white/5 relative min-h-[73px] flex items-center justify-center">
+            <div className="w-[87%] flex flex-col items-start">
+                <p className="text-green-500 text-[9px] font-black uppercase tracking-widest mb-1 italic">Entradas ({viewMode === 'mes' ? 'Mês' : 'Ano'})</p>
+                <h2 className="text-4xl font-black italic text-green-500 leading-none">R$ {entradasCard.toLocaleString('pt-BR')}</h2>
+                <div className="absolute right-6 top-1/2 -translate-y-1/2 flex gap-1.5">
+                <button onClick={() => setViewMode("mes")} className={`flex items-center gap-1.5 px-3 py-2 rounded-lg border-2 font-black text-[7px] uppercase italic ${viewMode === 'mes' ? 'border-yellow-400 text-yellow-400 bg-yellow-400/5' : 'border-zinc-800 text-zinc-500 bg-transparent'}`}><Calendar size={9} strokeWidth={3} /> MÊS</button>
+                <button onClick={() => setViewMode("ano")} className={`flex items-center gap-1.5 px-3 py-2 rounded-lg border-2 font-black text-[7px] uppercase italic ${viewMode === 'ano' ? 'border-yellow-400 text-yellow-400 bg-yellow-400/5' : 'border-zinc-800 text-zinc-500 bg-transparent'}`}><Calendar size={9} strokeWidth={3} /> ANO</button>
+                </div>
+            </div>
+          </div>
+
+          <div className="bg-[#111] rounded-[1.5rem] border border-white/5 min-h-[73px] flex items-center justify-center">
+            <div className="w-[87%] flex flex-col items-start">
+                <p className="text-red-500 text-[9px] font-black uppercase tracking-widest mb-1 italic">Saídas ({viewMode === 'mes' ? 'Mês' : 'Ano'})</p>
+                <h2 className="text-4xl font-black italic text-red-500 leading-none">R$ {saidasCard.toLocaleString('pt-BR')}</h2>
+            </div>
+          </div>
+      </div>
+
+      {/* GASTOS FIXOS */}
+      <div 
+        className="bg-[#111] rounded-[1.5rem] border border-white/5 flex items-center justify-center transition-all duration-300"
+        style={{ minHeight: alturas.fix > 0 ? `${alturas.fix + 24}px` : "auto" }}
+      >
+        <div ref={contentFixos} className="w-[87%] flex flex-col gap-4 py-3">
+          <div className="flex justify-between items-center">
+            <div>
+              <h3 className="text-lg font-black italic uppercase tracking-tighter">Gastos Fixos</h3>
+              <p className="text-[8px] text-zinc-500 font-black uppercase tracking-widest italic">Veredito Mensal</p>
+            </div>
+            <button onClick={() => setShowFixedModal(true)} className="bg-yellow-400 text-black px-4 py-2 rounded-xl font-black text-[9px] uppercase flex items-center gap-1 italic"><Zap size={12} fill="black" /> ADICIONAR</button>
+          </div>
+          <div className="space-y-3">
+            {gastosFixos.map(gasto => (
+              <div key={gasto.id} className="flex justify-between items-center bg-black/40 p-4 rounded-2xl border border-white/5">
+                <div className="flex items-center gap-3">
+                  <div className="bg-zinc-800 text-[9px] font-black px-2 py-1 rounded-md text-yellow-400 italic">{formatDisplayDate(gasto.due_day)}</div>
+                  <p className="text-[10px] font-black uppercase italic leading-none">{gasto.name}</p>
+                </div>
+                <div className="flex items-center gap-4">
+                  <p className="text-xs font-black italic">R$ {Number(gasto.amount).toLocaleString('pt-BR')}</p>
+                  <button onClick={() => deleteFixed(gasto.id)} className="text-zinc-800"><X size={16} strokeWidth={3} /></button>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+
+      {/* OBJETIVOS DE VIDA */}
+      <div 
+        className="bg-[#0c0c0c] rounded-[2rem] border border-white/5 flex items-center justify-center transition-all duration-300"
+        style={{ minHeight: alturas.obj > 0 ? `${alturas.obj + 24}px` : "auto" }}
+      >
+        <div ref={contentObjetivos} className="w-[87%] flex flex-col gap-6 py-3">
+          <div className="flex justify-between items-center">
+            <div className="flex flex-col">
+              <h3 className="text-lg font-black italic uppercase tracking-tighter text-white">Objetivos de Vida</h3>
+              <p className="text-[8px] text-zinc-500 font-black uppercase tracking-widest italic">{objetivosConcluidosCount} OBJETIVOS CONCLUÍDOS</p>
+            </div>
+            <button onClick={() => setShowDreamModal(true)} className="bg-zinc-900 border border-white/5 px-4 py-2 rounded-xl text-[9px] font-black uppercase italic hover:bg-zinc-800 transition-all">+ Novo Objetivo</button>
+          </div>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            {metasDesejo.map((meta) => {
+              const totalAportado = transacoes.filter(t => t.type === 'entrada' && t.category === `OBJ: ${meta.name}`).reduce((acc, t) => acc + Number(t.amount), 0);
+              const porcentagem = Math.min(Math.round((totalAportado / Number(meta.target_amount)) * 100), 100);
+              const concluido = porcentagem >= 100;
+              return (
+                <div key={meta.id} className={`bg-black/50 p-6 rounded-[2rem] border transition-all relative overflow-hidden group ${concluido ? 'border-green-500/30' : 'border-white/5 hover:border-yellow-400/20'}`}>
+                  <div className="flex justify-between items-start relative z-10">
+                    <div className={`p-3 rounded-2xl border ${concluido ? 'bg-green-500/10 border-green-500/20 text-green-500' : 'bg-zinc-900 border-white/10 text-yellow-400'}`}>{concluido ? <CheckCircle2 size={18} /> : <Trophy size={18} />}</div>
+                    {!concluido && <button onClick={() => { setTipo("entrada"); setCatSel(`OBJ: ${meta.name}`); setShowModal(true); }} className="bg-yellow-400 text-black px-3 py-1.5 rounded-xl font-black text-[8px] uppercase italic flex items-center gap-1"><Plus size={10} strokeWidth={4} /> Aportar</button>}
+                  </div>
+                  <div className="mt-6 relative z-10">
+                    <h4 className={`text-[9px] font-black italic uppercase mb-1 tracking-[0.2em] ${concluido ? 'text-green-500' : 'text-zinc-500'}`}>{meta.name}</h4>
+                    <div className="flex justify-between items-baseline">
+                      <p className="text-2xl font-black italic text-white">R$ {Number(meta.target_amount).toLocaleString('pt-BR')}</p>
+                      <span className={`text-[10px] font-black italic ${concluido ? 'text-green-500' : 'text-yellow-400'}`}>{porcentagem}%</span>
+                    </div>
+                  </div>
+                  <div className="mt-4 w-full bg-white/5 h-1.5 rounded-full overflow-hidden">
+                    <div className={`h-full transition-all duration-1000 ${concluido ? 'bg-green-500 shadow-[0_0_10px_#22c55e]' : 'bg-yellow-400 shadow-[0_0_10px_#facc15]'}`} style={{ width: `${porcentagem}%` }} />
+                  </div>
+                  <p className="mt-3 text-[7px] font-black text-zinc-600 uppercase italic tracking-widest">Acumulado: R$ {totalAportado.toLocaleString('pt-BR')}</p>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      </div>
+
+      {/* GRÁFICO DONUT */}
+      <div className="bg-[#111] rounded-[1.5rem] border border-white/5 min-h-[462px] flex items-center justify-center">
+        <div className="w-[87%] flex flex-col items-center">
+            <span className="text-zinc-500 text-[10px] font-black uppercase tracking-[0.2em] mb-10 self-start italic">Uso do Orçamento (Mês)</span>
+            <div className="relative w-64 h-64 flex items-center justify-center mb-10">
+            <svg className="w-full h-full -rotate-90" viewBox="0 0 160 160">
+                <circle cx="80" cy="80" r={70} fill="none" stroke="#1a1a1a" strokeWidth="18" />
+                {totalSaidasMes > 0 && categoriasDosLimites.map((cat, idx, arr) => {
+                   let acumulado = 0;
+                   for(let i=0; i<idx; i++) {
+                     const gasto = transacoesMesLogica.filter(t => t.type === "saida" && t.category?.toLowerCase() === arr[i].nome.toLowerCase()).reduce((acc, t) => acc + Number(t.amount), 0);
+                     acumulado += gasto / totalSaidasMes;
+                   }
+                   const gastoCat = transacoesMesLogica.filter(t => t.type === "saida" && t.category?.toLowerCase() === cat.nome.toLowerCase()).reduce((acc, t) => acc + Number(t.amount), 0);
+                   const percentual = gastoCat / totalSaidasMes;
+                   const circ = 2 * Math.PI * 70;
+                   return <circle key={cat.nome} cx="80" cy="80" r="70" fill="none" stroke={cat.cor} strokeWidth="20" strokeDasharray={`${percentual * circ} ${circ}`} strokeDashoffset={-acumulado * circ} strokeLinecap="round" />;
+                })}
+            </svg>
+            <div className="absolute flex flex-col items-center">
+                <span className="text-6xl font-black italic leading-none">{porcentagemGeralMes}%</span>
+                <span className="text-[10px] text-zinc-500 font-black tracking-widest uppercase italic mt-2">Gasto</span>
+            </div>
+            </div>
+            <div className="flex flex-wrap justify-center gap-6 mb-8 w-full">
+            {categoriasDosLimites.map(c => (
+                <div key={c.nome} className="flex flex-col items-center gap-1">
+                <div className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: c.cor }} />
+                <span className="text-2xl">{c.emoji}</span>
+                </div>
+            ))}
+            </div>
+            <p className="text-zinc-500 font-black text-[11px] uppercase italic tracking-tight text-center">
+            <span className="text-white text-base">R$ {totalSaidasMes.toLocaleString('pt-BR')}</span> DE R$ {orcamentoTotalMes.toLocaleString('pt-BR')}
+            </p>
+        </div>
+      </div>
+
+      {/* LIMITES POR CATEGORIA */}
+      <div 
+        className="bg-[#111] rounded-[1.5rem] border border-white/5 flex items-center justify-center transition-all duration-300"
+        style={{ minHeight: alturas.lim > 0 ? `${alturas.lim + 24}px` : "auto" }}
+      >
+        <div ref={contentLimites} className="w-[87%] flex flex-col gap-8 py-3">
+          <h3 className="text-xl font-black italic uppercase tracking-tighter">Limites por Categoria</h3>
+          <div className="space-y-6">
+            {metas.map(meta => {
+              const gastoCatMes = transacoesMesLogica.filter(t => t.type === "saida" && t.category?.toLowerCase() === meta.category?.toLowerCase()).reduce((acc, t) => acc + Number(t.amount), 0);
+              const progresso = Math.min((gastoCatMes / Number(meta.amount)) * 100, 100);
+              const excedeu = gastoCatMes > Number(meta.amount);
+              const catInfo = MASTER_CATS.find(c => c.nome.toLowerCase() === meta.category?.toLowerCase());
+              return (
+                <div key={meta.id} className="space-y-2">
+                  <div className="flex justify-between items-end">
+                    <span className="text-[10px] font-black uppercase italic">{catInfo?.emoji} {meta.category}</span>
+                    <span className="text-[10px] font-black text-zinc-400">R$ {gastoCatMes.toLocaleString('pt-BR')} / {Number(meta.amount).toLocaleString('pt-BR')}</span>
+                  </div>
+                  <div className="w-full bg-white/5 h-1.5 rounded-full overflow-hidden">
+                    <div className={`h-full transition-all duration-1000 ${excedeu ? "bg-red-500 shadow-[0_0_8px_#ef4444]" : "bg-yellow-400"}`} style={{ width: `${progresso}%` }} />
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      </div>
+
+      {/* GRÁFICO DE LINHA */}
+      <div className="bg-[#0c0c0c] rounded-[2.5rem] border border-white/5 min-h-[389px] flex items-center justify-center overflow-hidden relative shadow-2xl">
+        <div className="w-[87%] flex flex-col">
+            <div className="mb-10 flex justify-between items-start">
+            <div>
+                <h3 className="text-base font-black italic uppercase tracking-[0.2em] text-white">Rastreamento Diário</h3>
+                <p className="text-[10px] text-zinc-500 font-bold uppercase italic mt-1">Fluxo Real: Dia 01 ao 30</p>
+            </div>
+            <div className="bg-zinc-900/50 px-3 py-1 rounded-full border border-white/5">
+                <span className="text-[9px] font-black text-yellow-400 italic tracking-widest">LIVE ANALYTICS</span>
+            </div>
+            </div>
+
+            <div className="overflow-x-auto pb-6 scrollbar-hide relative">
+            <div style={{ width: `${timelineData.width}px` }} className="relative h-[280px]">
+                <div className="absolute inset-0 h-[200px] flex flex-col justify-between pointer-events-none">
+                <div className="w-full border-t border-white/[0.03] pt-1"><span className="text-[7px] font-black text-zinc-600 italic">MAX R$ {timelineData.maxValor.toFixed(0)}</span></div>
+                <div className="w-full border-t border-white/[0.03] pt-1"><span className="text-[7px] font-black text-zinc-600 italic">MÉDIA</span></div>
+                <div className="w-full pt-1"><span className="text-[7px] font-black text-zinc-400 italic">BASE R$ 0</span></div>
+                </div>
+                <svg width={timelineData.width} height="200" className="relative z-10 overflow-visible">
+                <line x1="0" y1="200" x2={timelineData.width} y2="200" stroke="white" strokeWidth="4" strokeLinecap="round" style={{ opacity: 0.8 }} />
+                {timelineData.series.map((serie) => {
+                    if (!serie.pontos.some(p => p.y > 0)) return null;
+                    return serie.pontos.map((p, pIdx) => {
+                    if (p.y <= 0) return null;
+                    const segmento = [serie.pontos[pIdx - 1] || p, p, serie.pontos[pIdx + 1] || p];
+                    const pathData = solveCurve(segmento, 200, timelineData.maxValor);
+                    return (
+                        <g key={pIdx}>
+                        <path d={pathData} fill="none" stroke={serie.cor} strokeWidth="4" strokeLinecap="round" />
+                        <circle cx={p.x} cy={200 - (p.y / timelineData.maxValor) * 200} r="6" fill={serie.cor} className="opacity-20 animate-pulse" />
+                        <circle cx={p.x} cy={200 - (p.y / timelineData.maxValor) * 200} r="3" fill={serie.cor} stroke="#000" strokeWidth="2" />
+                        </g>
+                    );
+                    });
+                })}
+                </svg>
+                <div className="absolute top-[210px] left-0 right-0 flex justify-between pointer-events-none">
+                {timelineData.series[0].pontos.map((p, i) => (
+                    <div key={i} className="flex flex-col items-center" style={{ width: '1px' }}>
+                    <div className="w-[1px] h-2 bg-zinc-800 mb-2" />
+                    <span className={`text-[10px] font-black italic ${p.y > 0 ? 'text-white' : 'text-zinc-600'}`}>{p.dia}</span>
+                    </div>
+                ))}
+                </div>
+            </div>
+            </div>
+        </div>
+      </div>
+
+      {/* ATIVIDADE RECENTE */}
+      <div 
+        className="bg-[#111] rounded-[1.5rem] border border-white/5 flex items-center justify-center transition-all duration-300"
+        style={{ minHeight: alturas.atv > 0 ? `${alturas.atv + 24}px` : "auto" }}
+      >
+        <div ref={contentAtividade} className="w-[87%] flex flex-col gap-6 py-3">
+          <div className="flex justify-between items-center">
+            <h3 className="text-xl font-black italic uppercase tracking-tighter">Atividade</h3>
+            <span className="text-[9px] font-black text-zinc-500 uppercase tracking-widest italic">Recentes</span>
+          </div>
+          <div className="space-y-3">
+            {transacoes.slice(0, 4).map((t) => {
+              const catInfo = MASTER_CATS.find(c => c.nome.toLowerCase() === t.category?.toLowerCase());
+              return (
+                <div key={t.id} className="flex justify-between items-center bg-black/40 p-4 rounded-2xl border border-white/5">
+                  <div className="flex items-center gap-3">
+                    <span className="text-xl">{t.type === 'entrada' ? "💰" : (catInfo?.emoji || "💸")}</span>
+                    <div>
+                      <p className="text-white font-black italic uppercase text-[10px] leading-none">{t.category}</p>
+                      <p className="text-zinc-600 text-[8px] font-bold uppercase mt-1">{new Date(t.created_at).toLocaleDateString('pt-BR')}</p>
+                    </div>
+                  </div>
+                  <span className={`text-sm font-black italic ${t.type === 'entrada' ? 'text-green-500' : 'text-white'}`}>
+                    {t.type === 'entrada' ? '+' : '-'} R$ {Number(t.amount).toLocaleString('pt-BR')}
+                  </span>
+                </div>
+              );
+            })}
+            <button onClick={() => router.push("/historico")} className="w-full py-4 mt-2 bg-zinc-900 border border-white/5 rounded-2xl text-[9px] font-black uppercase tracking-[0.2em] italic">Ver atividade Completa →</button>
+          </div>
+        </div>
+      </div>
+
+      {/* MODAL REGISTRO */}
+      {showModal && (
+        <div className="fixed inset-0 bg-black/95 backdrop-blur-md z-[150] flex items-center justify-center p-6">
+          <div className="bg-[#111] w-full max-sm rounded-[2rem] p-8 border border-white/10">
+            <h2 className="text-2xl font-black italic uppercase mb-6 text-center">Novo Registro</h2>
+            <div className="grid grid-cols-2 gap-2 bg-black p-1 rounded-2xl mb-6">
+              <button onClick={() => {setTipo("saida"); setCatSel("")}} className={`py-3 rounded-xl font-black text-[10px] uppercase transition ${tipo === "saida" ? "bg-red-500 text-white" : "text-zinc-500"}`}>Saída</button>
+              <button onClick={() => {setTipo("entrada"); setCatSel("Receita")}} className={`py-3 rounded-xl font-black text-[10px] uppercase transition ${tipo === "entrada" ? "bg-green-500 text-white" : "text-zinc-500"}`}>Entrada</button>
+            </div>
+            <div className="grid grid-cols-3 gap-2 mb-6 max-h-40 overflow-y-auto">
+              {tipo === "saida" ? (
+                MASTER_CATS.map(c => (
+                  <button key={c.nome} onClick={() => setCatSel(c.nome)} className={`p-2 rounded-xl border transition-all flex flex-col items-center ${catSel === c.nome ? "border-yellow-400 bg-yellow-400/10" : "border-white/5 bg-black/40"}`}>
+                    <span className="text-lg">{c.emoji}</span>
+                    <span className="text-[6px] font-black uppercase text-center">{c.nome}</span>
+                  </button>
+                ))
+              ) : (
+                <>
+                   <button onClick={() => setCatSel("Receita")} className={`p-2 rounded-xl border transition-all flex flex-col items-center ${catSel === "Receita" ? "border-green-500 bg-green-500/10" : "border-white/5 bg-black/40"}`}>
+                    <span className="text-lg">💰</span>
+                    <span className="text-[6px] font-black uppercase">Receita</span>
+                  </button>
+                  {metasDesejo.map(m => (
+                    <button key={m.id} onClick={() => setCatSel(`OBJ: ${m.name}`)} className={`p-2 rounded-xl border transition-all flex flex-col items-center ${catSel === `OBJ: ${m.name}` ? "border-yellow-400 bg-yellow-400/10" : "border-white/5 bg-black/40"}`}>
+                      <span className="text-lg">🎯</span>
+                      <span className="text-[6px] font-black uppercase text-center">{m.name}</span>
+                    </button>
+                  ))}
+                </>
+              )}
+            </div>
+            <input type="text" inputMode="numeric" placeholder="R$ 0,00" value={valor} onChange={(e) => setValor(maskMoney(e.target.value))} className="w-full bg-black border border-white/10 p-5 rounded-2xl text-3xl font-black italic outline-none text-center focus:border-yellow-400 mb-6" />
+            <button onClick={async () => {
+                const valorNum = parseFloat(valor.replace(",", "."));
+                const { data: { user } } = await supabase.auth.getUser();
+                await supabase.from("transactions").insert({ user_id: user?.id, type: tipo, category: catSel || (tipo === 'entrada' ? 'Receita' : 'Outros'), amount: valorNum });
+                setShowModal(false); setValor(""); setCatSel(""); loadData(); notify("Registrado!");
+            }} className="w-full bg-yellow-400 text-black py-5 rounded-2xl font-black uppercase text-[10px] mb-3">Confirmar</button>
+            <button onClick={() => setShowModal(false)} className="w-full text-zinc-500 font-black text-[9px] uppercase">Cancelar</button>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL NOVO OBJETIVO */}
+      {showDreamModal && (
+        <div className="fixed inset-0 bg-black/95 backdrop-blur-md z-[200] flex items-center justify-center p-6">
+          <div className="bg-[#111] w-full max-w-sm rounded-[2rem] p-8 border border-white/10 shadow-2xl">
+            <h2 className="text-2xl font-black italic uppercase text-center mb-8">Novo Objetivo</h2>
+            <div className="space-y-4">
+              <input type="text" placeholder="NOME DO SONHO (EX: VIAGEM)" value={dreamNome} onChange={(e) => setDreamNome(e.target.value.toUpperCase())} className="w-full bg-black border border-white/10 p-5 rounded-2xl text-[10px] font-black italic outline-none focus:border-yellow-400" />
+              <input type="text" inputMode="numeric" placeholder="VALOR TOTAL R$ 0,00" value={dreamValor} onChange={(e) => setDreamValor(maskMoney(e.target.value))} className="w-full bg-black border border-white/10 p-5 rounded-2xl text-2xl font-black italic outline-none text-center focus:border-yellow-400" />
+            </div>
+            <button onClick={handleAddDream} className="w-full bg-yellow-400 text-black py-5 rounded-2xl font-black uppercase text-[10px] mt-8 italic">Criar Objetivo</button>
+            <button onClick={() => setShowDreamModal(false)} className="w-full mt-4 text-zinc-600 font-black text-[9px] uppercase">Cancelar</button>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL NOVO FIXO */}
+      {showFixedModal && (
+        <div className="fixed inset-0 bg-black/95 backdrop-blur-md z-[150] flex items-center justify-center p-6">
+          <div className="bg-[#111] w-full max-w-sm rounded-[2rem] p-8 border border-white/10 shadow-2xl">
+            <h2 className="text-2xl font-black italic uppercase mb-8 text-yellow-400">Nova Sentença Fixa</h2>
+            <div className="space-y-6">
+              <input type="text" placeholder="NOME DO GASTO" value={fixoNome} onChange={e => setFixoNome(e.target.value)} className="w-full bg-black border border-white/5 p-5 rounded-2xl text-[11px] font-black italic text-white outline-none focus:border-yellow-400" />
+              <input type="text" inputMode="numeric" placeholder="VALOR (0,00)" value={fixoValor} onChange={e => setFixoValor(maskMoney(e.target.value))} className="w-full bg-black border border-white/5 p-5 rounded-2xl text-[11px] font-black italic text-white outline-none focus:border-yellow-400" />
+              <input type="text" inputMode="numeric" placeholder="00/00/0000" value={fixoData} onChange={e => setFixoData(maskDate(e.target.value))} className="w-full bg-black border border-white/10 p-5 rounded-2xl text-[11px] font-black italic text-white outline-none focus:border-yellow-400" />
+            </div>
+            <button onClick={handleAddFixed} className="w-full bg-yellow-400 text-black py-5 rounded-2xl font-black uppercase text-[10px] mt-10 active:scale-95 italic">Confirmar</button>
+            <button onClick={() => setShowFixedModal(false)} className="w-full py-4 text-zinc-500 font-black text-[9px] uppercase mt-2">Cancelar</button>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}

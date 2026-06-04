@@ -1,0 +1,20 @@
+{"timestamp":"00:00:35.172","source":"Server","level":"WARN","message":"⚠ Slow filesystem detected. The benchmark took 255ms. If C:\\Users\\info\\Documents\\MindCash-finance\\.next/dev is a network drive, consider moving it to a local folder.\nSee more: https://nextjs.org/docs/app/guides/local-development"}
+{"timestamp":"00:00:38.130","source":"Server","level":"LOG","message":"○ Compiling middleware ..."}
+{"timestamp":"00:00:40.599","source":"Server","level":"LOG","message":""}
+{"timestamp":"00:00:40.600","source":"Server","level":"LOG","message":"  We detected TypeScript in your project and reconfigured your tsconfig.json file for you."}
+{"timestamp":"00:00:40.600","source":"Server","level":"LOG","message":"  The following suggested values were added to your tsconfig.json. These values can be changed to fit your project's needs:\n"}
+{"timestamp":"00:00:40.601","source":"Server","level":"LOG","message":"  \t- include was updated to add '.next/dev/types/**/*.ts'"}
+{"timestamp":"00:00:40.601","source":"Server","level":"LOG","message":""}
+{"timestamp":"00:00:40.602","source":"Server","level":"LOG","message":"  The following mandatory changes were made to your tsconfig.json:\n"}
+{"timestamp":"00:00:40.603","source":"Server","level":"LOG","message":"  \t- jsx was set to react-jsx (next.js uses the React automatic runtime)"}
+{"timestamp":"00:00:40.603","source":"Server","level":"LOG","message":""}
+{"timestamp":"00:00:47.729","source":"Server","level":"LOG","message":"- Experiments (use with caution):"}
+{"timestamp":"00:00:47.738","source":"Server","level":"LOG","message":"  · optimizePackageImports"}
+{"timestamp":"00:00:47.739","source":"Server","level":"LOG","message":""}
+{"timestamp":"00:11:12.143","source":"Server","level":"LOG","message":"○ Compiling / ..."}
+{"timestamp":"00:11:59.030","source":"Server","level":"LOG","message":"○ Compiling /auth/login ..."}
+{"timestamp":"00:12:06.382","source":"Browser","level":"INFO","message":"%cDownload the React DevTools for a better development experience: https://react.dev/link/react-devtools font-weight:bold"}
+{"timestamp":"00:12:06.497","source":"Browser","level":"LOG","message":"🔄 Getting initial auth session..."}
+{"timestamp":"00:12:06.497","source":"Browser","level":"LOG","message":"🔄 Setting up auth state listener..."}
+{"timestamp":"00:12:06.519","source":"Browser","level":"LOG","message":"❌ No authenticated user on load"}
+{"timestamp":"00:12:06.519","source":"Browser","level":"LOG","message":"🔄 Auth state change detected: No user"}
