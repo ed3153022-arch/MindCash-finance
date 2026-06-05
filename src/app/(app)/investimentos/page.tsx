@@ -418,7 +418,7 @@ export default function InvestimentosPage() {
 
     return (
       <div className="w-full shrink-0 px-1">
-        <div className="bg-zinc-900/40 border border-zinc-800 rounded-2xl p-6 md:p-8 overflow-hidden w-full flex flex-col justify-between card-fade" style={{ animationDelay: '50ms' }}>
+        <div className="bg-zinc-900/40 border border-zinc-800 rounded-2xl p-6 md:p-8 overflow-hidden w-full flex flex-col justify-between card-fade" data-delay="2">
           <div className="flex flex-col gap-4 mb-4">
             <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
               <div>
@@ -468,18 +468,36 @@ export default function InvestimentosPage() {
     <div className="bg-black text-white font-sans uppercase tracking-tighter min-h-screen pb-24 relative overflow-x-hidden">
       <style dangerouslySetInnerHTML={{__html: `
         @keyframes premiumFadeIn {
-          from { opacity: 0; transform: translateY(15px); }
-          to { opacity: 1; transform: translateY(0); }
+          from { 
+            opacity: 0; 
+            transform: translateY(20px); 
+          }
+          to { 
+            opacity: 1; 
+            transform: translateY(0); 
+          }
         }
+        
         .card-fade {
           opacity: 0;
-          animation: premiumFadeIn 0.5s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+          animation: premiumFadeIn 0.6s cubic-bezier(0.23, 1, 0.32, 1) forwards;
+          animation-fill-mode: backwards;
         }
+        
+        /* Staggered delays for cascading entry animation */
+        .card-fade[data-delay="0"] { animation-delay: 0ms; }
+        .card-fade[data-delay="1"] { animation-delay: 100ms; }
+        .card-fade[data-delay="2"] { animation-delay: 200ms; }
+        .card-fade[data-delay="3"] { animation-delay: 300ms; }
+        .card-fade[data-delay="4"] { animation-delay: 400ms; }
+        .card-fade[data-delay="5"] { animation-delay: 500ms; }
+        .card-fade[data-delay="6"] { animation-delay: 600ms; }
+        .card-fade[data-delay="7"] { animation-delay: 700ms; }
       `}} />
-      <div className="w-full min-h-screen bg-black text-white px-4 md:px-8 py-6">
-        <div className="max-w-[1200px] mx-auto w-full flex flex-col gap-8">
+      <div className="w-full min-h-screen bg-black text-white px-4 md:px-8 py-4">
+        <div className="max-w-[1240px] mx-auto w-full flex flex-col gap-6 lg:gap-8">
           {/* HEADER DINÂMICO */}
-          <header className="bg-zinc-900/40 border border-zinc-800 rounded-2xl p-6 md:p-8 overflow-hidden w-full flex flex-col justify-between card-fade" style={{ animationDelay: '50ms' }}>
+          <header className="bg-zinc-900/40 border border-zinc-800 rounded-2xl p-6 md:p-8 overflow-hidden w-full flex flex-col justify-between card-fade" data-delay="0">
             <div className="flex flex-col gap-6 lg:flex-row lg:items-end lg:justify-between">
               <div>
                 <p className="text-[10px] text-zinc-500 font-bold tracking-[0.4em] mb-2">PORTFÓLIO TOTAL</p>
@@ -498,14 +516,15 @@ export default function InvestimentosPage() {
             </div>
           </header>
 
-          <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 w-full items-start">
+          <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 lg:gap-8 items-start w-full">
+            {/* COLUNA ESQUERDA (Desktop: 7 colunas, Mobile: 1 coluna) */}
             <div className="lg:col-span-7 flex flex-col gap-6 w-full">
 
             {/* DUPLA DE BOTÕES DE AÇÃO */}
           <div className="grid grid-cols-2 gap-3">
             <button 
               onClick={() => setIsMetaDrawerOpen(true)}
-              className="bg-[#050505] hover:bg-zinc-950 active:scale-[0.99] transition-all p-6 lg:p-8 rounded-[3rem] border border-white/10 flex items-center justify-center gap-3 group overflow-hidden"
+              className="bg-[#050505] hover:bg-zinc-950 active:scale-[0.99] transition-all p-6 md:p-8 rounded-[3rem] border border-white/10 flex items-center justify-center gap-3 group overflow-hidden card-fade" data-delay="1"
             >
               <Sliders className="text-zinc-500 group-hover:text-cyan-400 transition-colors" size={16} />
               <span className="text-[10px] font-black tracking-[0.2em] text-zinc-400 group-hover:text-white transition-colors whitespace-normal break-words">
@@ -515,7 +534,7 @@ export default function InvestimentosPage() {
 
             <button 
               onClick={() => setIsDrawerOpen(true)}
-              className="bg-[#050505] hover:bg-zinc-950 active:scale-[0.99] transition-all p-6 lg:p-8 rounded-[3rem] border border-dashed border-white/10 flex items-center justify-center gap-3 group overflow-hidden"
+              className="bg-[#050505] hover:bg-zinc-950 active:scale-[0.99] transition-all p-6 md:p-8 rounded-[3rem] border border-dashed border-white/10 flex items-center justify-center gap-3 group overflow-hidden card-fade" data-delay="1"
             >
               <Plus className="text-zinc-500 group-hover:text-yellow-400 group-hover:rotate-90 transition-transform duration-300" size={16} />
               <span className="text-[10px] font-black tracking-[0.2em] text-zinc-400 group-hover:text-white transition-colors whitespace-normal break-words">
@@ -565,39 +584,40 @@ export default function InvestimentosPage() {
             </div>
           )}
 
-          <div className="grid grid-cols-1 mt-6 gap-6 lg:grid-cols-12 lg:gap-8 w-full">
-            {/* COLUNA ESQUERDA - CONTEÚDO PRINCIPAL (Desktop: col-span-7 xl:col-span-8) */}
-            <div className="lg:col-span-7 xl:col-span-8 flex flex-col gap-6">
-              {/* Grid de Categorias */}
+              {/* Grid de Categorias - Desktop e Mobile */}
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 {categoriasOrdenadas.map((cat, index) => (
                   <div
                     key={cat.categoria}
-                    className={`bg-zinc-900/40 border border-zinc-800 rounded-2xl p-6 md:p-8 overflow-hidden w-full flex flex-col justify-between ${
+                    className={`bg-zinc-900/40 border border-zinc-800 rounded-2xl p-6 md:p-8 overflow-hidden w-full flex flex-col justify-between card-fade ${
                       index === 0 ? "text-cyan-400" : "text-fuchsia-400"
-                    }`}
+                    }`} data-delay={2 + index}
                   >
-                    <p className="text-[8px] font-black tracking-[0.4em]">{cat.label}</p>
-                    <p className="text-3xl font-black tracking-tight mt-3">{Math.round(cat.percentual)}%</p>
+                    <div className="flex flex-col justify-between h-full gap-4">
+                      <p className="text-[8px] font-black tracking-[0.4em]">{cat.label}</p>
+                      <p className="text-3xl font-black tracking-tight">{Math.round(cat.percentual)}%</p>
+                    </div>
                   </div>
                 ))}
               </div>
 
               {/* Card Principais Ativos */}
-              <div className="bg-zinc-900/40 border border-zinc-800 rounded-2xl p-6 md:p-8 overflow-hidden w-full flex flex-col justify-between card-fade" style={{ animationDelay: '150ms' }}>
-                <div className="flex justify-between items-center mb-3">
-                  <p className="text-[8px] text-zinc-500 font-black tracking-[0.4em]">PRINCIPAIS ATIVOS</p>
-                  <span className="text-[8px] text-zinc-400">{topAtivos.length} ITEMS</span>
-                </div>
-                <div className="space-y-4">
-                  {topAtivos.map((ativo) => {
-                    const statusLabel = ativo.variation >= 0 ? `▲ ${ativo.variation.toFixed(1)}%` : `▼ ${Math.abs(ativo.variation).toFixed(1)}%`;
-                    const categoryLabel =
-                      ativo.categoria === "AÇÕES BRASIL"
-                        ? "VARIÁVEL"
-                        : ativo.categoria === "INTERNACIONAL"
-                        ? "OFFSHORE"
-                        : ativo.categoria === "CRIPTOMOEDAS"
+              <div className="bg-zinc-900/40 border border-zinc-800 rounded-2xl p-6 md:p-8 overflow-hidden w-full flex flex-col justify-between card-fade" data-delay="4">
+                <div className="flex flex-col justify-between gap-4 h-full">
+                  <div>
+                    <div className="flex justify-between items-center mb-4">
+                      <p className="text-[8px] text-zinc-500 font-black tracking-[0.4em]">PRINCIPAIS ATIVOS</p>
+                      <span className="text-[8px] text-zinc-400">{topAtivos.length} ITEMS</span>
+                    </div>
+                    <div className="space-y-4">
+                      {topAtivos.map((ativo) => {
+                        const statusLabel = ativo.variation >= 0 ? `▲ ${ativo.variation.toFixed(1)}%` : `▼ ${Math.abs(ativo.variation).toFixed(1)}%`;
+                        const categoryLabel =
+                          ativo.categoria === "AÇÕES BRASIL"
+                            ? "VARIÁVEL"
+                            : ativo.categoria === "INTERNACIONAL"
+                            ? "OFFSHORE"
+                            : ativo.categoria === "CRIPTOMOEDAS"
                         ? "CRIPTOMO"
                         : ativo.categoria;
 
@@ -616,29 +636,33 @@ export default function InvestimentosPage() {
                       </div>
                     );
                   })}
+                    </div>
+                  </div>
                 </div>
               </div>
             </div>
 
-            {/* COLUNA DIREITA - SIDEBAR TÁTICA (Desktop: col-span-5 xl:col-span-4) */}
-            <div className="lg:col-span-5 xl:col-span-4 flex flex-col gap-6">
-              {/* Grid Perfil + Liberdade (empilhado em desktop) */}
-              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-1">
-                <div className="bg-[#050505] rounded-[3rem] p-6 lg:p-8 border border-white/10 overflow-hidden animate-premium-fade" style={{ animationDelay: '100ms' }}>
-                  <div className="flex justify-between items-center mb-3">
-                    <div>
-                      <p className="text-[8px] text-zinc-500 font-black tracking-[0.4em]">PERFIL DE EXPOSIÇÃO</p>
-                      <p className="text-[9px] text-zinc-400 font-black tracking-[0.3em] mt-1">TERMÔMETRO DE RISCO</p>
+            {/* COLUNA DIREITA (Desktop: 5 colunas, Mobile: 1 coluna) - Widgets empilhados */}
+            <div className="lg:col-span-5 flex flex-col gap-6 w-full">
+              {/* CARD PERFIL DE EXPOSIÇÃO */}
+              <div className="bg-[#050505] rounded-[3rem] p-6 md:p-8 border border-white/10 overflow-hidden card-fade" data-delay="5">
+                <div className="flex flex-col justify-between gap-4 h-full">
+                  <div>
+                    <div className="flex justify-between items-start gap-3 mb-4">
+                      <div>
+                        <p className="text-[8px] text-zinc-500 font-black tracking-[0.4em]">PERFIL DE EXPOSIÇÃO</p>
+                        <p className="text-[9px] text-zinc-400 font-black tracking-[0.3em] mt-2">TERMÔMETRO DE RISCO</p>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={handleOpenPerfilDrawer}
+                        className="bg-white/5 hover:bg-white/10 p-2 rounded-full transition-colors flex-shrink-0"
+                      >
+                        <Settings size={16} className="text-zinc-400" />
+                      </button>
                     </div>
-                    <button
-                      type="button"
-                      onClick={handleOpenPerfilDrawer}
-                      className="bg-white/5 hover:bg-white/10 p-2 rounded-full transition-colors"
-                    >
-                      <Settings size={16} className="text-zinc-400" />
-                    </button>
                   </div>
-                  <div className="relative overflow-hidden">
+                  <div className="relative overflow-hidden my-4">
                     <div className="flex justify-center">
                       <svg viewBox="0 0 220 110" className="w-full max-w-[220px]">
                         <path
@@ -661,11 +685,11 @@ export default function InvestimentosPage() {
                     </div>
                     <div className="absolute inset-x-0 top-[40%] flex flex-col items-center">
                       <span className="text-[9px] text-zinc-500 font-black tracking-widest mb-1">PERFIL REAL</span>
-                      <span className="text-2xl md:text-3xl lg:text-4xl font-black tracking-tight truncate-none break-words whitespace-normal">{perfilReal}</span>
+                      <span className="text-2xl md:text-3xl lg:text-4xl font-black tracking-tight break-words whitespace-normal">{perfilReal}</span>
                       <span className="text-[10px] text-cyan-400 font-black tracking-[0.3em] mt-1">{scoreGlobal.toFixed(2)}</span>
                     </div>
                   </div>
-                  <div className="grid grid-cols-2 gap-2 mt-4 text-[8px] text-zinc-500">
+                  <div className="grid grid-cols-2 gap-2 text-[8px] text-zinc-500">
                     <div className="space-y-1">
                       <p className="font-black tracking-widest">SCORE GLOBAL</p>
                       <p className="text-white">{scoreGlobal.toFixed(2)}</p>
@@ -676,44 +700,51 @@ export default function InvestimentosPage() {
                     </div>
                   </div>
                 </div>
-                <div className="bg-zinc-900/40 border border-zinc-800 rounded-2xl p-6 md:p-8 overflow-hidden w-full flex flex-col justify-between card-fade" style={{ animationDelay: '250ms' }}>
-                  <div className="flex justify-between items-end mb-3">
-                    <div>
-                      <p className="text-[8px] text-zinc-500 font-black tracking-[0.4em]">LIBERDADE FINANCEIRA</p>
-                      <h2 className="text-2xl md:text-3xl lg:text-4xl font-black tracking-tight truncate-none break-words whitespace-normal">{anosParaLiberdade} ANOS</h2>
+              </div>
+
+              {/* CARD LIBERDADE FINANCEIRA */}
+              <div className="bg-zinc-900/40 border border-zinc-800 rounded-2xl p-6 md:p-8 overflow-hidden w-full flex flex-col justify-between card-fade" data-delay="6">
+                <div className="flex flex-col justify-between gap-4 h-full">
+                  <div>
+                    <p className="text-[8px] text-zinc-500 font-black tracking-[0.4em] mb-3">LIBERDADE FINANCEIRA</p>
+                    <h2 className="text-2xl md:text-3xl lg:text-4xl font-black tracking-tight break-words whitespace-normal">{anosParaLiberdade} ANOS</h2>
+                  </div>
+                  <div>
+                    <div className="h-2 rounded-full bg-white/5 overflow-hidden mb-4">
+                      <div
+                        className="h-full bg-yellow-400 shadow-[0_0_10px_#eab308]"
+                        style={{ width: `${progressoLiberdadePct}%` }}
+                      />
                     </div>
-                  </div>
-                  <div className="h-2 rounded-full bg-white/5 overflow-hidden mb-3">
-                    <div
-                      className="h-full bg-yellow-400 shadow-[0_0_10px_#eab308]"
-                      style={{ width: `${progressoLiberdadePct}%` }}
-                    />
-                  </div>
-                  <div className="flex justify-between items-center text-[8px] font-black uppercase tracking-[0.3em] text-zinc-400">
-                    <span>{Math.round(progressoLiberdadePct)}% ALVO</span>
-                    <span className="text-right">DATA ESTIMADA: {dataEstimativaTexto}</span>
+                    <div className="flex flex-col sm:flex-row lg:flex-col gap-2 text-[8px] font-black uppercase tracking-[0.3em] text-zinc-400">
+                      <span className="whitespace-nowrap">{Math.round(progressoLiberdadePct)}% ALVO</span>
+                      <span className="text-right whitespace-nowrap">DATA ESTIMADA: {dataEstimativaTexto}</span>
+                    </div>
                   </div>
                 </div>
               </div>
 
-              {/* Card Sugestão Tática */}
-              <div className="bg-zinc-900/40 border border-zinc-800 rounded-2xl p-6 md:p-8 overflow-hidden w-full flex flex-col justify-between card-fade" style={{ animationDelay: '350ms' }}>
-                <div className="flex justify-between items-center mb-3">
-                  <div>
-                    <p className="text-[8px] text-zinc-500 font-black tracking-[0.4em]">SUGESTÃO TÁTICA</p>
-                    <p className="text-[10px] font-black">CONSULTOR AUTOMÁTICO</p>
+              {/* CARD SUGESTÃO TÁTICA */}
+              <div className="bg-zinc-900/40 border border-zinc-800 rounded-2xl p-6 md:p-8 overflow-hidden w-full flex flex-col justify-between card-fade" data-delay="7">
+                <div className="flex flex-col justify-between gap-4 h-full">
+                  <div className="flex justify-between items-start gap-3">
+                    <div>
+                      <p className="text-[8px] text-zinc-500 font-black tracking-[0.4em]">SUGESTÃO TÁTICA</p>
+                      <p className="text-[10px] font-black mt-2">CONSULTOR AUTOMÁTICO</p>
+                    </div>
+                    <ArrowUpRight size={18} className="text-zinc-300 flex-shrink-0" />
                   </div>
-                  <ArrowUpRight size={18} className="text-zinc-300" />
-                </div>
-                <div className={`rounded-3xl border px-3 py-3 text-[9px] font-black ${alertaTaticoConfig.estilo} border-white/10`}>
-                  {alertaTaticoConfig.texto}
+                  <div className={`rounded-3xl border px-3 py-3 text-[9px] font-black ${alertaTaticoConfig.estilo} border-white/10`}>
+                    {alertaTaticoConfig.texto}
+                  </div>
                 </div>
               </div>
             </div>
           </div>
         </div>
       </div>
-    </div>
+
+      {/* Rest of the drawers and modals remain the same */}
 
       {/* DRAWER INTERATIVO PARA CONFIGURAÇÃO DE METAS */}
       <AnimatePresence>
@@ -1003,7 +1034,6 @@ export default function InvestimentosPage() {
           </>
         )}
       </AnimatePresence>
-    </div>
     </div>
   );
 }
